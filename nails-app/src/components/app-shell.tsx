@@ -33,64 +33,71 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState<string>("");
   const [role, setRole] = useState<AppRole>("RECEPTION");
+  const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
 
     async function run() {
-      if (!supabase) {
-        setLoading(false);
-        return;
-      }
-
-      // Fast path: dùng cache RAM để chuyển trang mượt, không chờ round-trip auth mỗi lần
-      if (authCache && Date.now() - authCache.cachedAt < AUTH_CACHE_TTL) {
-        setEmail(authCache.email);
-        setRole(authCache.role);
-        setLoading(false);
-        return;
-      }
-
-      // Fallback cache từ sessionStorage (khi reload tab)
       try {
-        const raw = sessionStorage.getItem("nails.auth.cache");
-        if (raw) {
-          const parsed = JSON.parse(raw) as AuthCache;
-          if (Date.now() - parsed.cachedAt < AUTH_CACHE_TTL) {
-            authCache = parsed;
-            setEmail(parsed.email);
-            setRole(parsed.role);
-            setLoading(false);
-            return;
-          }
+        if (!supabase) {
+          setLoading(false);
+          return;
         }
-      } catch {
-        // ignore cache parse errors
+
+        // Fast path: dùng cache RAM để chuyển trang mượt, không chờ round-trip auth mỗi lần
+        if (authCache && Date.now() - authCache.cachedAt < AUTH_CACHE_TTL) {
+          setEmail(authCache.email);
+          setRole(authCache.role);
+          setLoading(false);
+          return;
+        }
+
+        // Fallback cache từ sessionStorage (khi reload tab)
+        try {
+          const raw = sessionStorage.getItem("nails.auth.cache");
+          if (raw) {
+            const parsed = JSON.parse(raw) as AuthCache;
+            if (Date.now() - parsed.cachedAt < AUTH_CACHE_TTL) {
+              authCache = parsed;
+              setEmail(parsed.email);
+              setRole(parsed.role);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch {
+          // ignore cache parse errors
+        }
+
+        const { data } = await supabase.auth.getSession();
+        const session = data.session;
+
+        if (!session?.user) {
+          router.replace("/login");
+          return;
+        }
+
+        const userRole = await getOrCreateRole(session.user.id);
+        if (!mounted) return;
+
+        const nextCache: AuthCache = {
+          userId: session.user.id,
+          email: session.user.email ?? "",
+          role: userRole,
+          cachedAt: Date.now(),
+        };
+        authCache = nextCache;
+        sessionStorage.setItem("nails.auth.cache", JSON.stringify(nextCache));
+
+        setEmail(nextCache.email);
+        setRole(nextCache.role);
+        setLoading(false);
+      } catch (e) {
+        if (!mounted) return;
+        setAuthError(e instanceof Error ? e.message : "Lỗi xác thực / phân quyền");
+        setLoading(false);
       }
-
-      const { data } = await supabase.auth.getSession();
-      const session = data.session;
-
-      if (!session?.user) {
-        router.replace("/login");
-        return;
-      }
-
-      const userRole = await getOrCreateRole(session.user.id);
-      if (!mounted) return;
-
-      const nextCache: AuthCache = {
-        userId: session.user.id,
-        email: session.user.email ?? "",
-        role: userRole,
-        cachedAt: Date.now(),
-      };
-      authCache = nextCache;
-      sessionStorage.setItem("nails.auth.cache", JSON.stringify(nextCache));
-
-      setEmail(nextCache.email);
-      setRole(nextCache.role);
-      setLoading(false);
     }
 
     run();
@@ -128,6 +135,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return <div className="p-8 text-sm text-neutral-600">Đang kiểm tra đăng nhập...</div>;
+  }
+
+  if (authError) {
+    return (
+      <div className="space-y-3 p-8 text-sm">
+        <p className="font-semibold text-red-600">Không thể xác thực phiên đăng nhập.</p>
+        <p className="text-neutral-700">Chi tiết: {authError}</p>
+        <button
+          onClick={() => router.replace("/login")}
+          className="rounded border px-3 py-2 text-xs"
+        >
+          Về trang login
+        </button>
+      </div>
+    );
   }
 
   return (
