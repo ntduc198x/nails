@@ -22,6 +22,10 @@ function canAccess(role: AppRole, href: string) {
   return false;
 }
 
+type AuthCache = { userId: string; email: string; role: AppRole; cachedAt: number };
+let authCache: AuthCache | null = null;
+const AUTH_CACHE_TTL = 5 * 60 * 1000;
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -39,6 +43,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      // Fast path: dùng cache RAM để chuyển trang mượt, không chờ round-trip auth mỗi lần
+      if (authCache && Date.now() - authCache.cachedAt < AUTH_CACHE_TTL) {
+        setEmail(authCache.email);
+        setRole(authCache.role);
+        setLoading(false);
+        return;
+      }
+
+      // Fallback cache từ sessionStorage (khi reload tab)
+      try {
+        const raw = sessionStorage.getItem("nails.auth.cache");
+        if (raw) {
+          const parsed = JSON.parse(raw) as AuthCache;
+          if (Date.now() - parsed.cachedAt < AUTH_CACHE_TTL) {
+            authCache = parsed;
+            setEmail(parsed.email);
+            setRole(parsed.role);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch {
+        // ignore cache parse errors
+      }
+
       const { data } = await supabase.auth.getSession();
       const session = data.session;
 
@@ -49,8 +78,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       const userRole = await getOrCreateRole(session.user.id);
       if (!mounted) return;
-      setEmail(session.user.email ?? "");
-      setRole(userRole);
+
+      const nextCache: AuthCache = {
+        userId: session.user.id,
+        email: session.user.email ?? "",
+        role: userRole,
+        cachedAt: Date.now(),
+      };
+      authCache = nextCache;
+      sessionStorage.setItem("nails.auth.cache", JSON.stringify(nextCache));
+
+      setEmail(nextCache.email);
+      setRole(nextCache.role);
       setLoading(false);
     }
 
@@ -63,6 +102,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const visibleLinks = useMemo(() => links.filter((l) => canAccess(role, l.href)), [role]);
 
   useEffect(() => {
+    if (!supabase) return;
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        authCache = null;
+        sessionStorage.removeItem("nails.auth.cache");
+      }
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
     if (!loading && !canAccess(role, pathname)) {
       router.replace(visibleLinks[0]?.href ?? "/");
     }
@@ -71,6 +121,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   async function onLogout() {
     if (!supabase) return;
     await supabase.auth.signOut();
+    authCache = null;
+    sessionStorage.removeItem("nails.auth.cache");
     router.replace("/login");
   }
 
