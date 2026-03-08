@@ -7,6 +7,7 @@ const links = [
   { href: "/", label: "Dashboard" },
   { href: "/appointments", label: "Appointments" },
   { href: "/services", label: "Dịch vụ" },
+  { href: "/checkout", label: "Checkout" },
   { href: "/team", label: "Nhân sự" },
 ];
 
