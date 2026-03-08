@@ -1,7 +1,7 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
-import { listTicketsInRange, type ReportTicketRow } from "@/lib/reporting";
+import { getReportBreakdown, listTicketsInRange, type ReportTicketRow } from "@/lib/reporting";
 import { formatVnd } from "@/lib/mock-data";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -32,6 +32,11 @@ export default function ReportsPage() {
   const [toDate, setToDate] = useState(toDateInput(new Date(today.getTime() + 24 * 60 * 60 * 1000)));
 
   const [rows, setRows] = useState<ReportTicketRow[]>([]);
+  const [breakdown, setBreakdown] = useState<{
+    summary: { count: number; subtotal: number; vat: number; revenue: number };
+    by_service: Array<{ service_name: string; qty: number; subtotal: number }>;
+    by_payment: Array<{ method: string; count: number; amount: number }>;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,8 +46,12 @@ export default function ReportsPage() {
       setLoading(true);
       const fromIso = new Date(`${fromDate}T00:00:00`).toISOString();
       const toIso = new Date(`${toDate}T00:00:00`).toISOString();
-      const data = await listTicketsInRange(fromIso, toIso);
+      const [data, summaryData] = await Promise.all([
+        listTicketsInRange(fromIso, toIso),
+        getReportBreakdown(fromIso, toIso),
+      ]);
       setRows(data);
+      setBreakdown(summaryData);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load reports failed");
     } finally {
@@ -56,12 +65,21 @@ export default function ReportsPage() {
   }, []);
 
   const summary = useMemo(() => {
+    if (breakdown?.summary) {
+      return {
+        count: Number(breakdown.summary.count ?? 0),
+        revenue: Number(breakdown.summary.revenue ?? 0),
+        vat: Number(breakdown.summary.vat ?? 0),
+        subtotal: Number(breakdown.summary.subtotal ?? 0),
+      };
+    }
+
     const closed = rows.filter((r) => r.status === "CLOSED");
     const revenue = closed.reduce((acc, r) => acc + Number(r.totals_json?.grand_total ?? 0), 0);
     const vat = closed.reduce((acc, r) => acc + Number(r.totals_json?.vat_total ?? 0), 0);
     const subtotal = closed.reduce((acc, r) => acc + Number(r.totals_json?.subtotal ?? 0), 0);
     return { count: closed.length, revenue, vat, subtotal };
-  }, [rows]);
+  }, [rows, breakdown]);
 
   function exportCsv() {
     const header = ["ticket_id", "created_at", "status", "subtotal", "vat", "grand_total"];
@@ -106,6 +124,56 @@ export default function ReportsPage() {
           <div className="rounded-xl bg-white p-4 shadow-sm">
             <p className="text-sm text-neutral-500">Doanh thu</p>
             <p className="text-xl font-semibold">{formatVnd(summary.revenue)}</p>
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-2xl bg-white p-5 shadow-sm">
+            <h3 className="mb-2 font-semibold">Top dịch vụ</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="text-neutral-500">
+                  <tr>
+                    <th className="py-2">Dịch vụ</th>
+                    <th>SL</th>
+                    <th>Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(breakdown?.by_service ?? []).map((s, idx) => (
+                    <tr key={`${s.service_name}-${idx}`} className="border-t border-neutral-100">
+                      <td className="py-2">{s.service_name}</td>
+                      <td>{s.qty}</td>
+                      <td>{formatVnd(Number(s.subtotal ?? 0))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-white p-5 shadow-sm">
+            <h3 className="mb-2 font-semibold">Theo phương thức thanh toán</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="text-neutral-500">
+                  <tr>
+                    <th className="py-2">Method</th>
+                    <th>Số bill</th>
+                    <th>Số tiền</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(breakdown?.by_payment ?? []).map((p, idx) => (
+                    <tr key={`${p.method}-${idx}`} className="border-t border-neutral-100">
+                      <td className="py-2">{p.method}</td>
+                      <td>{p.count}</td>
+                      <td>{formatVnd(Number(p.amount ?? 0))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 

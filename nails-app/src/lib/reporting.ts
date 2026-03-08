@@ -25,6 +25,27 @@ export async function listTicketsInRange(fromIso: string, toIso: string) {
   return (data ?? []) as ReportTicketRow[];
 }
 
+export async function getReportBreakdown(fromIso: string, toIso: string) {
+  if (!supabase) throw new Error("Supabase chưa cấu hình");
+  await ensureOrgContext();
+
+  const { data, error } = await supabase.rpc("get_report_breakdown_secure", {
+    p_from: fromIso,
+    p_to: toIso,
+  });
+
+  if (error) throw error;
+  return (data ?? {
+    summary: { count: 0, subtotal: 0, vat: 0, revenue: 0 },
+    by_service: [],
+    by_payment: [],
+  }) as {
+    summary: { count: number; subtotal: number; vat: number; revenue: number };
+    by_service: Array<{ service_name: string; qty: number; subtotal: number }>;
+    by_payment: Array<{ method: string; count: number; amount: number }>;
+  };
+}
+
 export async function getTicketDetail(ticketId: string) {
   if (!supabase) throw new Error("Supabase chưa cấu hình");
   await ensureOrgContext();
