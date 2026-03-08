@@ -3,7 +3,7 @@
 import { AppShell } from "@/components/app-shell";
 import { createAppointment, listAppointments } from "@/lib/domain";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type AppointmentRow = {
   id: string;
@@ -27,6 +27,7 @@ export default function AppointmentsPage() {
   const [rows, setRows] = useState<AppointmentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState("ALL");
 
   async function load() {
     try {
@@ -44,6 +45,11 @@ export default function AppointmentsPage() {
   useEffect(() => {
     load();
   }, []);
+
+  const filteredRows = useMemo(() => {
+    if (statusFilter === "ALL") return rows;
+    return rows.filter((r) => r.status === statusFilter);
+  }, [rows, statusFilter]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -64,8 +70,20 @@ export default function AppointmentsPage() {
   return (
     <AppShell>
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-2xl font-bold">Appointments (Supabase)</h2>
+          <select
+            className="rounded-lg border px-3 py-2 text-sm"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="ALL">Tất cả trạng thái</option>
+            <option value="BOOKED">BOOKED</option>
+            <option value="CHECKED_IN">CHECKED_IN</option>
+            <option value="DONE">DONE</option>
+            <option value="CANCELLED">CANCELLED</option>
+            <option value="NO_SHOW">NO_SHOW</option>
+          </select>
         </div>
 
         <form onSubmit={onSubmit} className="grid gap-3 rounded-2xl bg-white p-4 shadow-sm md:grid-cols-4">
@@ -110,7 +128,7 @@ export default function AppointmentsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((a) => {
+                  {filteredRows.map((a) => {
                     const customer = Array.isArray(a.customers)
                       ? a.customers[0]?.name
                       : a.customers?.name;

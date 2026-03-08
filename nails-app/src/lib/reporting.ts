@@ -46,6 +46,23 @@ export async function getReportBreakdown(fromIso: string, toIso: string) {
   };
 }
 
+export async function listTimeEntriesInRange(fromIso: string, toIso: string) {
+  if (!supabase) return [];
+  const { orgId } = await ensureOrgContext();
+
+  const { data, error } = await supabase
+    .from("time_entries")
+    .select("staff_user_id,clock_in,clock_out")
+    .eq("org_id", orgId)
+    .gte("clock_in", fromIso)
+    .lt("clock_in", toIso)
+    .order("clock_in", { ascending: false })
+    .limit(500);
+
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function getTicketDetail(ticketId: string) {
   if (!supabase) throw new Error("Supabase chưa cấu hình");
   await ensureOrgContext();

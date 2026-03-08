@@ -1,7 +1,7 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
-import { getReportBreakdown, listTicketsInRange, type ReportTicketRow } from "@/lib/reporting";
+import { getReportBreakdown, listTicketsInRange, listTimeEntriesInRange, type ReportTicketRow } from "@/lib/reporting";
 import { formatVnd } from "@/lib/mock-data";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -40,6 +40,7 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [breakdownError, setBreakdownError] = useState<string | null>(null);
+  const [staffHours, setStaffHours] = useState<Array<{ staff: string; minutes: number; entries: number }>>([]);
 
   async function load() {
     try {
@@ -55,11 +56,30 @@ export default function ReportsPage() {
 
       // Breakdown là phần nâng cao, lỗi thì degrade graceful
       try {
-        const summaryData = await getReportBreakdown(fromIso, toIso);
+        const [summaryData, timeRows] = await Promise.all([
+          getReportBreakdown(fromIso, toIso),
+          listTimeEntriesInRange(fromIso, toIso),
+        ]);
         setBreakdown(summaryData);
+
+        const map = new Map<string, { minutes: number; entries: number }>();
+        for (const r of timeRows as Array<{ staff_user_id: string; clock_in: string; clock_out: string | null }>) {
+          const key = r.staff_user_id;
+          const start = new Date(r.clock_in).getTime();
+          const end = r.clock_out ? new Date(r.clock_out).getTime() : Date.now();
+          const mins = Math.max(0, Math.round((end - start) / 60000));
+          const prev = map.get(key) ?? { minutes: 0, entries: 0 };
+          map.set(key, { minutes: prev.minutes + mins, entries: prev.entries + 1 });
+        }
+        setStaffHours(
+          Array.from(map.entries())
+            .map(([staff, v]) => ({ staff, minutes: v.minutes, entries: v.entries }))
+            .sort((a, b) => b.minutes - a.minutes),
+        );
       } catch (e) {
         setBreakdown(null);
         setBreakdownError(e instanceof Error ? e.message : "Breakdown RPC failed");
+        setStaffHours([]);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load reports failed");
@@ -142,7 +162,7 @@ export default function ReportsPage() {
           </div>
         )}
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-3">
           <div className="rounded-2xl bg-white p-5 shadow-sm">
             <h3 className="mb-2 font-semibold">Top dịch vụ</h3>
             <div className="overflow-x-auto">
@@ -184,6 +204,30 @@ export default function ReportsPage() {
                       <td className="py-2">{p.method}</td>
                       <td>{p.count}</td>
                       <td>{formatVnd(Number(p.amount ?? 0))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-white p-5 shadow-sm">
+            <h3 className="mb-2 font-semibold">Theo thợ (giờ làm)</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="text-neutral-500">
+                  <tr>
+                    <th className="py-2">Staff user id</th>
+                    <th>Số ca</th>
+                    <th>Phút</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {staffHours.map((s, idx) => (
+                    <tr key={`${s.staff}-${idx}`} className="border-t border-neutral-100">
+                      <td className="py-2">{s.staff}</td>
+                      <td>{s.entries}</td>
+                      <td>{s.minutes}</td>
                     </tr>
                   ))}
                 </tbody>
