@@ -27,45 +27,28 @@ export async function listTicketsInRange(fromIso: string, toIso: string) {
 
 export async function getTicketDetail(ticketId: string) {
   if (!supabase) throw new Error("Supabase chưa cấu hình");
-  const { orgId } = await ensureOrgContext();
+  await ensureOrgContext();
 
-  const { data: ticket, error: ticketErr } = await supabase
-    .from("tickets")
-    .select("id,created_at,status,totals_json,customer_id")
-    .eq("org_id", orgId)
-    .eq("id", ticketId)
-    .single();
-  if (ticketErr) throw ticketErr;
+  const { data, error } = await supabase.rpc("get_ticket_detail_secure", {
+    p_ticket_id: ticketId,
+  });
 
-  const [{ data: customer }, { data: rawItems, error: itemErr }, { data: payment }, { data: receipt }] = await Promise.all([
-    supabase.from("customers").select("name,phone").eq("id", ticket.customer_id).maybeSingle(),
-    supabase.from("ticket_items").select("service_id,qty,unit_price,vat_rate").eq("ticket_id", ticketId),
-    supabase.from("payments").select("method,amount,status,created_at").eq("ticket_id", ticketId).limit(1).maybeSingle(),
-    supabase
-      .from("receipts")
-      .select("public_token,expires_at")
-      .eq("ticket_id", ticketId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-  ]);
+  if (error) throw error;
+  if (!data) throw new Error("Không có dữ liệu ticket");
 
-  if (itemErr) throw itemErr;
+  const payload = data as {
+    ticket: { id: string; created_at: string; status: string; totals_json?: { subtotal?: number; vat_total?: number; grand_total?: number } };
+    customer?: { name?: string; phone?: string };
+    payment?: { method?: string; amount?: number; status?: string; created_at?: string };
+    receipt?: { public_token?: string; expires_at?: string };
+    items?: Array<{ qty: number; unit_price: number; vat_rate: number; service_name: string }>;
+  };
 
-  const serviceIds = Array.from(new Set((rawItems ?? []).map((i) => i.service_id).filter(Boolean)));
-  let serviceNameMap = new Map<string, string>();
-
-  if (serviceIds.length) {
-    const { data: services } = await supabase.from("services").select("id,name").in("id", serviceIds);
-    serviceNameMap = new Map((services ?? []).map((s) => [s.id as string, s.name as string]));
-  }
-
-  const items = (rawItems ?? []).map((i) => ({
-    qty: i.qty,
-    unit_price: i.unit_price,
-    vat_rate: i.vat_rate,
-    service_name: i.service_id ? serviceNameMap.get(i.service_id as string) ?? "(service deleted)" : "-",
-  }));
-
-  return { ticket, customer, items, payment, receipt };
+  return {
+    ticket: payload.ticket,
+    customer: payload.customer ?? null,
+    payment: payload.payment ?? null,
+    receipt: payload.receipt ?? null,
+    items: payload.items ?? [],
+  };
 }
