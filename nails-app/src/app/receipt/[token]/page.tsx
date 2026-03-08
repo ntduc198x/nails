@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import Link from "next/link";
 
 function formatVnd(n: number) {
   return `${new Intl.NumberFormat("vi-VN").format(n)}đ`;
@@ -50,9 +51,17 @@ export default async function ReceiptPage({ params }: { params: Promise<Params> 
   const totals = (ticket.totals_json as { subtotal?: number; vat_total?: number; grand_total?: number } | null) ?? {};
 
   return (
-    <main className="mx-auto max-w-2xl space-y-4 p-6">
-      <h1 className="text-2xl font-bold">Receipt</h1>
-      <div className="rounded-xl border p-4">
+    <main className="mx-auto max-w-2xl space-y-4 bg-white p-6 print:max-w-full print:p-2">
+      <div className="flex items-center justify-between print:hidden">
+        <h1 className="text-2xl font-bold">Receipt</h1>
+        <div className="flex gap-2">
+          <Link href="/reports" className="rounded border px-3 py-1 text-sm">
+            Về báo cáo
+          </Link>
+          <span className="rounded border px-3 py-1 text-sm">In: Ctrl/Cmd + P</span>
+        </div>
+      </div>
+      <div className="rounded-xl border p-4 print:rounded-none print:border-0 print:p-0">
         <p>Khách: {customer?.name ?? "-"}</p>
         <p>Thời gian: {new Date(ticket.created_at).toLocaleString("vi-VN")}</p>
         <p>Thanh toán: {payment?.method ?? "-"}</p>

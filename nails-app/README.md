@@ -29,7 +29,8 @@ RECEIPT_LINK_EXPIRE_DAYS=30
 - Mở Supabase SQL Editor
 - Chạy file: `supabase/schema.sql`
 - Sau đó chạy tiếp: `supabase/rls.sql` (bật RLS baseline theo role)
-- Chạy thêm: `supabase/security_rpc.sql` (RPC bảo mật cho ticket detail)
+- Chạy thêm: `supabase/security_rpc.sql` (RPC bảo mật cho ticket detail/report)
+- Chạy thêm: `supabase/shifts.sql` (bảng chấm công + RLS)
 
 ## 4) Những gì đã có trong starter
 

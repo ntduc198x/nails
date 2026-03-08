@@ -12,13 +12,14 @@ const links = [
   { href: "/services", label: "Dịch vụ" },
   { href: "/checkout", label: "Checkout" },
   { href: "/reports", label: "Báo cáo" },
+  { href: "/shifts", label: "Ca làm" },
   { href: "/team", label: "Nhân sự" },
 ];
 
 function canAccess(role: AppRole, href: string) {
   if (role === "OWNER" || role === "MANAGER") return true;
-  if (role === "RECEPTION") return ["/", "/appointments", "/checkout"].includes(href);
-  if (role === "TECH") return ["/", "/appointments"].includes(href);
+  if (role === "RECEPTION") return ["/", "/appointments", "/checkout", "/shifts"].includes(href);
+  if (role === "TECH") return ["/", "/appointments", "/shifts"].includes(href);
   if (role === "ACCOUNTANT") return ["/", "/checkout", "/reports"].includes(href);
   return false;
 }
