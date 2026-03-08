@@ -156,8 +156,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-900">
-      <header className="border-b bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 p-4">
+      <header className="sticky top-0 z-20 border-b bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 p-3 md:p-4">
           <div>
             <p className="text-xs text-neutral-500">Nails App</p>
             <h1 className="text-lg font-semibold">MVP Sprint 2</h1>

@@ -111,16 +111,50 @@ export default function ReportsPage() {
   }, [rows, breakdown]);
 
   function exportCsv() {
-    const header = ["ticket_id", "created_at", "status", "subtotal", "vat", "grand_total"];
-    const body = rows.map((r) => [
-      r.id,
-      new Date(r.created_at).toISOString(),
-      r.status,
-      Number(r.totals_json?.subtotal ?? 0),
-      Number(r.totals_json?.vat_total ?? 0),
-      Number(r.totals_json?.grand_total ?? 0),
-    ]);
-    downloadCsv(`nails-report-${fromDate}-to-${toDate}.csv`, [header, ...body] as string[][]);
+    const rowsOut: string[][] = [];
+
+    rowsOut.push(["SUMMARY"]);
+    rowsOut.push(["count", String(summary.count)]);
+    rowsOut.push(["subtotal", String(summary.subtotal)]);
+    rowsOut.push(["vat", String(summary.vat)]);
+    rowsOut.push(["revenue", String(summary.revenue)]);
+    rowsOut.push([]);
+
+    rowsOut.push(["BY_SERVICE"]);
+    rowsOut.push(["service_name", "qty", "subtotal"]);
+    for (const s of breakdown?.by_service ?? []) {
+      rowsOut.push([s.service_name, String(s.qty), String(s.subtotal)]);
+    }
+    rowsOut.push([]);
+
+    rowsOut.push(["BY_PAYMENT"]);
+    rowsOut.push(["method", "count", "amount"]);
+    for (const p of breakdown?.by_payment ?? []) {
+      rowsOut.push([p.method, String(p.count), String(p.amount)]);
+    }
+    rowsOut.push([]);
+
+    rowsOut.push(["BY_STAFF_HOURS"]);
+    rowsOut.push(["staff_user_id", "entries", "minutes"]);
+    for (const s of staffHours) {
+      rowsOut.push([s.staff, String(s.entries), String(s.minutes)]);
+    }
+    rowsOut.push([]);
+
+    rowsOut.push(["TICKETS"]);
+    rowsOut.push(["ticket_id", "created_at", "status", "subtotal", "vat", "grand_total"]);
+    for (const r of rows) {
+      rowsOut.push([
+        r.id,
+        new Date(r.created_at).toISOString(),
+        r.status,
+        String(Number(r.totals_json?.subtotal ?? 0)),
+        String(Number(r.totals_json?.vat_total ?? 0)),
+        String(Number(r.totals_json?.grand_total ?? 0)),
+      ]);
+    }
+
+    downloadCsv(`nails-report-${fromDate}-to-${toDate}.csv`, rowsOut);
   }
 
   return (

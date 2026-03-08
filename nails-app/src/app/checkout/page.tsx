@@ -34,6 +34,7 @@ export default function CheckoutPage() {
   const [dedupeNotice, setDedupeNotice] = useState<string | null>(null);
 
   const [customerName, setCustomerName] = useState("");
+  const [appointmentId, setAppointmentId] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "TRANSFER">("CASH");
   const [lines, setLines] = useState<Array<{ serviceId: string; qty: number }>>([{ serviceId: "", qty: 1 }]);
 
@@ -62,7 +63,9 @@ export default function CheckoutPage() {
     if (typeof window !== "undefined") {
       const qs = new URLSearchParams(window.location.search);
       const customer = qs.get("customer");
+      const appointment = qs.get("appointmentId");
       if (customer) setCustomerName(customer);
+      if (appointment) setAppointmentId(appointment);
     }
     load();
   }, []);
@@ -108,6 +111,7 @@ export default function CheckoutPage() {
         customerName,
         paymentMethod,
         lines: valid,
+        appointmentId: appointmentId ?? undefined,
       });
 
       setLastReceipt(result.receiptToken || null);
@@ -134,10 +138,13 @@ export default function CheckoutPage() {
 
   return (
     <AppShell>
-      <div className="space-y-4">
+      <div className="space-y-4 pb-24 md:pb-0">
         <h2 className="text-2xl font-bold">Checkout (Ticket + Payment + Receipt)</h2>
         {role === "ACCOUNTANT" && (
           <p className="text-sm text-amber-700">Role ACCOUNTANT chỉ xem dữ liệu checkout, không tạo Pay & Close.</p>
+        )}
+        {appointmentId && (
+          <p className="text-sm text-neutral-600">Đang checkout từ appointment: <code>{appointmentId}</code></p>
         )}
 
         <form onSubmit={onSubmit} className="space-y-3 rounded-2xl bg-white p-4 shadow-sm">
@@ -184,7 +191,7 @@ export default function CheckoutPage() {
             </div>
           ))}
 
-          <div className="flex gap-2">
+          <div className="hidden gap-2 md:flex">
             <button type="button" onClick={addLine} className="rounded-lg border px-4 py-2 text-sm">
               + Thêm dòng
             </button>
@@ -194,6 +201,20 @@ export default function CheckoutPage() {
             >
               {submitting ? "Đang xử lý..." : "Pay & Close"}
             </button>
+          </div>
+
+          <div className="fixed bottom-0 left-0 right-0 z-10 border-t bg-white p-3 md:hidden">
+            <div className="mx-auto flex max-w-6xl gap-2">
+              <button type="button" onClick={addLine} className="flex-1 rounded-lg border px-4 py-3 text-sm font-medium">
+                + Thêm dòng
+              </button>
+              <button
+                disabled={submitting || role === "ACCOUNTANT" || role === "TECH"}
+                className="flex-1 rounded-lg bg-neutral-900 px-4 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {submitting ? "Đang xử lý..." : "Pay & Close"}
+              </button>
+            </div>
           </div>
         </form>
 

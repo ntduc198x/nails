@@ -180,6 +180,7 @@ type CheckoutInput = {
   customerName: string;
   paymentMethod: "CASH" | "TRANSFER";
   lines: Array<{ serviceId: string; qty: number }>;
+  appointmentId?: string;
   dedupeWindowMs?: number;
 };
 
@@ -270,6 +271,7 @@ export async function createCheckout(input: CheckoutInput) {
       org_id: orgId,
       branch_id: branchId,
       customer_id: customerId,
+      appointment_id: input.appointmentId ?? null,
       status: "CLOSED",
       totals_json: {
         subtotal,

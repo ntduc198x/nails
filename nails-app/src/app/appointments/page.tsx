@@ -140,7 +140,7 @@ export default function AppointmentsPage() {
                         <td>{a.status}</td>
                         <td>
                           <Link
-                            href={`/checkout?customer=${encodeURIComponent(customer ?? "")}`}
+                            href={`/checkout?customer=${encodeURIComponent(customer ?? "")}&appointmentId=${a.id}`}
                             className="rounded border px-2 py-1 text-xs"
                           >
                             Open ticket
