@@ -26,7 +26,10 @@ export default function CheckoutPage() {
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [lastReceipt, setLastReceipt] = useState<string | null>(null);
+  const [receiptLink, setReceiptLink] = useState<string | null>(null);
+  const [dedupeNotice, setDedupeNotice] = useState<string | null>(null);
 
   const [customerName, setCustomerName] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "TRANSFER">("CASH");
@@ -74,21 +77,40 @@ export default function CheckoutPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (submitting) return;
+
     try {
+      setSubmitting(true);
       setError(null);
+      setDedupeNotice(null);
       const valid = lines.filter((l) => l.serviceId && l.qty > 0);
+      if (!valid.length) throw new Error("Vui lòng chọn ít nhất 1 dịch vụ trước khi Pay & Close");
+
       const result = await createCheckout({
         customerName,
         paymentMethod,
         lines: valid,
       });
-      setLastReceipt(result.receiptToken);
+
+      setLastReceipt(result.receiptToken || null);
+      if (result.receiptToken && typeof window !== "undefined") {
+        setReceiptLink(`${window.location.origin}/receipt/${result.receiptToken}`);
+      } else {
+        setReceiptLink(null);
+      }
+
+      if (result.deduped) {
+        setDedupeNotice("Đã chặn tạo bill trùng do thao tác bấm thanh toán lặp nhanh.");
+      }
+
       setCustomerName("");
       setPaymentMethod("CASH");
       setLines([{ serviceId: "", qty: 1 }]);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Checkout failed");
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -145,14 +167,41 @@ export default function CheckoutPage() {
             <button type="button" onClick={addLine} className="rounded-lg border px-4 py-2 text-sm">
               + Thêm dòng
             </button>
-            <button className="rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white">Pay & Close</button>
+            <button
+              disabled={submitting}
+              className="rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {submitting ? "Đang xử lý..." : "Pay & Close"}
+            </button>
           </div>
         </form>
 
         {lastReceipt && (
-          <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-            Tạo receipt thành công. Token: <code>{lastReceipt}</code>
+          <div className="space-y-2 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+            <div>
+              Tạo receipt thành công. Token: <code>{lastReceipt}</code>
+            </div>
+            {receiptLink && (
+              <div className="flex flex-wrap items-center gap-2">
+                <a className="underline" href={receiptLink} target="_blank" rel="noreferrer">
+                  Mở link receipt
+                </a>
+                <button
+                  type="button"
+                  className="rounded border border-green-400 px-2 py-1 text-xs"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(receiptLink);
+                  }}
+                >
+                  Copy link
+                </button>
+              </div>
+            )}
           </div>
+        )}
+
+        {dedupeNotice && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{dedupeNotice}</div>
         )}
 
         <div className="rounded-2xl bg-white p-5 shadow-sm">

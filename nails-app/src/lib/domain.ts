@@ -139,6 +139,7 @@ type CheckoutInput = {
   customerName: string;
   paymentMethod: "CASH" | "TRANSFER";
   lines: Array<{ serviceId: string; qty: number }>;
+  dedupeWindowMs?: number;
 };
 
 function randomToken(size = 32) {
@@ -186,6 +187,42 @@ export async function createCheckout(input: CheckoutInput) {
   });
 
   const grandTotal = subtotal + vatTotal;
+
+  // Chặn tạo trùng khi người dùng bấm Pay nhiều lần liên tiếp
+  const dedupeWindowMs = input.dedupeWindowMs ?? 15000;
+  const sinceIso = new Date(Date.now() - dedupeWindowMs).toISOString();
+
+  const { data: recentTickets, error: recentErr } = await supabase
+    .from("tickets")
+    .select("id,totals_json,created_at")
+    .eq("org_id", orgId)
+    .eq("customer_id", customerId)
+    .eq("status", "CLOSED")
+    .gte("created_at", sinceIso)
+    .order("created_at", { ascending: false })
+    .limit(5);
+  if (recentErr) throw recentErr;
+
+  const duplicate = (recentTickets ?? []).find((t) => {
+    const total = Number((t.totals_json as { grand_total?: number } | null)?.grand_total ?? 0);
+    return Math.abs(total - grandTotal) < 0.01;
+  });
+
+  if (duplicate?.id) {
+    const { data: receiptRows } = await supabase
+      .from("receipts")
+      .select("public_token")
+      .eq("ticket_id", duplicate.id)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    return {
+      ticketId: duplicate.id as string,
+      receiptToken: (receiptRows?.[0]?.public_token as string | undefined) ?? "",
+      grandTotal,
+      deduped: true,
+    };
+  }
 
   const { data: ticket, error: ticketErr } = await supabase
     .from("tickets")
@@ -237,7 +274,7 @@ export async function createCheckout(input: CheckoutInput) {
   });
   if (receiptErr) throw receiptErr;
 
-  return { ticketId, receiptToken: token, grandTotal };
+  return { ticketId, receiptToken: token, grandTotal, deduped: false };
 }
 
 export async function listRecentTickets() {
