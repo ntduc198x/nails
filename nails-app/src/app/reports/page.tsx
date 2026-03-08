@@ -1,28 +1,48 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
-import { listRecentTickets } from "@/lib/domain";
+import { listTicketsInRange, type ReportTicketRow } from "@/lib/reporting";
 import { formatVnd } from "@/lib/mock-data";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-type TicketRow = {
-  id: string;
-  status: string;
-  created_at: string;
-  totals_json?: { subtotal?: number; vat_total?: number; grand_total?: number };
-};
+function toDateInput(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function downloadCsv(filename: string, rows: string[][]) {
+  const csv = rows
+    .map((r) => r.map((v) => `"${String(v).replaceAll('"', '""')}"`).join(","))
+    .join("\n");
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function ReportsPage() {
-  const [rows, setRows] = useState<TicketRow[]>([]);
+  const today = new Date();
+  const [fromDate, setFromDate] = useState(toDateInput(today));
+  const [toDate, setToDate] = useState(toDateInput(new Date(today.getTime() + 24 * 60 * 60 * 1000)));
+
+  const [rows, setRows] = useState<ReportTicketRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  async function load(force = false) {
+  async function load() {
     try {
       setError(null);
       setLoading(true);
-      const data = await listRecentTickets({ force });
-      setRows(data as TicketRow[]);
+      const fromIso = new Date(`${fromDate}T00:00:00`).toISOString();
+      const toIso = new Date(`${toDate}T00:00:00`).toISOString();
+      const data = await listTicketsInRange(fromIso, toIso);
+      setRows(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load reports failed");
     } finally {
@@ -32,6 +52,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const summary = useMemo(() => {
@@ -42,14 +63,31 @@ export default function ReportsPage() {
     return { count: closed.length, revenue, vat, subtotal };
   }, [rows]);
 
+  function exportCsv() {
+    const header = ["ticket_id", "created_at", "status", "subtotal", "vat", "grand_total"];
+    const body = rows.map((r) => [
+      r.id,
+      new Date(r.created_at).toISOString(),
+      r.status,
+      Number(r.totals_json?.subtotal ?? 0),
+      Number(r.totals_json?.vat_total ?? 0),
+      Number(r.totals_json?.grand_total ?? 0),
+    ]);
+    downloadCsv(`nails-report-${fromDate}-to-${toDate}.csv`, [header, ...body] as string[][]);
+  }
+
   return (
     <AppShell>
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-2xl font-bold">Báo cáo nhanh</h2>
-          <button className="rounded border px-3 py-2 text-sm" onClick={() => load(true)}>
-            Refresh
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <input className="rounded border px-2 py-1 text-sm" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+            <span className="text-sm text-neutral-500">đến</span>
+            <input className="rounded border px-2 py-1 text-sm" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+            <button className="rounded border px-3 py-2 text-sm" onClick={load}>Lọc</button>
+            <button className="rounded border px-3 py-2 text-sm" onClick={exportCsv}>Export CSV</button>
+          </div>
         </div>
 
         <div className="grid gap-3 md:grid-cols-4">
@@ -85,6 +123,7 @@ export default function ReportsPage() {
                     <th>Subtotal</th>
                     <th>VAT</th>
                     <th>Tổng</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -95,6 +134,11 @@ export default function ReportsPage() {
                       <td>{formatVnd(Number(t.totals_json?.subtotal ?? 0))}</td>
                       <td>{formatVnd(Number(t.totals_json?.vat_total ?? 0))}</td>
                       <td>{formatVnd(Number(t.totals_json?.grand_total ?? 0))}</td>
+                      <td>
+                        <Link className="underline" href={`/reports/${t.id}`}>
+                          Chi tiết
+                        </Link>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
