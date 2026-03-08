@@ -38,7 +38,9 @@ RECEIPT_LINK_EXPIRE_DAYS=30
   - `/appointments`
   - `/services`
   - `/checkout`
+  - `/reports`
   - `/team`
+- Điều hướng mượt hơn nhờ auth-cache + data-cache (stale nhanh, refresh khi cần)
 - Supabase client stub: `src/lib/supabase.ts`
 - SQL schema MVP khởi đầu (`supabase/schema.sql`)
 - Mock data domain: `src/lib/mock-data.ts`

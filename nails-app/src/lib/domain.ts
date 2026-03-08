@@ -2,8 +2,28 @@ import { supabase } from "@/lib/supabase";
 
 export type OrgContext = { orgId: string; branchId: string };
 
-export async function ensureOrgContext(): Promise<OrgContext> {
+const TTL = 30_000;
+
+let orgContextCache: { value: OrgContext; at: number } | null = null;
+let servicesCache: { value: unknown[]; at: number } | null = null;
+let appointmentsCache: { value: unknown[]; at: number } | null = null;
+let ticketsCache: { value: unknown[]; at: number } | null = null;
+
+function isFresh(cache: { at: number } | null, ttl = TTL) {
+  return !!cache && Date.now() - cache.at < ttl;
+}
+
+function invalidateDataCaches() {
+  appointmentsCache = null;
+  ticketsCache = null;
+}
+
+export async function ensureOrgContext(opts?: { force?: boolean }): Promise<OrgContext> {
   if (!supabase) throw new Error("Supabase chưa cấu hình");
+
+  if (!opts?.force && isFresh(orgContextCache, 5 * 60_000)) {
+    return orgContextCache!.value;
+  }
 
   const { data: orgs, error: orgErr } = await supabase.from("orgs").select("id").limit(1);
   if (orgErr) throw orgErr;
@@ -43,11 +63,15 @@ export async function ensureOrgContext(): Promise<OrgContext> {
     throw new Error("Không thể khởi tạo org/branch context");
   }
 
-  return { orgId, branchId };
+  const ctx = { orgId, branchId };
+  orgContextCache = { value: ctx, at: Date.now() };
+  return ctx;
 }
 
-export async function listServices() {
+export async function listServices(opts?: { force?: boolean }) {
   if (!supabase) return [];
+  if (!opts?.force && isFresh(servicesCache)) return servicesCache!.value;
+
   const { orgId } = await ensureOrgContext();
   const { data, error } = await supabase
     .from("services")
@@ -55,7 +79,9 @@ export async function listServices() {
     .eq("org_id", orgId)
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return data ?? [];
+  const rows = data ?? [];
+  servicesCache = { value: rows, at: Date.now() };
+  return rows;
 }
 
 export async function createService(input: {
@@ -67,15 +93,25 @@ export async function createService(input: {
   if (!supabase) throw new Error("Supabase chưa cấu hình");
   const { orgId } = await ensureOrgContext();
 
-  const { error } = await supabase.from("services").insert({
-    org_id: orgId,
-    name: input.name,
-    duration_min: input.durationMin,
-    base_price: input.basePrice,
-    vat_rate: input.vatPercent / 100,
-    active: true,
-  });
+  const { data, error } = await supabase
+    .from("services")
+    .insert({
+      org_id: orgId,
+      name: input.name,
+      duration_min: input.durationMin,
+      base_price: input.basePrice,
+      vat_rate: input.vatPercent / 100,
+      active: true,
+    })
+    .select("id,name,duration_min,base_price,vat_rate,active")
+    .single();
   if (error) throw error;
+
+  if (servicesCache) {
+    servicesCache = { value: [data, ...(servicesCache.value as unknown[])], at: Date.now() };
+  }
+
+  return data;
 }
 
 async function findOrCreateCustomer(orgId: string, name: string) {
@@ -99,8 +135,10 @@ async function findOrCreateCustomer(orgId: string, name: string) {
   return created.id as string;
 }
 
-export async function listAppointments() {
+export async function listAppointments(opts?: { force?: boolean }) {
   if (!supabase) return [];
+  if (!opts?.force && isFresh(appointmentsCache)) return appointmentsCache!.value;
+
   const { orgId } = await ensureOrgContext();
 
   const { data, error } = await supabase
@@ -110,7 +148,9 @@ export async function listAppointments() {
     .order("start_at", { ascending: true })
     .limit(50);
   if (error) throw error;
-  return data ?? [];
+  const rows = data ?? [];
+  appointmentsCache = { value: rows, at: Date.now() };
+  return rows;
 }
 
 export async function createAppointment(input: {
@@ -133,6 +173,7 @@ export async function createAppointment(input: {
   });
 
   if (error) throw error;
+  invalidateDataCaches();
 }
 
 type CheckoutInput = {
@@ -188,7 +229,6 @@ export async function createCheckout(input: CheckoutInput) {
 
   const grandTotal = subtotal + vatTotal;
 
-  // Chặn tạo trùng khi người dùng bấm Pay nhiều lần liên tiếp
   const dedupeWindowMs = input.dedupeWindowMs ?? 15000;
   const sinceIso = new Date(Date.now() - dedupeWindowMs).toISOString();
 
@@ -274,11 +314,15 @@ export async function createCheckout(input: CheckoutInput) {
   });
   if (receiptErr) throw receiptErr;
 
+  ticketsCache = null;
+
   return { ticketId, receiptToken: token, grandTotal, deduped: false };
 }
 
-export async function listRecentTickets() {
+export async function listRecentTickets(opts?: { force?: boolean }) {
   if (!supabase) return [];
+  if (!opts?.force && isFresh(ticketsCache)) return ticketsCache!.value;
+
   const { orgId } = await ensureOrgContext();
 
   const { data, error } = await supabase
@@ -289,5 +333,7 @@ export async function listRecentTickets() {
     .limit(20);
 
   if (error) throw error;
-  return data ?? [];
+  const rows = data ?? [];
+  ticketsCache = { value: rows, at: Date.now() };
+  return rows;
 }
