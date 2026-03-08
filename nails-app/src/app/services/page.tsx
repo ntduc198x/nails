@@ -1,6 +1,7 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
+import { getCurrentSessionRole, type AppRole } from "@/lib/auth";
 import { createService, listServices } from "@/lib/domain";
 import { formatVnd } from "@/lib/mock-data";
 import { useEffect, useState } from "react";
@@ -18,6 +19,7 @@ export default function ServicesPage() {
   const [rows, setRows] = useState<ServiceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [role, setRole] = useState<AppRole | null>(null);
 
   const [name, setName] = useState("");
   const [duration, setDuration] = useState(45);
@@ -28,6 +30,8 @@ export default function ServicesPage() {
     try {
       setLoading(true);
       setError(null);
+      const currentRole = await getCurrentSessionRole();
+      setRole(currentRole);
       const data = await listServices();
       setRows(data as ServiceRow[]);
     } catch (e) {
@@ -45,6 +49,9 @@ export default function ServicesPage() {
     e.preventDefault();
     try {
       setError(null);
+      if (role !== "OWNER" && role !== "MANAGER" && role !== "RECEPTION") {
+        throw new Error("Role hiện tại không được phép thêm dịch vụ.");
+      }
       await createService({
         name,
         durationMin: duration,
@@ -67,6 +74,9 @@ export default function ServicesPage() {
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold">Dịch vụ & VAT (Supabase)</h2>
         </div>
+        {role === "ACCOUNTANT" || role === "TECH" ? (
+          <p className="text-sm text-amber-700">Role hiện tại chỉ xem danh sách dịch vụ, không thêm/sửa.</p>
+        ) : null}
 
         <form onSubmit={onSubmit} className="grid gap-3 rounded-2xl bg-white p-4 shadow-sm md:grid-cols-5">
           <input
@@ -105,7 +115,12 @@ export default function ServicesPage() {
               placeholder="VAT %"
               required
             />
-            <button className="rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white">Thêm</button>
+            <button
+              disabled={role === "ACCOUNTANT" || role === "TECH"}
+              className="rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Thêm
+            </button>
           </div>
         </form>
 

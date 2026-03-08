@@ -2,6 +2,7 @@
 
 import { AppShell } from "@/components/app-shell";
 import { createAppointment, listAppointments } from "@/lib/domain";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 type AppointmentRow = {
@@ -105,6 +106,7 @@ export default function AppointmentsPage() {
                     <th>Kết thúc</th>
                     <th>Khách</th>
                     <th>Trạng thái</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -118,6 +120,14 @@ export default function AppointmentsPage() {
                         <td>{new Date(a.end_at).toLocaleString("vi-VN")}</td>
                         <td>{customer ?? "-"}</td>
                         <td>{a.status}</td>
+                        <td>
+                          <Link
+                            href={`/checkout?customer=${encodeURIComponent(customer ?? "")}`}
+                            className="rounded border px-2 py-1 text-xs"
+                          >
+                            Open ticket
+                          </Link>
+                        </td>
                       </tr>
                     );
                   })}

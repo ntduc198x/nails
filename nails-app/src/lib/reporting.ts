@@ -37,12 +37,9 @@ export async function getTicketDetail(ticketId: string) {
     .single();
   if (ticketErr) throw ticketErr;
 
-  const [{ data: customer }, { data: items }, { data: payment }, { data: receipt }] = await Promise.all([
+  const [{ data: customer }, { data: rawItems, error: itemErr }, { data: payment }, { data: receipt }] = await Promise.all([
     supabase.from("customers").select("name,phone").eq("id", ticket.customer_id).maybeSingle(),
-    supabase
-      .from("ticket_items")
-      .select("qty,unit_price,vat_rate,services(name)")
-      .eq("ticket_id", ticketId),
+    supabase.from("ticket_items").select("service_id,qty,unit_price,vat_rate").eq("ticket_id", ticketId),
     supabase.from("payments").select("method,amount,status,created_at").eq("ticket_id", ticketId).limit(1).maybeSingle(),
     supabase
       .from("receipts")
@@ -53,5 +50,22 @@ export async function getTicketDetail(ticketId: string) {
       .maybeSingle(),
   ]);
 
-  return { ticket, customer, items: items ?? [], payment, receipt };
+  if (itemErr) throw itemErr;
+
+  const serviceIds = Array.from(new Set((rawItems ?? []).map((i) => i.service_id).filter(Boolean)));
+  let serviceNameMap = new Map<string, string>();
+
+  if (serviceIds.length) {
+    const { data: services } = await supabase.from("services").select("id,name").in("id", serviceIds);
+    serviceNameMap = new Map((services ?? []).map((s) => [s.id as string, s.name as string]));
+  }
+
+  const items = (rawItems ?? []).map((i) => ({
+    qty: i.qty,
+    unit_price: i.unit_price,
+    vat_rate: i.vat_rate,
+    service_name: i.service_id ? serviceNameMap.get(i.service_id as string) ?? "(service deleted)" : "-",
+  }));
+
+  return { ticket, customer, items, payment, receipt };
 }

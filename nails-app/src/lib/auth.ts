@@ -59,3 +59,11 @@ export async function updateUserRoleByRowId(id: string, role: AppRole) {
   const { error } = await supabase.from("user_roles").update({ role }).eq("id", id);
   if (error) throw error;
 }
+
+export async function getCurrentSessionRole(): Promise<AppRole> {
+  if (!supabase) throw new Error("Supabase chưa cấu hình");
+  const { data } = await supabase.auth.getSession();
+  const user = data.session?.user;
+  if (!user) throw new Error("Chưa đăng nhập");
+  return getOrCreateRole(user.id);
+}

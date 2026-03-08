@@ -73,17 +73,24 @@ export default function TicketDetailPage() {
             </tr>
           </thead>
           <tbody>
-            {detail.items.map((it, idx) => {
-              const svc = Array.isArray(it.services) ? it.services[0] : it.services;
-              return (
-                <tr key={idx} className="border-t">
-                  <td className="py-2">{svc?.name ?? "-"}</td>
-                  <td>{it.qty}</td>
-                  <td>{formatVnd(Number(it.unit_price))}</td>
-                  <td>{Number(it.vat_rate) * 100}%</td>
-                </tr>
-              );
-            })}
+            {detail.items.length === 0 ? (
+              <tr className="border-t">
+                <td className="py-3 text-neutral-500" colSpan={4}>
+                  Không có ticket items cho bill này (có thể là bill cũ bị lỗi trước khi fix RLS).
+                </td>
+              </tr>
+            ) : (
+              detail.items.map((it, idx) => {
+                return (
+                  <tr key={idx} className="border-t">
+                    <td className="py-2">{it.service_name ?? "-"}</td>
+                    <td>{it.qty}</td>
+                    <td>{formatVnd(Number(it.unit_price))}</td>
+                    <td>{Number(it.vat_rate) * 100}%</td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
+import { getCurrentSessionRole, type AppRole } from "@/lib/auth";
 import { createCheckout, listRecentTickets, listServices } from "@/lib/domain";
 import { formatVnd } from "@/lib/mock-data";
 import { useEffect, useMemo, useState } from "react";
@@ -26,6 +27,7 @@ export default function CheckoutPage() {
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [role, setRole] = useState<AppRole | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [lastReceipt, setLastReceipt] = useState<string | null>(null);
   const [receiptLink, setReceiptLink] = useState<string | null>(null);
@@ -39,6 +41,13 @@ export default function CheckoutPage() {
     try {
       setLoading(true);
       setError(null);
+      const currentRole = await getCurrentSessionRole();
+      setRole(currentRole);
+
+      if (!["OWNER", "MANAGER", "RECEPTION", "ACCOUNTANT"].includes(currentRole)) {
+        throw new Error("Role hiện tại không có quyền truy cập trang Checkout");
+      }
+
       const [serviceRows, ticketRows] = await Promise.all([listServices(), listRecentTickets()]);
       setServices(serviceRows as ServiceRow[]);
       setTickets(ticketRows as TicketRow[]);
@@ -50,6 +59,11 @@ export default function CheckoutPage() {
   }
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const qs = new URLSearchParams(window.location.search);
+      const customer = qs.get("customer");
+      if (customer) setCustomerName(customer);
+    }
     load();
   }, []);
 
@@ -83,6 +97,10 @@ export default function CheckoutPage() {
       setSubmitting(true);
       setError(null);
       setDedupeNotice(null);
+
+      if (role === "ACCOUNTANT" || role === "TECH") {
+        throw new Error("Role hiện tại không được phép tạo thanh toán.");
+      }
       const valid = lines.filter((l) => l.serviceId && l.qty > 0);
       if (!valid.length) throw new Error("Vui lòng chọn ít nhất 1 dịch vụ trước khi Pay & Close");
 
@@ -118,6 +136,9 @@ export default function CheckoutPage() {
     <AppShell>
       <div className="space-y-4">
         <h2 className="text-2xl font-bold">Checkout (Ticket + Payment + Receipt)</h2>
+        {role === "ACCOUNTANT" && (
+          <p className="text-sm text-amber-700">Role ACCOUNTANT chỉ xem dữ liệu checkout, không tạo Pay & Close.</p>
+        )}
 
         <form onSubmit={onSubmit} className="space-y-3 rounded-2xl bg-white p-4 shadow-sm">
           <div className="grid gap-3 md:grid-cols-3">
@@ -168,7 +189,7 @@ export default function CheckoutPage() {
               + Thêm dòng
             </button>
             <button
-              disabled={submitting}
+              disabled={submitting || role === "ACCOUNTANT" || role === "TECH"}
               className="rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {submitting ? "Đang xử lý..." : "Pay & Close"}
