@@ -32,9 +32,11 @@ RECEIPT_LINK_EXPIRE_DAYS=30
 ## 4) Những gì đã có trong starter
 
 - UI MVP nhiều màn:
+  - `/login` (Supabase Auth)
   - `/` Dashboard
   - `/appointments`
   - `/services`
+  - `/checkout`
   - `/team`
 - Supabase client stub: `src/lib/supabase.ts`
 - SQL schema MVP khởi đầu (`supabase/schema.sql`)

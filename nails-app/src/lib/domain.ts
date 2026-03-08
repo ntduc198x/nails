@@ -2,7 +2,7 @@ import { supabase } from "@/lib/supabase";
 
 export type OrgContext = { orgId: string; branchId: string };
 
-async function ensureOrgContext(): Promise<OrgContext> {
+export async function ensureOrgContext(): Promise<OrgContext> {
   if (!supabase) throw new Error("Supabase chưa cấu hình");
 
   const { data: orgs, error: orgErr } = await supabase.from("orgs").select("id").limit(1);
