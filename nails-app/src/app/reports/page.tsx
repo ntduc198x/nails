@@ -39,19 +39,28 @@ export default function ReportsPage() {
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [breakdownError, setBreakdownError] = useState<string | null>(null);
 
   async function load() {
     try {
       setError(null);
+      setBreakdownError(null);
       setLoading(true);
       const fromIso = new Date(`${fromDate}T00:00:00`).toISOString();
       const toIso = new Date(`${toDate}T00:00:00`).toISOString();
-      const [data, summaryData] = await Promise.all([
-        listTicketsInRange(fromIso, toIso),
-        getReportBreakdown(fromIso, toIso),
-      ]);
+
+      // Core list luôn ưu tiên chạy trước
+      const data = await listTicketsInRange(fromIso, toIso);
       setRows(data);
-      setBreakdown(summaryData);
+
+      // Breakdown là phần nâng cao, lỗi thì degrade graceful
+      try {
+        const summaryData = await getReportBreakdown(fromIso, toIso);
+        setBreakdown(summaryData);
+      } catch (e) {
+        setBreakdown(null);
+        setBreakdownError(e instanceof Error ? e.message : "Breakdown RPC failed");
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load reports failed");
     } finally {
@@ -126,6 +135,12 @@ export default function ReportsPage() {
             <p className="text-xl font-semibold">{formatVnd(summary.revenue)}</p>
           </div>
         </div>
+
+        {breakdownError && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            Breakdown nâng cao đang lỗi: {breakdownError}. Vẫn hiển thị danh sách ticket cơ bản bình thường.
+          </div>
+        )}
 
         <div className="grid gap-4 md:grid-cols-2">
           <div className="rounded-2xl bg-white p-5 shadow-sm">
