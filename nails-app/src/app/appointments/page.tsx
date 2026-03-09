@@ -1,7 +1,7 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
-import { createAppointment, listAppointments, updateAppointmentStatus } from "@/lib/domain";
+import { createAppointment, listAppointments, subscribeAppointmentsRealtime, unsubscribeRealtime, updateAppointmentStatus } from "@/lib/domain";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -18,6 +18,15 @@ function toInputValue(date: Date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+function statusBadge(status: string) {
+  if (status === "BOOKED") return "bg-slate-100 text-slate-700";
+  if (status === "CHECKED_IN") return "bg-blue-100 text-blue-700";
+  if (status === "DONE") return "bg-emerald-100 text-emerald-700";
+  if (status === "CANCELLED") return "bg-red-100 text-red-700";
+  if (status === "NO_SHOW") return "bg-amber-100 text-amber-700";
+  return "bg-neutral-100 text-neutral-700";
+}
+
 export default function AppointmentsPage() {
   const now = new Date();
   const [customerName, setCustomerName] = useState("");
@@ -28,6 +37,7 @@ export default function AppointmentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [live, setLive] = useState(false);
 
   async function load() {
     try {
@@ -43,7 +53,25 @@ export default function AppointmentsPage() {
   }
 
   useEffect(() => {
+    let mounted = true;
+    let rtChannel: Awaited<ReturnType<typeof subscribeAppointmentsRealtime>> = null;
+
     load();
+    subscribeAppointmentsRealtime(() => {
+      if (!mounted) return;
+      setLive(true);
+      load();
+      setTimeout(() => {
+        if (mounted) setLive(false);
+      }, 1200);
+    }).then((channel) => {
+      rtChannel = channel;
+    });
+
+    return () => {
+      mounted = false;
+      unsubscribeRealtime(rtChannel);
+    };
   }, []);
 
   const filteredRows = useMemo(() => {
@@ -81,7 +109,12 @@ export default function AppointmentsPage() {
     <AppShell>
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-2xl font-bold">Appointments (Supabase)</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl font-bold">Appointments (Supabase)</h2>
+            <span className={`rounded-full px-2 py-1 text-xs ${live ? "bg-emerald-100 text-emerald-700" : "bg-neutral-100 text-neutral-500"}`}>
+              {live ? "Live update" : "Idle"}
+            </span>
+          </div>
           <select
             className="rounded-lg border px-3 py-2 text-sm"
             value={statusFilter}
@@ -148,7 +181,9 @@ export default function AppointmentsPage() {
                         <td className="py-2">{new Date(a.start_at).toLocaleString("vi-VN")}</td>
                         <td>{new Date(a.end_at).toLocaleString("vi-VN")}</td>
                         <td>{customer ?? "-"}</td>
-                        <td>{a.status}</td>
+                        <td>
+                          <span className={`rounded-full px-2 py-1 text-xs font-medium ${statusBadge(a.status)}`}>{a.status}</span>
+                        </td>
                         <td className="space-x-1">
                           {a.status === "BOOKED" && (
                             <button onClick={() => onQuickStatus(a.id, "CHECKED_IN")} className="rounded border px-2 py-1 text-xs">

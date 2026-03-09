@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 export type OrgContext = { orgId: string; branchId: string };
 
@@ -375,4 +376,33 @@ export async function listRecentTickets(opts?: { force?: boolean }) {
   const rows = data ?? [];
   ticketsCache = { value: rows, at: Date.now() };
   return rows;
+}
+
+export async function subscribeAppointmentsRealtime(onChange: () => void): Promise<RealtimeChannel | null> {
+  if (!supabase) return null;
+  const { orgId } = await ensureOrgContext();
+
+  const channel = supabase
+    .channel(`appointments-org-${orgId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "appointments",
+        filter: `org_id=eq.${orgId}`,
+      },
+      () => {
+        appointmentsCache = null;
+        onChange();
+      },
+    )
+    .subscribe();
+
+  return channel;
+}
+
+export function unsubscribeRealtime(channel: RealtimeChannel | null | undefined) {
+  if (!supabase || !channel) return;
+  supabase.removeChannel(channel);
 }
