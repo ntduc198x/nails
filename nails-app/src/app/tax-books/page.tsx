@@ -69,14 +69,16 @@ export default function TaxBooksPage() {
         [`Kỳ kê khai: ${fromDate} đến ${toDate}`],
         [`Đơn vị tính: ${unit}`],
         [],
-        ["Ngày", "Diễn giải", "Số tiền"],
+        ["Ngày tháng", "Diễn giải", "Số tiền"],
+        ["A", "B", "1"],
       ];
       const body = rows.map((r) => [
         new Date(r.date).toLocaleDateString("vi-VN"),
         r.description,
         r.amount,
       ]);
-      const footer = [[], ["", "Tổng", total]];
+      while (body.length < 18) body.push(["", "", ""]);
+      const footer = [[], ["", "Tổng cộng", total], [], ["", "Ngày ... tháng ... năm ...", ""], ["", "Người đại diện HKD/CNKD", ""]];
 
       const ws = XLSX.utils.aoa_to_sheet([...header, ...body, ...footer]);
       ws["!cols"] = [{ wch: 14 }, { wch: 56 }, { wch: 18 }];
@@ -117,22 +119,34 @@ export default function TaxBooksPage() {
         doc.text(`Kỳ kê khai: ${fromDate} đến ${toDate}`, 40, 156);
         doc.text(`Đơn vị tính: ${unit}`, 40, 174);
 
+        const minRows = 18;
+        const bodyRows = rows.map((r) => [
+          new Date(r.date).toLocaleDateString("vi-VN"),
+          r.description,
+          formatVnd(r.amount),
+        ]);
+        while (bodyRows.length < minRows) bodyRows.push(["", "", ""]);
+
         autoTable(doc, {
           startY: 186,
+          margin: { left: 40, right: 40 },
           head: [["Ngày tháng", "Diễn giải", "Số tiền"], ["A", "B", "1"]],
-          body: rows.map((r) => [
-            new Date(r.date).toLocaleDateString("vi-VN"),
-            r.description,
-            formatVnd(r.amount),
-          ]),
+          body: bodyRows,
           foot: [["", "Tổng cộng", formatVnd(total)]],
-          styles: { fontSize: 9, cellPadding: 4 },
+          styles: { fontSize: 9, cellPadding: 4, lineWidth: 0.5, lineColor: [80, 80, 80] },
+          headStyles: { halign: "center", fillColor: [245, 245, 245], textColor: 20 },
+          footStyles: { halign: "right", fillColor: [250, 250, 250], textColor: 20, fontStyle: "bold" },
+          columnStyles: {
+            0: { cellWidth: 95, halign: "center" },
+            1: { cellWidth: 280 },
+            2: { cellWidth: 120, halign: "right" },
+          },
         });
 
-        const finalY = (doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? 520;
-        doc.text(`Ngày ... tháng ... năm ...`, 340, finalY + 34);
-        doc.text(`NGƯỜI ĐẠI DIỆN HỘ KINH DOANH/CÁ NHÂN KINH DOANH`, 280, finalY + 52);
-        doc.text(`(Ký, ghi rõ họ tên, đóng dấu nếu có)`, 330, finalY + 70);
+        const signatureY = 760;
+        doc.text(`Ngày ... tháng ... năm ...`, 370, signatureY);
+        doc.text(`NGƯỜI ĐẠI DIỆN HỘ KINH DOANH/CÁ NHÂN KINH DOANH`, 250, signatureY + 18);
+        doc.text(`(Ký, ghi rõ họ tên, đóng dấu nếu có)`, 320, signatureY + 36);
       } else {
         doc.setFontSize(14);
         doc.text(`Mẫu ${bookLabel}`, 40, 40);
