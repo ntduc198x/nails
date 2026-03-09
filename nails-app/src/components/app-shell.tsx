@@ -122,6 +122,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // Prefetch các route được phép để chuyển trang mượt hơn
+    for (const link of visibleLinks) {
+      router.prefetch(link.href);
+    }
+  }, [router, visibleLinks]);
+
+  useEffect(() => {
     if (!loading && !canAccess(role, pathname)) {
       router.replace(visibleLinks[0]?.href ?? "/");
     }

@@ -4,7 +4,7 @@ import { AppShell } from "@/components/app-shell";
 import { getCurrentSessionRole, type AppRole } from "@/lib/auth";
 import { createCheckout, listRecentTickets, listServices } from "@/lib/domain";
 import { formatVnd } from "@/lib/mock-data";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type ServiceRow = {
   id: string;
@@ -39,6 +39,7 @@ export default function CheckoutPage() {
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -51,9 +52,11 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "TRANSFER">("CASH");
   const [lines, setLines] = useState<Array<{ serviceId: string; qty: number }>>([{ serviceId: "", qty: 1 }]);
 
-  async function load() {
+  const load = useCallback(async () => {
+    const isInitial = services.length === 0 && tickets.length === 0;
     try {
-      setLoading(true);
+      if (isInitial) setLoading(true);
+      else setRefreshing(true);
       setError(null);
       const currentRole = await getCurrentSessionRole();
       setRole(currentRole);
@@ -68,9 +71,10 @@ export default function CheckoutPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load checkout data failed");
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
+      else setRefreshing(false);
     }
-  }
+  }, [services.length, tickets.length]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -80,8 +84,8 @@ export default function CheckoutPage() {
       if (customer) setCustomerName(customer);
       if (appointment) setAppointmentId(appointment);
     }
-    load();
-  }, []);
+    void load();
+  }, [load]);
 
   const estimatedTotal = useMemo(() => {
     let subtotal = 0;
@@ -164,7 +168,10 @@ export default function CheckoutPage() {
   return (
     <AppShell>
       <div className="space-y-4 pb-24 md:pb-0">
-        <h2 className="text-2xl font-bold">Checkout (Ticket + Payment + Receipt)</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-2xl font-bold">Checkout (Ticket + Payment + Receipt)</h2>
+          {refreshing && <span className="text-xs text-neutral-500">Đang làm mới...</span>}
+        </div>
         {role === "ACCOUNTANT" && (
           <p className="text-sm text-amber-700">Role ACCOUNTANT chỉ xem dữ liệu checkout, không tạo Pay & Close.</p>
         )}

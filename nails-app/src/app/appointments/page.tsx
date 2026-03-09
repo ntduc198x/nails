@@ -35,23 +35,27 @@ export default function AppointmentsPage() {
 
   const [rows, setRows] = useState<AppointmentRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [submitting, setSubmitting] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const load = useCallback(async (opts?: { force?: boolean }) => {
+    const isInitial = rows.length === 0;
     try {
-      setLoading(true);
+      if (isInitial) setLoading(true);
+      else setRefreshing(true);
       setError(null);
       const data = await listAppointments({ force: opts?.force });
       setRows(data as AppointmentRow[]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load appointments failed");
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
+      else setRefreshing(false);
     }
-  }, []);
+  }, [rows.length]);
 
   useEffect(() => {
     void load({ force: true });
@@ -104,6 +108,7 @@ export default function AppointmentsPage() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <h2 className="text-2xl font-bold">Appointments (Supabase)</h2>
+            {refreshing && <span className="text-xs text-neutral-500">Đang làm mới...</span>}
           </div>
           <select
             className="rounded-lg border px-3 py-2 text-sm"
