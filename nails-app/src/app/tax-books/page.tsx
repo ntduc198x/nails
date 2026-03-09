@@ -12,6 +12,12 @@ function toDateInput(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
+function toBookLabel(type: TaxBookType) {
+  if (type === "S1A_HKD") return "S1a-HKD";
+  if (type === "S2A_HKD") return "S2a-HKD";
+  return "S3a-HKD";
+}
+
 export default function TaxBooksPage() {
   const today = new Date();
   const [fromDate, setFromDate] = useState(toDateInput(today));
@@ -19,6 +25,7 @@ export default function TaxBooksPage() {
   const [bookType, setBookType] = useState<TaxBookType>("S1A_HKD");
   const [rows, setRows] = useState<TaxBookRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
@@ -43,6 +50,69 @@ export default function TaxBooksPage() {
 
   const total = rows.reduce((acc, r) => acc + r.amount, 0);
 
+  async function exportExcel() {
+    try {
+      setExporting(true);
+      const XLSX = await import("xlsx");
+      const bookLabel = toBookLabel(bookType);
+      const header = [
+        [`Mẫu ${bookLabel}`],
+        [`Kỳ: ${fromDate} đến ${toDate}`],
+        [],
+        ["Ngày", "Diễn giải", "Số tiền"],
+      ];
+      const body = rows.map((r) => [
+        new Date(r.date).toLocaleDateString("vi-VN"),
+        r.description,
+        r.amount,
+      ]);
+      const footer = [[], ["", "Tổng", total]];
+
+      const ws = XLSX.utils.aoa_to_sheet([...header, ...body, ...footer]);
+      ws["!cols"] = [{ wch: 14 }, { wch: 56 }, { wch: 18 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, bookLabel);
+      XLSX.writeFile(wb, `${bookLabel}_${fromDate}_to_${toDate}.xlsx`);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function exportPdf() {
+    try {
+      setExporting(true);
+      const [{ default: jsPDF }, autoTableModule] = await Promise.all([
+        import("jspdf"),
+        import("jspdf-autotable"),
+      ]);
+      const autoTable = autoTableModule.default;
+
+      const bookLabel = toBookLabel(bookType);
+      const doc = new jsPDF({ orientation: "p", unit: "pt", format: "a4" });
+
+      doc.setFontSize(14);
+      doc.text(`Mẫu ${bookLabel}`, 40, 40);
+      doc.setFontSize(10);
+      doc.text(`Kỳ: ${fromDate} đến ${toDate}`, 40, 58);
+
+      autoTable(doc, {
+        startY: 74,
+        head: [["Ngày", "Diễn giải", "Số tiền"]],
+        body: rows.map((r) => [
+          new Date(r.date).toLocaleDateString("vi-VN"),
+          r.description,
+          formatVnd(r.amount),
+        ]),
+        foot: [["", "Tổng", formatVnd(total)]],
+        styles: { fontSize: 9 },
+      });
+
+      doc.save(`${bookLabel}_${fromDate}_to_${toDate}.pdf`);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <AppShell>
       <div className="space-y-4">
@@ -57,6 +127,20 @@ export default function TaxBooksPage() {
             <input className="rounded border px-2 py-1 text-sm" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
             <input className="rounded border px-2 py-1 text-sm" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
             <button className="rounded border px-3 py-2 text-sm" onClick={load}>Nạp dữ liệu</button>
+            <button
+              className="rounded border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={() => void exportExcel()}
+              disabled={loading || exporting}
+            >
+              {exporting ? "Đang xuất..." : "Xuất Excel"}
+            </button>
+            <button
+              className="rounded border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={() => void exportPdf()}
+              disabled={loading || exporting}
+            >
+              {exporting ? "Đang xuất..." : "Xuất PDF"}
+            </button>
             <button className="rounded border px-3 py-2 text-sm" onClick={() => window.print()}>In mẫu</button>
           </div>
         </div>
