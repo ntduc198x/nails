@@ -101,35 +101,71 @@ export default function TaxBooksPage() {
         import("html2canvas"),
       ]);
 
-      const canvas = await html2canvas(printRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-      });
+      const bookLabel = toBookLabel(bookType);
 
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF({ orientation: "p", unit: "pt", format: "a4" });
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
+      try {
+        const canvas = await html2canvas(printRef.current, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: "#ffffff",
+        });
 
-      const imgWidth = pageWidth - 40;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        const imgData = canvas.toDataURL("image/png");
+        const pdf = new jsPDF({ orientation: "p", unit: "pt", format: "a4" });
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
 
-      let heightLeft = imgHeight;
-      let position = 20;
+        const imgWidth = pageWidth - 40;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-      pdf.addImage(imgData, "PNG", 20, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight - 40;
+        let heightLeft = imgHeight;
+        let position = 20;
 
-      while (heightLeft > 0) {
-        pdf.addPage();
-        position = 20 - (imgHeight - heightLeft);
         pdf.addImage(imgData, "PNG", 20, position, imgWidth, imgHeight);
         heightLeft -= pageHeight - 40;
-      }
 
-      const bookLabel = toBookLabel(bookType);
-      pdf.save(`${bookLabel}_${fromDate}_to_${toDate}.pdf`);
+        while (heightLeft > 0) {
+          pdf.addPage();
+          position = 20 - (imgHeight - heightLeft);
+          pdf.addImage(imgData, "PNG", 20, position, imgWidth, imgHeight);
+          heightLeft -= pageHeight - 40;
+        }
+
+        pdf.save(`${bookLabel}_${fromDate}_to_${toDate}.pdf`);
+        return;
+      } catch {
+        // Fallback when browser/css has unsupported color functions (e.g. lab/oklch)
+        const autoTableModule = await import("jspdf-autotable");
+        const autoTable = autoTableModule.default;
+        const pdf = new jsPDF({ orientation: "p", unit: "pt", format: "a4" });
+
+        pdf.setFontSize(12);
+        pdf.text(`Mẫu ${bookLabel}`, 40, 40);
+        pdf.setFontSize(10);
+        pdf.text(`Hộ/CNKD: ${ownerName || "..............."}`, 40, 58);
+        pdf.text(`MST: ${taxCode || "..............."}`, 40, 74);
+        pdf.text(`Kỳ kê khai: ${fromDate} đến ${toDate}`, 40, 90);
+        pdf.text(`Đơn vị tính: ${unit}`, 40, 106);
+
+        autoTable(pdf, {
+          startY: 120,
+          head: [["Ngày tháng", "Diễn giải", "Số tiền"], ["A", "B", "1"]],
+          body: rows.map((r) => [
+            new Date(r.date).toLocaleDateString("vi-VN"),
+            r.description,
+            formatVnd(r.amount),
+          ]),
+          foot: [["", "Tổng cộng", formatVnd(total)]],
+          styles: { fontSize: 9 },
+          columnStyles: {
+            0: { cellWidth: 95 },
+            1: { cellWidth: 280 },
+            2: { cellWidth: 120, halign: "right" },
+          },
+        });
+
+        pdf.save(`${bookLabel}_${fromDate}_to_${toDate}.pdf`);
+      }
     } finally {
       setExporting(false);
     }
