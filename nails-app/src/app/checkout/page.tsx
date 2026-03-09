@@ -130,7 +130,13 @@ export default function CheckoutPage() {
       setLines([{ serviceId: "", qty: 1 }]);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Checkout failed");
+      if (e instanceof Error) {
+        setError(e.message);
+      } else if (e && typeof e === "object" && "message" in e) {
+        setError(String((e as { message?: unknown }).message ?? "Checkout failed"));
+      } else {
+        setError("Checkout failed");
+      }
     } finally {
       setSubmitting(false);
     }

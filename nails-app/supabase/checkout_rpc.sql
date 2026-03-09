@@ -173,7 +173,8 @@ begin
   insert into payments (org_id, ticket_id, method, amount, status)
   values (v_org_id, v_ticket_id, p_payment_method, v_grand_total, 'PAID');
 
-  v_token := encode(gen_random_bytes(24), 'hex');
+  -- Avoid dependency on gen_random_bytes() availability across projects.
+  v_token := replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '');
   v_expires_at := now() + make_interval(days => v_days);
 
   insert into receipts (org_id, ticket_id, public_token, expires_at)
