@@ -200,13 +200,6 @@ type CheckoutInput = {
   idempotencyKey?: string;
 };
 
-function randomToken(size = 32) {
-  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let out = "";
-  for (let i = 0; i < size; i++) out += chars[Math.floor(Math.random() * chars.length)];
-  return out;
-}
-
 export async function createCheckout(input: CheckoutInput) {
   if (!supabase) throw new Error("Supabase chưa cấu hình");
   if (!input.lines.length) throw new Error("Cần ít nhất 1 dịch vụ");
@@ -241,158 +234,11 @@ export async function createCheckout(input: CheckoutInput) {
     };
   }
 
-  // Backward compatibility: DB chưa có RPC thì fallback flow cũ.
-  if (rpcErr && rpcErr.code !== "PGRST202") {
+  if (rpcErr) {
     throw rpcErr;
   }
 
-  const { orgId, branchId } = await ensureOrgContext();
-  const customerId = await findOrCreateCustomer(orgId, input.customerName);
-
-  const serviceIds = input.lines.map((l) => l.serviceId);
-  const { data: serviceRows, error: serviceErr } = await supabase
-    .from("services")
-    .select("id,base_price,vat_rate")
-    .in("id", serviceIds)
-    .eq("org_id", orgId);
-  if (serviceErr) throw serviceErr;
-
-  const map = new Map((serviceRows ?? []).map((s) => [s.id as string, s]));
-
-  let subtotal = 0;
-  let vatTotal = 0;
-
-  const ticketItems = input.lines.map((line) => {
-    const svc = map.get(line.serviceId);
-    if (!svc) throw new Error("Service không hợp lệ");
-    const unit = Number(svc.base_price);
-    const vatRate = Number(svc.vat_rate);
-    subtotal += unit * line.qty;
-    vatTotal += unit * line.qty * vatRate;
-
-    return {
-      org_id: orgId,
-      service_id: line.serviceId,
-      qty: line.qty,
-      unit_price: unit,
-      vat_rate: vatRate,
-    };
-  });
-
-  const grandTotal = subtotal + vatTotal;
-
-  const dedupeWindowMs = input.dedupeWindowMs ?? 15000;
-  const sinceIso = new Date(Date.now() - dedupeWindowMs).toISOString();
-
-  const { data: recentTickets, error: recentErr } = await supabase
-    .from("tickets")
-    .select("id,totals_json,created_at")
-    .eq("org_id", orgId)
-    .eq("customer_id", customerId)
-    .eq("status", "CLOSED")
-    .gte("created_at", sinceIso)
-    .order("created_at", { ascending: false })
-    .limit(5);
-  if (recentErr) throw recentErr;
-
-  const duplicate = (recentTickets ?? []).find((t) => {
-    const total = Number((t.totals_json as { grand_total?: number } | null)?.grand_total ?? 0);
-    return Math.abs(total - grandTotal) < 0.01;
-  });
-
-  if (duplicate?.id) {
-    const { data: receiptRows } = await supabase
-      .from("receipts")
-      .select("public_token")
-      .eq("ticket_id", duplicate.id)
-      .order("created_at", { ascending: false })
-      .limit(1);
-
-    return {
-      ticketId: duplicate.id as string,
-      receiptToken: (receiptRows?.[0]?.public_token as string | undefined) ?? "",
-      grandTotal,
-      deduped: true,
-    };
-  }
-
-  const { data: ticket, error: ticketErr } = await supabase
-    .from("tickets")
-    .insert({
-      org_id: orgId,
-      branch_id: branchId,
-      customer_id: customerId,
-      appointment_id: input.appointmentId ?? null,
-      status: "CLOSED",
-      totals_json: {
-        subtotal,
-        discount_total: 0,
-        vat_total: vatTotal,
-        grand_total: grandTotal,
-      },
-    })
-    .select("id")
-    .single();
-  if (ticketErr) throw ticketErr;
-
-  const ticketId = ticket.id as string;
-
-  const { error: itemErr } = await supabase.from("ticket_items").insert(
-    ticketItems.map((i) => ({
-      ...i,
-      ticket_id: ticketId,
-    })),
-  );
-  if (itemErr) throw itemErr;
-
-  const { error: paymentErr } = await supabase.from("payments").insert({
-    org_id: orgId,
-    ticket_id: ticketId,
-    method: input.paymentMethod,
-    amount: grandTotal,
-    status: "PAID",
-  });
-  if (paymentErr) throw paymentErr;
-
-  const days = Number(process.env.NEXT_PUBLIC_RECEIPT_LINK_EXPIRE_DAYS ?? 30);
-  const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
-
-  const token = randomToken();
-
-  const { error: receiptErr } = await supabase.from("receipts").insert({
-    org_id: orgId,
-    ticket_id: ticketId,
-    public_token: token,
-    expires_at: expiresAt,
-  });
-  if (receiptErr) throw receiptErr;
-
-  // Nếu checkout từ appointment thì validate trạng thái + tự động hoàn tất appointment
-  if (input.appointmentId) {
-    const { data: appt, error: apptReadErr } = await supabase
-      .from("appointments")
-      .select("status")
-      .eq("id", input.appointmentId)
-      .eq("org_id", orgId)
-      .single();
-    if (apptReadErr) throw apptReadErr;
-
-    if (["DONE", "CANCELLED", "NO_SHOW"].includes(appt.status)) {
-      throw new Error("Appointment đã kết thúc/hủy, không thể mở ticket mới.");
-    }
-
-    const { error: apptErr } = await supabase
-      .from("appointments")
-      .update({ status: "DONE" })
-      .eq("id", input.appointmentId)
-      .eq("org_id", orgId);
-    if (apptErr) throw apptErr;
-  }
-
-  ticketsCache = null;
-  invalidateDataCaches();
-
-  return { ticketId, receiptToken: token, grandTotal, deduped: false };
+  throw new Error("Checkout RPC không trả dữ liệu.");
 }
 
 export async function listRecentTickets(opts?: { force?: boolean }) {
