@@ -4,7 +4,7 @@ import { AppShell } from "@/components/app-shell";
 import { getCurrentSessionRole, type AppRole } from "@/lib/auth";
 import { createService, listServices } from "@/lib/domain";
 import { formatVnd } from "@/lib/mock-data";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type ServiceRow = {
   id: string;
@@ -18,6 +18,8 @@ type ServiceRow = {
 export default function ServicesPage() {
   const [rows, setRows] = useState<ServiceRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
 
@@ -26,28 +28,34 @@ export default function ServicesPage() {
   const [price, setPrice] = useState(250000);
   const [vat, setVat] = useState(8);
 
-  async function load() {
+  const load = useCallback(async (opts?: { force?: boolean }) => {
+    const isInitial = rows.length === 0;
     try {
-      setLoading(true);
+      if (isInitial) setLoading(true);
+      else setRefreshing(true);
       setError(null);
       const currentRole = await getCurrentSessionRole();
       setRole(currentRole);
-      const data = await listServices();
+      const data = await listServices({ force: opts?.force });
       setRows(data as ServiceRow[]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load services failed");
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
+      else setRefreshing(false);
     }
-  }
+  }, [rows.length]);
 
   useEffect(() => {
-    load();
-  }, []);
+    void load({ force: true });
+  }, [load]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (submitting) return;
+
     try {
+      setSubmitting(true);
       setError(null);
       if (role !== "OWNER" && role !== "MANAGER" && role !== "RECEPTION") {
         throw new Error("Role hiện tại không được phép thêm dịch vụ.");
@@ -62,9 +70,11 @@ export default function ServicesPage() {
       setDuration(45);
       setPrice(250000);
       setVat(8);
-      await load();
+      await load({ force: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Create service failed");
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -72,7 +82,10 @@ export default function ServicesPage() {
     <AppShell>
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold">Dịch vụ & VAT (Supabase)</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl font-bold">Dịch vụ & VAT (Supabase)</h2>
+            {refreshing && <span className="text-xs text-neutral-500">Đang làm mới...</span>}
+          </div>
         </div>
         {role === "ACCOUNTANT" || role === "TECH" ? (
           <p className="text-sm text-amber-700">Role hiện tại chỉ xem danh sách dịch vụ, không thêm/sửa.</p>
@@ -116,10 +129,10 @@ export default function ServicesPage() {
               required
             />
             <button
-              disabled={role === "ACCOUNTANT" || role === "TECH"}
+              disabled={submitting || role === "ACCOUNTANT" || role === "TECH"}
               className="rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Thêm
+              {submitting ? "Đang thêm..." : "Thêm"}
             </button>
           </div>
         </form>

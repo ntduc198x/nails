@@ -4,7 +4,7 @@ import { AppShell } from "@/components/app-shell";
 import { getReportBreakdown, listTicketsInRange, listTimeEntriesInRange, type ReportTicketRow } from "@/lib/reporting";
 import { formatVnd } from "@/lib/mock-data";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 function toDateInput(d: Date) {
   const y = d.getFullYear();
@@ -38,15 +38,18 @@ export default function ReportsPage() {
     by_payment: Array<{ method: string; count: number; amount: number }>;
   } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [breakdownError, setBreakdownError] = useState<string | null>(null);
   const [staffHours, setStaffHours] = useState<Array<{ staff: string; minutes: number; entries: number }>>([]);
 
-  async function load() {
+  const load = useCallback(async () => {
+    const isInitial = rows.length === 0;
     try {
       setError(null);
       setBreakdownError(null);
-      setLoading(true);
+      if (isInitial) setLoading(true);
+      else setRefreshing(true);
       const fromIso = new Date(`${fromDate}T00:00:00`).toISOString();
       const toIso = new Date(`${toDate}T00:00:00`).toISOString();
 
@@ -84,14 +87,14 @@ export default function ReportsPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load reports failed");
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
+      else setRefreshing(false);
     }
-  }
+  }, [fromDate, toDate, rows.length]);
 
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    void load();
+  }, [load]);
 
   const summary = useMemo(() => {
     if (breakdown?.summary) {
@@ -161,12 +164,21 @@ export default function ReportsPage() {
     <AppShell>
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-2xl font-bold">Báo cáo nhanh</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl font-bold">Báo cáo nhanh</h2>
+            {refreshing && <span className="text-xs text-neutral-500">Đang làm mới...</span>}
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <input className="rounded border px-2 py-1 text-sm" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
             <span className="text-sm text-neutral-500">đến</span>
             <input className="rounded border px-2 py-1 text-sm" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
-            <button className="rounded border px-3 py-2 text-sm" onClick={load}>Lọc</button>
+            <button
+              className="rounded border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={() => void load()}
+              disabled={refreshing}
+            >
+              {refreshing ? "Đang lọc..." : "Lọc"}
+            </button>
             <button className="rounded border px-3 py-2 text-sm" onClick={exportCsv}>Export CSV</button>
           </div>
         </div>
