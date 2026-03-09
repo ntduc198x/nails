@@ -37,6 +37,8 @@ export default function AppointmentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [submitting, setSubmitting] = useState(false);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const load = useCallback(async (opts?: { force?: boolean }) => {
     try {
@@ -62,7 +64,10 @@ export default function AppointmentsPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (submitting) return;
+
     try {
+      setSubmitting(true);
       setError(null);
       await createAppointment({
         customerName,
@@ -73,16 +78,23 @@ export default function AppointmentsPage() {
       await load({ force: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Create appointment failed");
+    } finally {
+      setSubmitting(false);
     }
   }
 
   async function onQuickStatus(id: string, status: "CHECKED_IN" | "DONE" | "CANCELLED") {
+    if (updatingId) return;
+
     try {
+      setUpdatingId(id);
       setError(null);
       await updateAppointmentStatus(id, status);
       await load({ force: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Update appointment status failed");
+    } finally {
+      setUpdatingId(null);
     }
   }
 
@@ -113,6 +125,7 @@ export default function AppointmentsPage() {
             placeholder="Tên khách"
             value={customerName}
             onChange={(e) => setCustomerName(e.target.value)}
+            disabled={submitting}
             required
           />
           <input
@@ -120,6 +133,7 @@ export default function AppointmentsPage() {
             type="datetime-local"
             value={startAt}
             onChange={(e) => setStartAt(e.target.value)}
+            disabled={submitting}
             required
           />
           <input
@@ -127,9 +141,15 @@ export default function AppointmentsPage() {
             type="datetime-local"
             value={endAt}
             onChange={(e) => setEndAt(e.target.value)}
+            disabled={submitting}
             required
           />
-          <button className="rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white">Tạo lịch hẹn</button>
+          <button
+            className="rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={submitting}
+          >
+            {submitting ? "Đang tạo..." : "Tạo lịch hẹn"}
+          </button>
         </form>
 
         <div className="rounded-2xl bg-white p-5 shadow-sm">
@@ -164,18 +184,30 @@ export default function AppointmentsPage() {
                         </td>
                         <td className="space-x-1">
                           {a.status === "BOOKED" && (
-                            <button onClick={() => onQuickStatus(a.id, "CHECKED_IN")} className="rounded border px-2 py-1 text-xs">
-                              Check-in
+                            <button
+                              onClick={() => onQuickStatus(a.id, "CHECKED_IN")}
+                              className="rounded border px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                              disabled={!!updatingId}
+                            >
+                              {updatingId === a.id ? "Đang xử lý..." : "Check-in"}
                             </button>
                           )}
                           {["BOOKED", "CHECKED_IN"].includes(a.status) && (
-                            <button onClick={() => onQuickStatus(a.id, "DONE")} className="rounded border px-2 py-1 text-xs">
-                              Done
+                            <button
+                              onClick={() => onQuickStatus(a.id, "DONE")}
+                              className="rounded border px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                              disabled={!!updatingId}
+                            >
+                              {updatingId === a.id ? "Đang xử lý..." : "Done"}
                             </button>
                           )}
                           {["BOOKED", "CHECKED_IN"].includes(a.status) && (
-                            <button onClick={() => onQuickStatus(a.id, "CANCELLED")} className="rounded border px-2 py-1 text-xs">
-                              Cancel
+                            <button
+                              onClick={() => onQuickStatus(a.id, "CANCELLED")}
+                              className="rounded border px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                              disabled={!!updatingId}
+                            >
+                              {updatingId === a.id ? "Đang xử lý..." : "Cancel"}
                             </button>
                           )}
                         </td>
