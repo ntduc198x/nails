@@ -3,7 +3,7 @@
 import { AppShell } from "@/components/app-shell";
 import { buildTaxBook, type TaxBookType, type TaxBookRow } from "@/lib/tax-books";
 import { formatVnd } from "@/lib/mock-data";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 function toDateInput(d: Date) {
   const y = d.getFullYear();
@@ -32,6 +32,7 @@ export default function TaxBooksPage() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const printRef = useRef<HTMLDivElement | null>(null);
 
   async function load() {
     try {
@@ -93,80 +94,42 @@ export default function TaxBooksPage() {
   async function exportPdf() {
     try {
       setExporting(true);
-      const [{ default: jsPDF }, autoTableModule] = await Promise.all([
+      if (!printRef.current) return;
+
+      const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
         import("jspdf"),
-        import("jspdf-autotable"),
+        import("html2canvas"),
       ]);
-      const autoTable = autoTableModule.default;
 
-      const bookLabel = toBookLabel(bookType);
-      const doc = new jsPDF({ orientation: "p", unit: "pt", format: "a4" });
+      const canvas = await html2canvas(printRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+      });
 
-      if (bookType === "S1A_HKD") {
-        doc.setFontSize(11);
-        doc.text(`HỘ, CÁ NHÂN KINH DOANH: ${ownerName || "..............."}`, 40, 40);
-        doc.text(`Địa chỉ: ${address || "..............."}`, 40, 58);
-        doc.text(`Mã số thuế: ${taxCode || "..............."}`, 40, 76);
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({ orientation: "p", unit: "pt", format: "a4" });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
 
-        doc.text("Mẫu số S1a-HKD", 340, 40);
-        doc.setFontSize(10);
-        doc.text("(Kèm theo Thông tư số 152/2025/TT-BTC)", 340, 58);
+      const imgWidth = pageWidth - 40;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-        doc.setFontSize(12);
-        doc.text("SỔ DOANH THU BÁN HÀNG HÓA, DỊCH VỤ", 150, 118);
-        doc.setFontSize(10);
-        doc.text(`Địa điểm kinh doanh: ${businessLocation || "..............."}`, 40, 138);
-        doc.text(`Kỳ kê khai: ${fromDate} đến ${toDate}`, 40, 156);
-        doc.text(`Đơn vị tính: ${unit}`, 40, 174);
+      let heightLeft = imgHeight;
+      let position = 20;
 
-        const minRows = 18;
-        const bodyRows = rows.map((r) => [
-          new Date(r.date).toLocaleDateString("vi-VN"),
-          r.description,
-          formatVnd(r.amount),
-        ]);
-        while (bodyRows.length < minRows) bodyRows.push(["", "", ""]);
+      pdf.addImage(imgData, "PNG", 20, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight - 40;
 
-        autoTable(doc, {
-          startY: 186,
-          margin: { left: 40, right: 40 },
-          head: [["Ngày tháng", "Diễn giải", "Số tiền"], ["A", "B", "1"]],
-          body: bodyRows,
-          foot: [["", "Tổng cộng", formatVnd(total)]],
-          styles: { fontSize: 9, cellPadding: 4, lineWidth: 0.5, lineColor: [80, 80, 80] },
-          headStyles: { halign: "center", fillColor: [245, 245, 245], textColor: 20 },
-          footStyles: { halign: "right", fillColor: [250, 250, 250], textColor: 20, fontStyle: "bold" },
-          columnStyles: {
-            0: { cellWidth: 95, halign: "center" },
-            1: { cellWidth: 280 },
-            2: { cellWidth: 120, halign: "right" },
-          },
-        });
-
-        const signatureY = 760;
-        doc.text(`Ngày ... tháng ... năm ...`, 370, signatureY);
-        doc.text(`NGƯỜI ĐẠI DIỆN HỘ KINH DOANH/CÁ NHÂN KINH DOANH`, 250, signatureY + 18);
-        doc.text(`(Ký, ghi rõ họ tên, đóng dấu nếu có)`, 320, signatureY + 36);
-      } else {
-        doc.setFontSize(14);
-        doc.text(`Mẫu ${bookLabel}`, 40, 40);
-        doc.setFontSize(10);
-        doc.text(`Kỳ: ${fromDate} đến ${toDate}`, 40, 58);
-
-        autoTable(doc, {
-          startY: 74,
-          head: [["Ngày", "Diễn giải", "Số tiền"]],
-          body: rows.map((r) => [
-            new Date(r.date).toLocaleDateString("vi-VN"),
-            r.description,
-            formatVnd(r.amount),
-          ]),
-          foot: [["", "Tổng", formatVnd(total)]],
-          styles: { fontSize: 9 },
-        });
+      while (heightLeft > 0) {
+        pdf.addPage();
+        position = 20 - (imgHeight - heightLeft);
+        pdf.addImage(imgData, "PNG", 20, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight - 40;
       }
 
-      doc.save(`${bookLabel}_${fromDate}_to_${toDate}.pdf`);
+      const bookLabel = toBookLabel(bookType);
+      pdf.save(`${bookLabel}_${fromDate}_to_${toDate}.pdf`);
     } finally {
       setExporting(false);
     }
@@ -217,18 +180,41 @@ export default function TaxBooksPage() {
           <input className="rounded border px-3 py-2 text-sm" placeholder="Đơn vị tính" value={unit} onChange={(e) => setUnit(e.target.value)} />
         </div>
 
-        <div className="rounded-2xl bg-white p-5 shadow-sm">
+        <div ref={printRef} className="rounded-2xl bg-white p-5 shadow-sm">
+          <div className="mb-4 text-sm leading-6">
+            <div className="flex justify-between gap-4">
+              <div>
+                <p><strong>HỘ, CÁ NHÂN KINH DOANH:</strong> {ownerName || "..............."}</p>
+                <p><strong>Địa chỉ:</strong> {address || "..............."}</p>
+                <p><strong>Mã số thuế:</strong> {taxCode || "..............."}</p>
+              </div>
+              <div className="text-right">
+                <p><strong>Mẫu số {toBookLabel(bookType)}</strong></p>
+                <p>(Kèm theo Thông tư số 152/2025/TT-BTC)</p>
+              </div>
+            </div>
+            <p className="mt-3 text-center text-base font-semibold">SỔ DOANH THU BÁN HÀNG HÓA, DỊCH VỤ</p>
+            <p><strong>Địa điểm kinh doanh:</strong> {businessLocation || "..............."}</p>
+            <p><strong>Kỳ kê khai:</strong> {fromDate} đến {toDate}</p>
+            <p><strong>Đơn vị tính:</strong> {unit}</p>
+          </div>
+
           {error && <p className="mb-3 text-sm text-red-600">Lỗi: {error}</p>}
           {loading ? (
             <p className="text-sm text-neutral-500">Đang tải...</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="text-neutral-500">
+                <thead className="text-neutral-600">
                   <tr>
-                    <th className="py-2">Ngày</th>
+                    <th className="py-2">Ngày tháng</th>
                     <th>Diễn giải</th>
                     <th>Số tiền</th>
+                  </tr>
+                  <tr>
+                    <th className="py-1">A</th>
+                    <th>B</th>
+                    <th>1</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -254,6 +240,12 @@ export default function TaxBooksPage() {
               </table>
             </div>
           )}
+
+          <div className="mt-12 text-right text-sm leading-6">
+            <p>Ngày ... tháng ... năm ...</p>
+            <p><strong>NGƯỜI ĐẠI DIỆN HỘ KINH DOANH/CÁ NHÂN KINH DOANH</strong></p>
+            <p>(Ký, ghi rõ họ tên, đóng dấu nếu có)</p>
+          </div>
         </div>
       </div>
     </AppShell>
