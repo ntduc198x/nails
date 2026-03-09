@@ -1,7 +1,7 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
-import { createAppointment, listAppointments } from "@/lib/domain";
+import { createAppointment, listAppointments, updateAppointmentStatus } from "@/lib/domain";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -67,6 +67,16 @@ export default function AppointmentsPage() {
     }
   }
 
+  async function onQuickStatus(id: string, status: "CHECKED_IN" | "DONE" | "CANCELLED") {
+    try {
+      setError(null);
+      await updateAppointmentStatus(id, status);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Update appointment status failed");
+    }
+  }
+
   return (
     <AppShell>
       <div className="space-y-4">
@@ -124,6 +134,7 @@ export default function AppointmentsPage() {
                     <th>Kết thúc</th>
                     <th>Khách</th>
                     <th>Trạng thái</th>
+                    <th>Quick action</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -138,13 +149,34 @@ export default function AppointmentsPage() {
                         <td>{new Date(a.end_at).toLocaleString("vi-VN")}</td>
                         <td>{customer ?? "-"}</td>
                         <td>{a.status}</td>
+                        <td className="space-x-1">
+                          {a.status === "BOOKED" && (
+                            <button onClick={() => onQuickStatus(a.id, "CHECKED_IN")} className="rounded border px-2 py-1 text-xs">
+                              Check-in
+                            </button>
+                          )}
+                          {["BOOKED", "CHECKED_IN"].includes(a.status) && (
+                            <button onClick={() => onQuickStatus(a.id, "DONE")} className="rounded border px-2 py-1 text-xs">
+                              Done
+                            </button>
+                          )}
+                          {["BOOKED", "CHECKED_IN"].includes(a.status) && (
+                            <button onClick={() => onQuickStatus(a.id, "CANCELLED")} className="rounded border px-2 py-1 text-xs">
+                              Cancel
+                            </button>
+                          )}
+                        </td>
                         <td>
-                          <Link
-                            href={`/checkout?customer=${encodeURIComponent(customer ?? "")}&appointmentId=${a.id}`}
-                            className="rounded border px-2 py-1 text-xs"
-                          >
-                            Open ticket
-                          </Link>
+                          {["BOOKED", "CHECKED_IN"].includes(a.status) ? (
+                            <Link
+                              href={`/checkout?customer=${encodeURIComponent(customer ?? "")}&appointmentId=${a.id}`}
+                              className="rounded border px-2 py-1 text-xs"
+                            >
+                              Open ticket
+                            </Link>
+                          ) : (
+                            <span className="text-xs text-neutral-400">Closed</span>
+                          )}
                         </td>
                       </tr>
                     );

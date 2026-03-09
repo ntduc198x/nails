@@ -176,6 +176,20 @@ export async function createAppointment(input: {
   invalidateDataCaches();
 }
 
+export async function updateAppointmentStatus(appointmentId: string, status: "BOOKED" | "CHECKED_IN" | "DONE" | "CANCELLED" | "NO_SHOW") {
+  if (!supabase) throw new Error("Supabase chưa cấu hình");
+  const { orgId } = await ensureOrgContext();
+
+  const { error } = await supabase
+    .from("appointments")
+    .update({ status })
+    .eq("id", appointmentId)
+    .eq("org_id", orgId);
+
+  if (error) throw error;
+  invalidateDataCaches();
+}
+
 type CheckoutInput = {
   customerName: string;
   paymentMethod: "CASH" | "TRANSFER";
@@ -316,8 +330,20 @@ export async function createCheckout(input: CheckoutInput) {
   });
   if (receiptErr) throw receiptErr;
 
-  // Nếu checkout từ appointment thì tự động hoàn tất appointment
+  // Nếu checkout từ appointment thì validate trạng thái + tự động hoàn tất appointment
   if (input.appointmentId) {
+    const { data: appt, error: apptReadErr } = await supabase
+      .from("appointments")
+      .select("status")
+      .eq("id", input.appointmentId)
+      .eq("org_id", orgId)
+      .single();
+    if (apptReadErr) throw apptReadErr;
+
+    if (["DONE", "CANCELLED", "NO_SHOW"].includes(appt.status)) {
+      throw new Error("Appointment đã kết thúc/hủy, không thể mở ticket mới.");
+    }
+
     const { error: apptErr } = await supabase
       .from("appointments")
       .update({ status: "DONE" })
