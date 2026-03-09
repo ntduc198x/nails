@@ -18,37 +18,28 @@ export default async function ReceiptPage({ params }: { params: Promise<Params> 
 
   const supabase = createClient(url, key);
 
-  const { data: receipt, error: receiptErr } = await supabase
-    .from("receipts")
-    .select("ticket_id,expires_at")
-    .eq("public_token", token)
-    .gt("expires_at", new Date().toISOString())
-    .single();
+  const { data: payload, error: receiptErr } = await supabase.rpc("get_receipt_public", { p_token: token });
 
-  if (receiptErr || !receipt) {
+  if (receiptErr || !payload) {
     return <main className="p-8">Không tìm thấy receipt hoặc link đã hết hạn.</main>;
   }
 
-  const { data: ticket } = await supabase
-    .from("tickets")
-    .select("id,created_at,totals_json,customer_id")
-    .eq("id", receipt.ticket_id)
-    .single();
+  const receiptData = payload as {
+    ticket?: { id?: string; created_at?: string; totals_json?: { subtotal?: number; vat_total?: number; grand_total?: number } };
+    customer?: { name?: string };
+    payment?: { method?: string; amount?: number; status?: string };
+    items?: Array<{ qty?: number; unit_price?: number; vat_rate?: number; service_name?: string }>;
+  };
 
-  if (!ticket) {
+  const ticket = receiptData.ticket;
+  if (!ticket?.id || !ticket.created_at) {
     return <main className="p-8">Không tìm thấy ticket.</main>;
   }
 
-  const [{ data: customer }, { data: items }, { data: payment }] = await Promise.all([
-    supabase.from("customers").select("name").eq("id", ticket.customer_id).single(),
-    supabase
-      .from("ticket_items")
-      .select("qty,unit_price,vat_rate,services(name)")
-      .eq("ticket_id", ticket.id),
-    supabase.from("payments").select("method,amount,status").eq("ticket_id", ticket.id).limit(1).single(),
-  ]);
-
-  const totals = (ticket.totals_json as { subtotal?: number; vat_total?: number; grand_total?: number } | null) ?? {};
+  const customer = receiptData.customer;
+  const items = receiptData.items ?? [];
+  const payment = receiptData.payment;
+  const totals = receiptData.ticket?.totals_json ?? {};
 
   return (
     <main className="mx-auto max-w-2xl space-y-4 bg-white p-6 print:max-w-full print:p-2">
@@ -79,14 +70,13 @@ export default async function ReceiptPage({ params }: { params: Promise<Params> 
             </tr>
           </thead>
           <tbody>
-            {(items ?? []).map((it, idx) => {
-              const svc = Array.isArray(it.services) ? it.services[0] : it.services;
+            {items.map((it, idx) => {
               return (
                 <tr key={idx} className="border-t">
-                  <td className="py-2">{svc?.name ?? "-"}</td>
+                  <td className="py-2">{it.service_name ?? "-"}</td>
                   <td>{it.qty}</td>
-                  <td>{formatVnd(Number(it.unit_price))}</td>
-                  <td>{Number(it.vat_rate) * 100}%</td>
+                  <td>{formatVnd(Number(it.unit_price ?? 0))}</td>
+                  <td>{Number(it.vat_rate ?? 0) * 100}%</td>
                 </tr>
               );
             })}

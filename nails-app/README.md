@@ -30,6 +30,7 @@ RECEIPT_LINK_EXPIRE_DAYS=30
 - Chạy file: `supabase/schema.sql`
 - Sau đó chạy tiếp: `supabase/rls.sql` (bật RLS baseline theo role)
 - Chạy thêm: `supabase/security_rpc.sql` (RPC bảo mật cho ticket detail/report)
+- Chạy thêm: `supabase/public_receipt_rpc.sql` (receipt public theo token, dùng cho khách online)
 - Chạy thêm: `supabase/checkout_rpc.sql` (checkout atomic bằng 1 transaction)
 - Chạy thêm: `supabase/idempotency.sql` (idempotency key cho checkout)
 - Nếu đã từng chạy RPC cũ: chạy `supabase/cleanup_checkout_rpc_overloads.sql` để tránh ambiguous function
