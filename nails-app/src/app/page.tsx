@@ -50,6 +50,11 @@ export default function Home() {
   }, [autoRefresh, load]);
 
   const avgBill = data.closedCount > 0 ? data.revenue / data.closedCount : 0;
+  const totalFlow = Math.max(data.appointmentsToday, 1);
+  const waitingPct = Math.min(100, Math.round((data.waiting / totalFlow) * 100));
+  const activePct = Math.min(100, Math.round((data.active / totalFlow) * 100));
+  const doneApprox = Math.max(0, data.appointmentsToday - data.waiting - data.active);
+  const donePct = Math.min(100, Math.round((doneApprox / totalFlow) * 100));
 
   const cards = [
     { label: "Lịch hẹn hôm nay", value: String(data.appointmentsToday) },
@@ -97,9 +102,34 @@ export default function Home() {
           ))}
         </section>
 
-        <section className="rounded-2xl bg-white p-5 shadow-sm">
-          <h3 className="text-lg font-semibold">Tổng bill closed hôm nay</h3>
-          <p className="mt-2 text-3xl font-bold">{loading ? "..." : data.closedCount}</p>
+        <section className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-2xl bg-white p-5 shadow-sm">
+            <h3 className="text-lg font-semibold">Phân bổ trạng thái lịch hẹn</h3>
+            <div className="mt-4 space-y-3 text-sm">
+              <div>
+                <div className="mb-1 flex justify-between"><span>Đang chờ</span><span>{waitingPct}%</span></div>
+                <div className="h-2 rounded bg-neutral-100"><div className="h-2 rounded bg-amber-400" style={{ width: `${waitingPct}%` }} /></div>
+              </div>
+              <div>
+                <div className="mb-1 flex justify-between"><span>Đang phục vụ</span><span>{activePct}%</span></div>
+                <div className="h-2 rounded bg-neutral-100"><div className="h-2 rounded bg-blue-500" style={{ width: `${activePct}%` }} /></div>
+              </div>
+              <div>
+                <div className="mb-1 flex justify-between"><span>Đã xử lý</span><span>{donePct}%</span></div>
+                <div className="h-2 rounded bg-neutral-100"><div className="h-2 rounded bg-emerald-500" style={{ width: `${donePct}%` }} /></div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-white p-5 shadow-sm">
+            <h3 className="text-lg font-semibold">Hiệu suất thanh toán hôm nay</h3>
+            <div className="mt-4 space-y-2">
+              <p className="text-sm text-neutral-500">Tổng bill closed</p>
+              <p className="text-3xl font-bold">{loading ? "..." : data.closedCount}</p>
+              <p className="mt-3 text-sm text-neutral-500">Doanh thu / bill trung bình</p>
+              <p className="text-lg font-semibold">{loading ? "..." : `${formatVnd(data.revenue)} / ${formatVnd(avgBill)}`}</p>
+            </div>
+          </div>
         </section>
       </div>
     </AppShell>

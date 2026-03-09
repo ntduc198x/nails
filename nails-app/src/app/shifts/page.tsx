@@ -4,7 +4,7 @@ import { AppShell } from "@/components/app-shell";
 import { getCurrentSessionRole, type AppRole } from "@/lib/auth";
 import { ensureOrgContext } from "@/lib/domain";
 import { supabase } from "@/lib/supabase";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Entry = {
   id: string;
@@ -17,71 +17,93 @@ export default function ShiftsPage() {
   const [role, setRole] = useState<AppRole | null>(null);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [orgId, setOrgId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
-  async function load() {
+  const loadEntries = useCallback(async (targetOrgId: string) => {
+    const isInitial = entries.length === 0;
     try {
-      setLoading(true);
+      if (isInitial) setLoading(true);
+      else setRefreshing(true);
       setError(null);
-      if (!supabase) throw new Error("Thiếu cấu hình Supabase");
-
-      const r = await getCurrentSessionRole();
-      setRole(r);
-      const { orgId } = await ensureOrgContext();
 
       const { data, error } = await supabase
         .from("time_entries")
         .select("id,staff_user_id,clock_in,clock_out")
-        .eq("org_id", orgId)
+        .eq("org_id", targetOrgId)
         .order("clock_in", { ascending: false })
-        .limit(50);
+        .limit(30);
 
       if (error) throw error;
       setEntries((data ?? []) as Entry[]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load shifts failed");
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
+      else setRefreshing(false);
     }
-  }
+  }, [entries.length]);
 
   useEffect(() => {
-    load();
-  }, []);
+    async function init() {
+      try {
+        if (!supabase) throw new Error("Thiếu cấu hình Supabase");
+        const { data } = await supabase.auth.getSession();
+        const currentUserId = data.session?.user?.id;
+        if (!currentUserId) throw new Error("Chưa đăng nhập");
+
+        const [r, ctx] = await Promise.all([getCurrentSessionRole(), ensureOrgContext()]);
+        setRole(r);
+        setUserId(currentUserId);
+        setOrgId(ctx.orgId);
+        await loadEntries(ctx.orgId);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Khởi tạo shifts failed");
+        setLoading(false);
+      }
+    }
+
+    void init();
+  }, [loadEntries]);
 
   async function clockIn() {
+    if (!orgId || !userId || submitting) return;
+
     try {
+      setSubmitting(true);
       setError(null);
       if (!supabase) throw new Error("Thiếu cấu hình Supabase");
-      const { data } = await supabase.auth.getSession();
-      const user = data.session?.user;
-      if (!user) throw new Error("Chưa đăng nhập");
-      const { orgId } = await ensureOrgContext();
 
       const { error } = await supabase.from("time_entries").insert({
         org_id: orgId,
-        staff_user_id: user.id,
+        staff_user_id: userId,
         clock_in: new Date().toISOString(),
       });
       if (error) throw error;
-      await load();
+      await loadEntries(orgId);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Clock in failed");
+    } finally {
+      setSubmitting(false);
     }
   }
 
   async function clockOut() {
+    if (!orgId || !userId || submitting) return;
+
     try {
+      setSubmitting(true);
       setError(null);
       if (!supabase) throw new Error("Thiếu cấu hình Supabase");
-      const { data } = await supabase.auth.getSession();
-      const user = data.session?.user;
-      if (!user) throw new Error("Chưa đăng nhập");
 
       const { data: openRows, error: findErr } = await supabase
         .from("time_entries")
         .select("id")
-        .eq("staff_user_id", user.id)
+        .eq("org_id", orgId)
+        .eq("staff_user_id", userId)
         .is("clock_out", null)
         .order("clock_in", { ascending: false })
         .limit(1);
@@ -93,27 +115,43 @@ export default function ShiftsPage() {
       const { error } = await supabase
         .from("time_entries")
         .update({ clock_out: new Date().toISOString() })
-        .eq("id", id);
+        .eq("id", id)
+        .eq("org_id", orgId);
       if (error) throw error;
-      await load();
+      await loadEntries(orgId);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Clock out failed");
+    } finally {
+      setSubmitting(false);
     }
   }
 
   const canUse = role === "OWNER" || role === "MANAGER" || role === "RECEPTION" || role === "TECH";
+  const openCount = useMemo(() => entries.filter((e) => !e.clock_out).length, [entries]);
 
   return (
     <AppShell>
       <div className="space-y-4">
-        <h2 className="text-2xl font-bold">Ca làm / Chấm công</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-2xl font-bold">Ca làm / Chấm công</h2>
+          {refreshing && <span className="text-xs text-neutral-500">Đang làm mới...</span>}
+          <span className="rounded-full bg-neutral-100 px-2 py-1 text-xs text-neutral-700">Đang mở: {openCount}</span>
+        </div>
         {canUse ? (
           <div className="flex gap-2">
-            <button onClick={clockIn} className="rounded bg-neutral-900 px-4 py-2 text-sm text-white">
-              Clock in
+            <button
+              onClick={clockIn}
+              disabled={submitting}
+              className="rounded bg-neutral-900 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {submitting ? "Đang xử lý..." : "Clock in"}
             </button>
-            <button onClick={clockOut} className="rounded border px-4 py-2 text-sm">
-              Clock out
+            <button
+              onClick={clockOut}
+              disabled={submitting}
+              className="rounded border px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {submitting ? "Đang xử lý..." : "Clock out"}
             </button>
           </div>
         ) : (
