@@ -3,12 +3,15 @@
 import { AppShell } from "@/components/app-shell";
 import { getDashboardSnapshot } from "@/lib/reporting";
 import { formatVnd } from "@/lib/mock-data";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export default function Home() {
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<string>("-");
+  const hasLoadedRef = useRef(false);
   const [data, setData] = useState({
     appointmentsToday: 0,
     waiting: 0,
@@ -17,35 +20,43 @@ export default function Home() {
     closedCount: 0,
   });
 
-  async function load() {
+  const load = useCallback(async (opts?: { force?: boolean }) => {
+    const isInitial = !hasLoadedRef.current;
     try {
+      if (!isInitial) setRefreshing(true);
       setError(null);
-      const snapshot = await getDashboardSnapshot();
+      const snapshot = await getDashboardSnapshot({ force: opts?.force });
       setData(snapshot);
+      setLastUpdated(new Date().toLocaleTimeString("vi-VN"));
+      hasLoadedRef.current = true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load dashboard failed");
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
+      setRefreshing(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    load();
-  }, []);
+    void load({ force: true });
+  }, [load]);
 
   useEffect(() => {
     if (!autoRefresh) return;
     const id = setInterval(() => {
-      load();
+      void load();
     }, 20000);
     return () => clearInterval(id);
-  }, [autoRefresh]);
+  }, [autoRefresh, load]);
+
+  const avgBill = data.closedCount > 0 ? data.revenue / data.closedCount : 0;
 
   const cards = [
     { label: "Lịch hẹn hôm nay", value: String(data.appointmentsToday) },
     { label: "Khách đang chờ", value: String(data.waiting) },
     { label: "Đang phục vụ", value: String(data.active) },
     { label: "Doanh thu hôm nay", value: formatVnd(data.revenue) },
+    { label: "Bill trung bình", value: formatVnd(avgBill) },
   ];
 
   return (
@@ -56,9 +67,16 @@ export default function Home() {
             <div>
               <h2 className="text-2xl font-bold">Dashboard vận hành</h2>
               <p className="mt-1 text-sm text-neutral-600">Snapshot hôm nay · auto refresh mỗi 20 giây.</p>
+              <p className="mt-1 text-xs text-neutral-500">Cập nhật lúc: {lastUpdated}</p>
             </div>
             <div className="flex items-center gap-2 text-sm">
-              <button onClick={load} className="rounded border px-3 py-2">Refresh</button>
+              <button
+                onClick={() => void load({ force: true })}
+                disabled={refreshing}
+                className="rounded border px-3 py-2 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {refreshing ? "Đang refresh..." : "Refresh"}
+              </button>
               <button
                 onClick={() => setAutoRefresh((v) => !v)}
                 className={`rounded px-3 py-2 ${autoRefresh ? "bg-neutral-900 text-white" : "border"}`}
@@ -70,7 +88,7 @@ export default function Home() {
           {error && <p className="mt-2 text-sm text-red-600">Lỗi: {error}</p>}
         </section>
 
-        <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <section className="grid grid-cols-2 gap-3 md:grid-cols-5">
           {cards.map((item) => (
             <div key={item.label} className="rounded-2xl bg-white p-4 shadow-sm">
               <p className="text-sm text-neutral-500">{item.label}</p>

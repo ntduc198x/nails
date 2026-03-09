@@ -25,8 +25,16 @@ export async function listTicketsInRange(fromIso: string, toIso: string) {
   return (data ?? []) as ReportTicketRow[];
 }
 
-export async function getDashboardSnapshot() {
+let dashboardCache: { at: number; value: { appointmentsToday: number; waiting: number; active: number; revenue: number; closedCount: number } } | null = null;
+const DASHBOARD_TTL = 20_000;
+
+export async function getDashboardSnapshot(opts?: { force?: boolean }) {
   if (!supabase) throw new Error("Supabase chưa cấu hình");
+
+  if (!opts?.force && dashboardCache && Date.now() - dashboardCache.at < DASHBOARD_TTL) {
+    return dashboardCache.value;
+  }
+
   const { orgId } = await ensureOrgContext();
 
   const now = new Date();
@@ -47,8 +55,9 @@ export async function getDashboardSnapshot() {
       .lt("start_at", toIso),
     supabase
       .from("tickets")
-      .select("id,totals_json,status")
+      .select("id,totals_json")
       .eq("org_id", orgId)
+      .eq("status", "CLOSED")
       .gte("created_at", fromIso)
       .lt("created_at", toIso),
   ]);
@@ -62,17 +71,19 @@ export async function getDashboardSnapshot() {
   const waiting = appointments.filter((a) => a.status === "BOOKED").length;
   const active = appointments.filter((a) => a.status === "CHECKED_IN").length;
 
-  const closed = tickets.filter((t) => t.status === "CLOSED");
-  const revenue = closed.reduce((acc, t) => acc + Number((t.totals_json as { grand_total?: number } | null)?.grand_total ?? 0), 0);
-  const count = closed.length;
+  const revenue = tickets.reduce((acc, t) => acc + Number((t.totals_json as { grand_total?: number } | null)?.grand_total ?? 0), 0);
+  const count = tickets.length;
 
-  return {
+  const snapshot = {
     appointmentsToday: appointments.length,
     waiting,
     active,
     revenue,
     closedCount: count,
   };
+
+  dashboardCache = { at: Date.now(), value: snapshot };
+  return snapshot;
 }
 
 export async function getReportBreakdown(fromIso: string, toIso: string) {
