@@ -27,18 +27,8 @@ RECEIPT_LINK_EXPIRE_DAYS=30
 ## 3) Khởi tạo DB schema
 
 - Mở Supabase SQL Editor
-- Chạy file: `supabase/schema.sql`
-- Sau đó chạy tiếp: `supabase/rls.sql` (bật RLS baseline theo role)
-- Chạy thêm: `supabase/security_rpc.sql` (RPC bảo mật cho ticket detail/report)
-- Chạy thêm: `supabase/public_receipt_rpc.sql` (receipt public theo token, dùng cho khách online)
-- Chạy thêm: `supabase/checkout_rpc.sql` (checkout atomic bằng 1 transaction)
-- Chạy thêm: `supabase/idempotency.sql` (idempotency key cho checkout)
-- Nếu đã từng chạy RPC cũ: chạy `supabase/cleanup_checkout_rpc_overloads.sql` để tránh ambiguous function
-- Chạy thêm: `supabase/shifts.sql` (bảng chấm công + RLS)
-- (Khuyến nghị) chạy `supabase/smoke_checkout_integrity.sql` để kiểm tra nhanh toàn vẹn checkout
-- Nếu gặp lỗi duplicate CLOSED ticket theo appointment: chạy `supabase/fix_duplicate_closed_tickets_v2.sql` trước
-- Chạy thêm: `supabase/data_integrity.sql` (ràng buộc toàn vẹn dữ liệu + guard chuyển trạng thái)
-- Khuyến nghị chạy: `supabase/perf_indexes.sql` (index tăng tốc dashboard/reports)
+- Chạy **một file duy nhất**: `supabase/deploy.sql`
+- (Khuyến nghị) chạy thêm: `supabase/smoke_checkout_integrity.sql` để kiểm tra nhanh toàn vẹn checkout
 
 ## 4) Những gì đã có trong starter
 
@@ -56,7 +46,7 @@ RECEIPT_LINK_EXPIRE_DAYS=30
   - Export CSV
   - Click vào ticket để xem detail
 - Supabase client stub: `src/lib/supabase.ts`
-- SQL schema MVP khởi đầu (`supabase/schema.sql`)
+- SQL schema hợp nhất (`supabase/deploy.sql`)
 - Mock data domain: `src/lib/mock-data.ts`
 - Roadmap triển khai: `ROADMAP.vi.md`
 
