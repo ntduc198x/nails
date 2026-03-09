@@ -108,6 +108,23 @@ export default function TaxBooksPage() {
           scale: 2,
           useCORS: true,
           backgroundColor: "#ffffff",
+          onclone: (clonedDoc) => {
+            // Remove Tailwind styles using oklch/lab to avoid parser crash in html2canvas
+            clonedDoc.querySelectorAll('style, link[rel="stylesheet"]').forEach((el) => el.remove());
+
+            const style = clonedDoc.createElement("style");
+            style.textContent = `
+              #tax-book-export-root { font-family: Arial, Helvetica, sans-serif; color: #111; background: #fff; padding: 16px; }
+              #tax-book-export-root table { width: 100%; border-collapse: collapse; font-size: 12px; }
+              #tax-book-export-root th, #tax-book-export-root td { border: 1px solid #333; padding: 6px 8px; }
+              #tax-book-export-root thead th { background: #f3f4f6; font-weight: 700; }
+              #tax-book-export-root tfoot td { font-weight: 700; }
+              #tax-book-export-root .amount { text-align: right; white-space: nowrap; }
+              #tax-book-export-root .right { text-align: right; }
+              #tax-book-export-root .center { text-align: center; }
+            `;
+            clonedDoc.head.appendChild(style);
+          },
         });
 
         const imgData = canvas.toDataURL("image/png");
@@ -216,7 +233,7 @@ export default function TaxBooksPage() {
           <input className="rounded border px-3 py-2 text-sm" placeholder="Đơn vị tính" value={unit} onChange={(e) => setUnit(e.target.value)} />
         </div>
 
-        <div ref={printRef} className="rounded-2xl bg-white p-5 shadow-sm">
+        <div id="tax-book-export-root" ref={printRef} className="rounded-2xl bg-white p-5 shadow-sm">
           <div className="mb-4 text-sm leading-6">
             <div className="flex justify-between gap-4">
               <div>
@@ -258,7 +275,7 @@ export default function TaxBooksPage() {
                     <tr key={`${r.date}-${idx}`} className="border-t border-neutral-100">
                       <td className="py-2">{new Date(r.date).toLocaleDateString("vi-VN")}</td>
                       <td>{r.description}</td>
-                      <td>{formatVnd(r.amount)}</td>
+                      <td className="amount">{formatVnd(r.amount)}</td>
                     </tr>
                   ))}
                   {!rows.length && (
@@ -270,7 +287,7 @@ export default function TaxBooksPage() {
                 <tfoot>
                   <tr className="border-t-2 border-neutral-200 font-semibold">
                     <td className="py-2" colSpan={2}>Tổng</td>
-                    <td>{formatVnd(total)}</td>
+                    <td className="amount">{formatVnd(total)}</td>
                   </tr>
                 </tfoot>
               </table>
