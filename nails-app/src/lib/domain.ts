@@ -220,16 +220,34 @@ export async function createCheckout(input: CheckoutInput) {
     invalidateDataCaches();
 
     const out = rpcData as {
-      ticketId: string;
-      receiptToken: string;
-      grandTotal: number;
-      deduped: boolean;
+      ticketId?: string;
+      ticket_id?: string;
+      receiptToken?: string;
+      receipt_token?: string;
+      grandTotal?: number;
+      grand_total?: number;
+      deduped?: boolean;
     };
 
+    const ticketId = out.ticketId ?? out.ticket_id ?? "";
+    let receiptToken = out.receiptToken ?? out.receipt_token ?? "";
+
+    // Safety net: nếu RPC chưa trả token nhưng có ticketId thì đọc lại từ receipts
+    if (!receiptToken && ticketId) {
+      const { data: receiptRows } = await supabase
+        .from("receipts")
+        .select("public_token")
+        .eq("ticket_id", ticketId)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      receiptToken = (receiptRows?.[0]?.public_token as string | undefined) ?? "";
+    }
+
     return {
-      ticketId: out.ticketId,
-      receiptToken: out.receiptToken,
-      grandTotal: Number(out.grandTotal ?? 0),
+      ticketId,
+      receiptToken,
+      grandTotal: Number(out.grandTotal ?? out.grand_total ?? 0),
       deduped: Boolean(out.deduped),
     };
   }
