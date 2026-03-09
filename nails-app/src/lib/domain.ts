@@ -197,6 +197,7 @@ type CheckoutInput = {
   lines: Array<{ serviceId: string; qty: number }>;
   appointmentId?: string;
   dedupeWindowMs?: number;
+  idempotencyKey?: string;
 };
 
 function randomToken(size = 32) {
@@ -217,6 +218,7 @@ export async function createCheckout(input: CheckoutInput) {
     p_lines: input.lines,
     p_appointment_id: input.appointmentId ?? null,
     p_dedupe_window_ms: rpcDedupeWindowMs,
+    p_idempotency_key: input.idempotencyKey ?? null,
   });
 
   // Nếu đã deploy RPC mới: dùng kết quả atomic luôn.

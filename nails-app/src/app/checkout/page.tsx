@@ -22,6 +22,19 @@ type TicketRow = {
   receipts?: { public_token: string; expires_at: string }[];
 };
 
+function mapCheckoutError(message: string) {
+  if (message.includes("INVALID_SERVICES")) return "Dịch vụ không hợp lệ hoặc đã bị xóa.";
+  if (message.includes("FORBIDDEN")) return "Bạn không có quyền tạo checkout.";
+  if (message.includes("INVALID_PAYMENT_METHOD")) return "Phương thức thanh toán không hợp lệ.";
+  if (message.includes("CHECKOUT_LINES_REQUIRED")) return "Vui lòng chọn ít nhất 1 dịch vụ.";
+  if (message.includes("CUSTOMER_NAME_REQUIRED")) return "Vui lòng nhập tên khách.";
+  if (message.includes("INVALID_APPOINTMENT_STATUS_TRANSITION")) return "Appointment không thể chuyển sang trạng thái DONE.";
+  if (message.includes("Could not choose the best candidate function")) {
+    return "RPC checkout đang bị trùng phiên bản. Chạy cleanup_checkout_rpc_overloads.sql rồi thử lại.";
+  }
+  return message;
+}
+
 export default function CheckoutPage() {
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [tickets, setTickets] = useState<TicketRow[]>([]);
@@ -107,11 +120,17 @@ export default function CheckoutPage() {
       const valid = lines.filter((l) => l.serviceId && l.qty > 0);
       if (!valid.length) throw new Error("Vui lòng chọn ít nhất 1 dịch vụ trước khi Pay & Close");
 
+      const idempotencyKey = 
+        (typeof crypto !== "undefined" && "randomUUID" in crypto)
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      
       const result = await createCheckout({
         customerName,
         paymentMethod,
         lines: valid,
         appointmentId: appointmentId ?? undefined,
+        idempotencyKey,
       });
 
       setLastReceipt(result.receiptToken || null);
@@ -131,9 +150,9 @@ export default function CheckoutPage() {
       await load();
     } catch (e) {
       if (e instanceof Error) {
-        setError(e.message);
+        setError(mapCheckoutError(e.message));
       } else if (e && typeof e === "object" && "message" in e) {
-        setError(String((e as { message?: unknown }).message ?? "Checkout failed"));
+        setError(mapCheckoutError(String((e as { message?: unknown }).message ?? "Checkout failed")));
       } else {
         setError("Checkout failed");
       }

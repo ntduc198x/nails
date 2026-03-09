@@ -6,7 +6,8 @@ create or replace function public.checkout_close_ticket_secure(
   p_payment_method text,
   p_lines jsonb,
   p_appointment_id uuid default null,
-  p_dedupe_window_ms int default 15000
+  p_dedupe_window_ms int default 15000,
+  p_idempotency_key text default null
 )
 returns jsonb
 language plpgsql
@@ -28,6 +29,8 @@ declare
   v_days int := 30;
   v_duplicate_ticket_id uuid;
   v_duplicate_token text;
+  v_existing_ticket_id uuid;
+  v_existing_token text;
 begin
   v_uid := auth.uid();
   if v_uid is null then
@@ -110,6 +113,32 @@ begin
 
   v_grand_total := v_subtotal + v_vat_total;
 
+  -- strict idempotency by key within org
+  if p_idempotency_key is not null and btrim(p_idempotency_key) <> '' then
+    select cr.ticket_id
+    into v_existing_ticket_id
+    from checkout_requests cr
+    where cr.org_id = v_org_id
+      and cr.idempotency_key = p_idempotency_key
+    limit 1;
+
+    if v_existing_ticket_id is not null then
+      select r.public_token
+      into v_existing_token
+      from receipts r
+      where r.ticket_id = v_existing_ticket_id
+      order by r.created_at desc
+      limit 1;
+
+      return jsonb_build_object(
+        'ticketId', v_existing_ticket_id,
+        'receiptToken', coalesce(v_existing_token, ''),
+        'grandTotal', v_grand_total,
+        'deduped', true
+      );
+    end if;
+  end if;
+
   -- dedupe: same customer + CLOSED ticket with same grand_total in short window
   select t.id
   into v_duplicate_ticket_id
@@ -187,6 +216,13 @@ begin
       and org_id = v_org_id;
   end if;
 
+  if p_idempotency_key is not null and btrim(p_idempotency_key) <> '' then
+    insert into checkout_requests (org_id, idempotency_key, ticket_id, created_by)
+    values (v_org_id, p_idempotency_key, v_ticket_id, v_uid)
+    on conflict (org_id, idempotency_key)
+    do update set ticket_id = excluded.ticket_id;
+  end if;
+
   return jsonb_build_object(
     'ticketId', v_ticket_id,
     'receiptToken', v_token,
@@ -196,4 +232,4 @@ begin
 end;
 $$;
 
-grant execute on function public.checkout_close_ticket_secure(text, text, jsonb, uuid, int) to authenticated;
+grant execute on function public.checkout_close_ticket_secure(text, text, jsonb, uuid, int, text) to authenticated;
