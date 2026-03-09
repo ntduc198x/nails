@@ -316,7 +316,18 @@ export async function createCheckout(input: CheckoutInput) {
   });
   if (receiptErr) throw receiptErr;
 
+  // Nếu checkout từ appointment thì tự động hoàn tất appointment
+  if (input.appointmentId) {
+    const { error: apptErr } = await supabase
+      .from("appointments")
+      .update({ status: "DONE" })
+      .eq("id", input.appointmentId)
+      .eq("org_id", orgId);
+    if (apptErr) throw apptErr;
+  }
+
   ticketsCache = null;
+  invalidateDataCaches();
 
   return { ticketId, receiptToken: token, grandTotal, deduped: false };
 }
