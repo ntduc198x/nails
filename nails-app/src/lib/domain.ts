@@ -210,6 +210,40 @@ export async function createCheckout(input: CheckoutInput) {
   if (!supabase) throw new Error("Supabase chưa cấu hình");
   if (!input.lines.length) throw new Error("Cần ít nhất 1 dịch vụ");
 
+  const rpcDedupeWindowMs = input.dedupeWindowMs ?? 15000;
+  const { data: rpcData, error: rpcErr } = await supabase.rpc("checkout_close_ticket_secure", {
+    p_customer_name: input.customerName,
+    p_payment_method: input.paymentMethod,
+    p_lines: input.lines,
+    p_appointment_id: input.appointmentId ?? null,
+    p_dedupe_window_ms: rpcDedupeWindowMs,
+  });
+
+  // Nếu đã deploy RPC mới: dùng kết quả atomic luôn.
+  if (!rpcErr && rpcData) {
+    ticketsCache = null;
+    invalidateDataCaches();
+
+    const out = rpcData as {
+      ticketId: string;
+      receiptToken: string;
+      grandTotal: number;
+      deduped: boolean;
+    };
+
+    return {
+      ticketId: out.ticketId,
+      receiptToken: out.receiptToken,
+      grandTotal: Number(out.grandTotal ?? 0),
+      deduped: Boolean(out.deduped),
+    };
+  }
+
+  // Backward compatibility: DB chưa có RPC thì fallback flow cũ.
+  if (rpcErr && rpcErr.code !== "PGRST202") {
+    throw rpcErr;
+  }
+
   const { orgId, branchId } = await ensureOrgContext();
   const customerId = await findOrCreateCustomer(orgId, input.customerName);
 
