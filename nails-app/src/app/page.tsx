@@ -1,7 +1,7 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
-import { getDashboardSnapshot } from "@/lib/reporting";
+import { getDashboardSnapshot, getReportBreakdown, getRevenueTrend7d } from "@/lib/reporting";
 import { formatVnd } from "@/lib/mock-data";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -12,6 +12,8 @@ export default function Home() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<string>("-");
   const hasLoadedRef = useRef(false);
+  const [trend7d, setTrend7d] = useState<Array<{ label: string; revenue: number; closedCount: number }>>([]);
+  const [topServices, setTopServices] = useState<Array<{ service_name: string; qty: number; subtotal: number }>>([]);
   const [data, setData] = useState({
     appointmentsToday: 0,
     waiting: 0,
@@ -25,8 +27,21 @@ export default function Home() {
     try {
       if (!isInitial) setRefreshing(true);
       setError(null);
-      const snapshot = await getDashboardSnapshot({ force: opts?.force });
+      const now = new Date();
+      const start = new Date(now);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 1);
+
+      const [snapshot, trend, breakdown] = await Promise.all([
+        getDashboardSnapshot({ force: opts?.force }),
+        getRevenueTrend7d({ force: opts?.force }),
+        getReportBreakdown(start.toISOString(), end.toISOString()),
+      ]);
+
       setData(snapshot);
+      setTrend7d(trend);
+      setTopServices((breakdown.by_service ?? []).slice(0, 3));
       setLastUpdated(new Date().toLocaleTimeString("vi-VN"));
       hasLoadedRef.current = true;
     } catch (e) {
@@ -55,6 +70,8 @@ export default function Home() {
   const activePct = Math.min(100, Math.round((data.active / totalFlow) * 100));
   const doneApprox = Math.max(0, data.appointmentsToday - data.waiting - data.active);
   const donePct = Math.min(100, Math.round((doneApprox / totalFlow) * 100));
+
+  const trendMax = Math.max(...trend7d.map((x) => x.revenue), 1);
 
   const cards = [
     { label: "Lịch hẹn hôm nay", value: String(data.appointmentsToday) },
@@ -128,6 +145,47 @@ export default function Home() {
               <p className="text-3xl font-bold">{loading ? "..." : data.closedCount}</p>
               <p className="mt-3 text-sm text-neutral-500">Doanh thu / bill trung bình</p>
               <p className="text-lg font-semibold">{loading ? "..." : `${formatVnd(data.revenue)} / ${formatVnd(avgBill)}`}</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-2xl bg-white p-5 shadow-sm">
+            <h3 className="text-lg font-semibold">Xu hướng 7 ngày (Doanh thu)</h3>
+            <div className="mt-4 space-y-2">
+              {trend7d.map((d) => {
+                const pct = Math.round((d.revenue / trendMax) * 100);
+                return (
+                  <div key={d.label} className="text-sm">
+                    <div className="mb-1 flex justify-between">
+                      <span>{d.label}</span>
+                      <span>{formatVnd(d.revenue)} · {d.closedCount} bill</span>
+                    </div>
+                    <div className="h-2 rounded bg-neutral-100">
+                      <div className="h-2 rounded bg-neutral-800" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-white p-5 shadow-sm">
+            <h3 className="text-lg font-semibold">Top dịch vụ hôm nay</h3>
+            <div className="mt-4 space-y-2 text-sm">
+              {topServices.length === 0 ? (
+                <p className="text-neutral-500">Chưa có dữ liệu dịch vụ hôm nay.</p>
+              ) : (
+                topServices.map((s, idx) => (
+                  <div key={`${s.service_name}-${idx}`} className="flex items-center justify-between rounded-lg border border-neutral-100 px-3 py-2">
+                    <div>
+                      <p className="font-medium">{s.service_name}</p>
+                      <p className="text-xs text-neutral-500">SL: {s.qty}</p>
+                    </div>
+                    <p className="font-semibold">{formatVnd(Number(s.subtotal))}</p>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </section>

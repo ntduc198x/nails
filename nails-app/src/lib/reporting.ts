@@ -86,6 +86,64 @@ export async function getDashboardSnapshot(opts?: { force?: boolean }) {
   return snapshot;
 }
 
+let revenueTrendCache: { at: number; value: Array<{ label: string; revenue: number; closedCount: number }> } | null = null;
+const REVENUE_TREND_TTL = 60_000;
+
+export async function getRevenueTrend7d(opts?: { force?: boolean }) {
+  if (!supabase) throw new Error("Supabase chưa cấu hình");
+
+  if (!opts?.force && revenueTrendCache && Date.now() - revenueTrendCache.at < REVENUE_TREND_TTL) {
+    return revenueTrendCache.value;
+  }
+
+  const { orgId } = await ensureOrgContext();
+
+  const now = new Date();
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - 6);
+
+  const end = new Date(now);
+  end.setHours(23, 59, 59, 999);
+
+  const { data, error } = await supabase
+    .from("tickets")
+    .select("created_at,totals_json")
+    .eq("org_id", orgId)
+    .eq("status", "CLOSED")
+    .gte("created_at", start.toISOString())
+    .lte("created_at", end.toISOString())
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+
+  const buckets = new Map<string, { revenue: number; closedCount: number }>();
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    const key = d.toISOString().slice(0, 10);
+    buckets.set(key, { revenue: 0, closedCount: 0 });
+  }
+
+  for (const row of data ?? []) {
+    const key = String(row.created_at).slice(0, 10);
+    const target = buckets.get(key);
+    if (!target) continue;
+    target.closedCount += 1;
+    target.revenue += Number((row.totals_json as { grand_total?: number } | null)?.grand_total ?? 0);
+  }
+
+  const out = [...buckets.entries()].map(([isoDate, val]) => ({
+    label: new Date(`${isoDate}T00:00:00Z`).toLocaleDateString("vi-VN", { weekday: "short" }),
+    revenue: val.revenue,
+    closedCount: val.closedCount,
+  }));
+
+  revenueTrendCache = { at: Date.now(), value: out };
+  return out;
+}
+
 export async function getReportBreakdown(fromIso: string, toIso: string) {
   if (!supabase) throw new Error("Supabase chưa cấu hình");
   await ensureOrgContext();
