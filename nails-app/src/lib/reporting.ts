@@ -25,6 +25,56 @@ export async function listTicketsInRange(fromIso: string, toIso: string) {
   return (data ?? []) as ReportTicketRow[];
 }
 
+export async function getDashboardSnapshot() {
+  if (!supabase) throw new Error("Supabase chưa cấu hình");
+  const { orgId } = await ensureOrgContext();
+
+  const now = new Date();
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+
+  const fromIso = start.toISOString();
+  const toIso = end.toISOString();
+
+  const [appointmentsRes, ticketsRes] = await Promise.all([
+    supabase
+      .from("appointments")
+      .select("id,status")
+      .eq("org_id", orgId)
+      .gte("start_at", fromIso)
+      .lt("start_at", toIso),
+    supabase
+      .from("tickets")
+      .select("id,totals_json,status")
+      .eq("org_id", orgId)
+      .gte("created_at", fromIso)
+      .lt("created_at", toIso),
+  ]);
+
+  if (appointmentsRes.error) throw appointmentsRes.error;
+  if (ticketsRes.error) throw ticketsRes.error;
+
+  const appointments = appointmentsRes.data ?? [];
+  const tickets = ticketsRes.data ?? [];
+
+  const waiting = appointments.filter((a) => a.status === "BOOKED").length;
+  const active = appointments.filter((a) => a.status === "CHECKED_IN").length;
+
+  const closed = tickets.filter((t) => t.status === "CLOSED");
+  const revenue = closed.reduce((acc, t) => acc + Number((t.totals_json as { grand_total?: number } | null)?.grand_total ?? 0), 0);
+  const count = closed.length;
+
+  return {
+    appointmentsToday: appointments.length,
+    waiting,
+    active,
+    revenue,
+    closedCount: count,
+  };
+}
+
 export async function getReportBreakdown(fromIso: string, toIso: string) {
   if (!supabase) throw new Error("Supabase chưa cấu hình");
   await ensureOrgContext();

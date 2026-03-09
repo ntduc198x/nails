@@ -31,6 +31,7 @@ RECEIPT_LINK_EXPIRE_DAYS=30
 - Sau đó chạy tiếp: `supabase/rls.sql` (bật RLS baseline theo role)
 - Chạy thêm: `supabase/security_rpc.sql` (RPC bảo mật cho ticket detail/report)
 - Chạy thêm: `supabase/shifts.sql` (bảng chấm công + RLS)
+- Khuyến nghị chạy: `supabase/perf_indexes.sql` (index tăng tốc dashboard/reports)
 
 ## 4) Những gì đã có trong starter
 
