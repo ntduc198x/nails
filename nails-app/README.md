@@ -31,6 +31,7 @@ RECEIPT_LINK_EXPIRE_DAYS=30
 - Sau đó chạy tiếp: `supabase/rls.sql` (bật RLS baseline theo role)
 - Chạy thêm: `supabase/security_rpc.sql` (RPC bảo mật cho ticket detail/report)
 - Chạy thêm: `supabase/shifts.sql` (bảng chấm công + RLS)
+- Nếu gặp lỗi duplicate CLOSED ticket theo appointment: chạy `supabase/fix_duplicate_closed_tickets.sql` trước
 - Chạy thêm: `supabase/data_integrity.sql` (ràng buộc toàn vẹn dữ liệu + guard chuyển trạng thái)
 - Khuyến nghị chạy: `supabase/perf_indexes.sql` (index tăng tốc dashboard/reports)
 
