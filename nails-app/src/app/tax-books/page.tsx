@@ -1,0 +1,110 @@
+"use client";
+
+import { AppShell } from "@/components/app-shell";
+import { buildTaxBook, type TaxBookType, type TaxBookRow } from "@/lib/tax-books";
+import { formatVnd } from "@/lib/mock-data";
+import { useEffect, useState } from "react";
+
+function toDateInput(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export default function TaxBooksPage() {
+  const today = new Date();
+  const [fromDate, setFromDate] = useState(toDateInput(today));
+  const [toDate, setToDate] = useState(toDateInput(new Date(today.getTime() + 24 * 60 * 60 * 1000)));
+  const [bookType, setBookType] = useState<TaxBookType>("S1A_HKD");
+  const [rows, setRows] = useState<TaxBookRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    try {
+      setLoading(true);
+      setError(null);
+      const fromIso = new Date(`${fromDate}T00:00:00`).toISOString();
+      const toIso = new Date(`${toDate}T00:00:00`).toISOString();
+      const data = await buildTaxBook(bookType, fromIso, toIso);
+      setRows(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Load tax book failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const total = rows.reduce((acc, r) => acc + r.amount, 0);
+
+  return (
+    <AppShell>
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-2xl font-bold">Sổ thuế HKD (S1a / S2a / S3a)</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <select className="rounded border px-2 py-1 text-sm" value={bookType} onChange={(e) => setBookType(e.target.value as TaxBookType)}>
+              <option value="S1A_HKD">Mẫu S1a-HKD</option>
+              <option value="S2A_HKD">Mẫu S2a-HKD</option>
+              <option value="S3A_HKD">Mẫu S3a-HKD</option>
+            </select>
+            <input className="rounded border px-2 py-1 text-sm" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+            <input className="rounded border px-2 py-1 text-sm" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+            <button className="rounded border px-3 py-2 text-sm" onClick={load}>Nạp dữ liệu</button>
+            <button className="rounded border px-3 py-2 text-sm" onClick={() => window.print()}>In mẫu</button>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          Mẫu S2a/S3a hiện đang map dữ liệu vận hành để tiện in nháp. Nếu anh muốn đúng 100% biểu mẫu nghiệp vụ kế toán,
+          em sẽ chốt lại mapping cột theo mẫu anh đang dùng và bổ sung trường còn thiếu.
+        </div>
+
+        <div className="rounded-2xl bg-white p-5 shadow-sm">
+          {error && <p className="mb-3 text-sm text-red-600">Lỗi: {error}</p>}
+          {loading ? (
+            <p className="text-sm text-neutral-500">Đang tải...</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="text-neutral-500">
+                  <tr>
+                    <th className="py-2">Ngày</th>
+                    <th>Diễn giải</th>
+                    <th>Số tiền</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, idx) => (
+                    <tr key={`${r.date}-${idx}`} className="border-t border-neutral-100">
+                      <td className="py-2">{new Date(r.date).toLocaleDateString("vi-VN")}</td>
+                      <td>{r.description}</td>
+                      <td>{formatVnd(r.amount)}</td>
+                    </tr>
+                  ))}
+                  {!rows.length && (
+                    <tr className="border-t border-neutral-100">
+                      <td className="py-2 text-neutral-500" colSpan={3}>Không có dữ liệu trong khoảng thời gian đã chọn.</td>
+                    </tr>
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-neutral-200 font-semibold">
+                    <td className="py-2" colSpan={2}>Tổng</td>
+                    <td>{formatVnd(total)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </AppShell>
+  );
+}

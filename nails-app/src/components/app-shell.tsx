@@ -12,15 +12,16 @@ const links = [
   { href: "/services", label: "Dịch vụ" },
   { href: "/checkout", label: "Checkout" },
   { href: "/reports", label: "Báo cáo" },
+  { href: "/tax-books", label: "Sổ thuế" },
   { href: "/shifts", label: "Ca làm" },
   { href: "/team", label: "Nhân sự" },
 ];
 
 function canAccess(role: AppRole, href: string) {
   if (role === "OWNER" || role === "MANAGER") return true;
-  if (role === "RECEPTION") return ["/", "/appointments", "/checkout", "/shifts"].includes(href);
+  if (role === "RECEPTION") return ["/", "/appointments", "/checkout", "/tax-books", "/shifts"].includes(href);
   if (role === "TECH") return ["/", "/appointments", "/shifts"].includes(href);
-  if (role === "ACCOUNTANT") return ["/", "/checkout", "/reports"].includes(href);
+  if (role === "ACCOUNTANT") return ["/", "/checkout", "/reports", "/tax-books"].includes(href);
   return false;
 }
 
