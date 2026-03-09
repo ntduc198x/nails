@@ -24,6 +24,11 @@ export default function TaxBooksPage() {
   const [toDate, setToDate] = useState(toDateInput(new Date(today.getTime() + 24 * 60 * 60 * 1000)));
   const [bookType, setBookType] = useState<TaxBookType>("S1A_HKD");
   const [rows, setRows] = useState<TaxBookRow[]>([]);
+  const [ownerName, setOwnerName] = useState("");
+  const [address, setAddress] = useState("");
+  const [taxCode, setTaxCode] = useState("");
+  const [businessLocation, setBusinessLocation] = useState("");
+  const [unit, setUnit] = useState("đồng");
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +62,12 @@ export default function TaxBooksPage() {
       const bookLabel = toBookLabel(bookType);
       const header = [
         [`Mẫu ${bookLabel}`],
-        [`Kỳ: ${fromDate} đến ${toDate}`],
+        [`Hộ, cá nhân kinh doanh: ${ownerName || "................"}`],
+        [`Địa chỉ: ${address || "................"}`],
+        [`Mã số thuế: ${taxCode || "................"}`],
+        [`Địa điểm kinh doanh: ${businessLocation || "................"}`],
+        [`Kỳ kê khai: ${fromDate} đến ${toDate}`],
+        [`Đơn vị tính: ${unit}`],
         [],
         ["Ngày", "Diễn giải", "Số tiền"],
       ];
@@ -90,22 +100,57 @@ export default function TaxBooksPage() {
       const bookLabel = toBookLabel(bookType);
       const doc = new jsPDF({ orientation: "p", unit: "pt", format: "a4" });
 
-      doc.setFontSize(14);
-      doc.text(`Mẫu ${bookLabel}`, 40, 40);
-      doc.setFontSize(10);
-      doc.text(`Kỳ: ${fromDate} đến ${toDate}`, 40, 58);
+      if (bookType === "S1A_HKD") {
+        doc.setFontSize(11);
+        doc.text(`HỘ, CÁ NHÂN KINH DOANH: ${ownerName || "..............."}`, 40, 40);
+        doc.text(`Địa chỉ: ${address || "..............."}`, 40, 58);
+        doc.text(`Mã số thuế: ${taxCode || "..............."}`, 40, 76);
 
-      autoTable(doc, {
-        startY: 74,
-        head: [["Ngày", "Diễn giải", "Số tiền"]],
-        body: rows.map((r) => [
-          new Date(r.date).toLocaleDateString("vi-VN"),
-          r.description,
-          formatVnd(r.amount),
-        ]),
-        foot: [["", "Tổng", formatVnd(total)]],
-        styles: { fontSize: 9 },
-      });
+        doc.text("Mẫu số S1a-HKD", 340, 40);
+        doc.setFontSize(10);
+        doc.text("(Kèm theo Thông tư số 152/2025/TT-BTC)", 340, 58);
+
+        doc.setFontSize(12);
+        doc.text("SỔ DOANH THU BÁN HÀNG HÓA, DỊCH VỤ", 150, 118);
+        doc.setFontSize(10);
+        doc.text(`Địa điểm kinh doanh: ${businessLocation || "..............."}`, 40, 138);
+        doc.text(`Kỳ kê khai: ${fromDate} đến ${toDate}`, 40, 156);
+        doc.text(`Đơn vị tính: ${unit}`, 40, 174);
+
+        autoTable(doc, {
+          startY: 186,
+          head: [["Ngày tháng", "Diễn giải", "Số tiền"], ["A", "B", "1"]],
+          body: rows.map((r) => [
+            new Date(r.date).toLocaleDateString("vi-VN"),
+            r.description,
+            formatVnd(r.amount),
+          ]),
+          foot: [["", "Tổng cộng", formatVnd(total)]],
+          styles: { fontSize: 9, cellPadding: 4 },
+        });
+
+        const finalY = (doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? 520;
+        doc.text(`Ngày ... tháng ... năm ...`, 340, finalY + 34);
+        doc.text(`NGƯỜI ĐẠI DIỆN HỘ KINH DOANH/CÁ NHÂN KINH DOANH`, 280, finalY + 52);
+        doc.text(`(Ký, ghi rõ họ tên, đóng dấu nếu có)`, 330, finalY + 70);
+      } else {
+        doc.setFontSize(14);
+        doc.text(`Mẫu ${bookLabel}`, 40, 40);
+        doc.setFontSize(10);
+        doc.text(`Kỳ: ${fromDate} đến ${toDate}`, 40, 58);
+
+        autoTable(doc, {
+          startY: 74,
+          head: [["Ngày", "Diễn giải", "Số tiền"]],
+          body: rows.map((r) => [
+            new Date(r.date).toLocaleDateString("vi-VN"),
+            r.description,
+            formatVnd(r.amount),
+          ]),
+          foot: [["", "Tổng", formatVnd(total)]],
+          styles: { fontSize: 9 },
+        });
+      }
 
       doc.save(`${bookLabel}_${fromDate}_to_${toDate}.pdf`);
     } finally {
@@ -148,6 +193,14 @@ export default function TaxBooksPage() {
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
           Mẫu S2a/S3a hiện đang map dữ liệu vận hành để tiện in nháp. Nếu anh muốn đúng 100% biểu mẫu nghiệp vụ kế toán,
           em sẽ chốt lại mapping cột theo mẫu anh đang dùng và bổ sung trường còn thiếu.
+        </div>
+
+        <div className="grid gap-2 rounded-2xl bg-white p-4 shadow-sm md:grid-cols-2">
+          <input className="rounded border px-3 py-2 text-sm" placeholder="Hộ, cá nhân kinh doanh" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
+          <input className="rounded border px-3 py-2 text-sm" placeholder="Mã số thuế" value={taxCode} onChange={(e) => setTaxCode(e.target.value)} />
+          <input className="rounded border px-3 py-2 text-sm md:col-span-2" placeholder="Địa chỉ" value={address} onChange={(e) => setAddress(e.target.value)} />
+          <input className="rounded border px-3 py-2 text-sm" placeholder="Địa điểm kinh doanh" value={businessLocation} onChange={(e) => setBusinessLocation(e.target.value)} />
+          <input className="rounded border px-3 py-2 text-sm" placeholder="Đơn vị tính" value={unit} onChange={(e) => setUnit(e.target.value)} />
         </div>
 
         <div className="rounded-2xl bg-white p-5 shadow-sm">
