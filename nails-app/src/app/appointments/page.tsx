@@ -1,9 +1,9 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
-import { createAppointment, listAppointments, subscribeAppointmentsRealtime, unsubscribeRealtime, updateAppointmentStatus } from "@/lib/domain";
+import { createAppointment, listAppointments, updateAppointmentStatus } from "@/lib/domain";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type AppointmentRow = {
   id: string;
@@ -37,42 +37,23 @@ export default function AppointmentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("ALL");
-  const [live, setLive] = useState(false);
 
-  async function load() {
+  const load = useCallback(async (opts?: { force?: boolean }) => {
     try {
       setLoading(true);
       setError(null);
-      const data = await listAppointments();
+      const data = await listAppointments({ force: opts?.force });
       setRows(data as AppointmentRow[]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load appointments failed");
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    let mounted = true;
-    let rtChannel: Awaited<ReturnType<typeof subscribeAppointmentsRealtime>> = null;
-
-    load();
-    subscribeAppointmentsRealtime(() => {
-      if (!mounted) return;
-      setLive(true);
-      load();
-      setTimeout(() => {
-        if (mounted) setLive(false);
-      }, 1200);
-    }).then((channel) => {
-      rtChannel = channel;
-    });
-
-    return () => {
-      mounted = false;
-      unsubscribeRealtime(rtChannel);
-    };
-  }, []);
+    void load({ force: true });
+  }, [load]);
 
   const filteredRows = useMemo(() => {
     if (statusFilter === "ALL") return rows;
@@ -89,7 +70,7 @@ export default function AppointmentsPage() {
         endAt: new Date(endAt).toISOString(),
       });
       setCustomerName("");
-      await load();
+      await load({ force: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Create appointment failed");
     }
@@ -99,7 +80,7 @@ export default function AppointmentsPage() {
     try {
       setError(null);
       await updateAppointmentStatus(id, status);
-      await load();
+      await load({ force: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Update appointment status failed");
     }
@@ -111,9 +92,6 @@ export default function AppointmentsPage() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <h2 className="text-2xl font-bold">Appointments (Supabase)</h2>
-            <span className={`rounded-full px-2 py-1 text-xs ${live ? "bg-emerald-100 text-emerald-700" : "bg-neutral-100 text-neutral-500"}`}>
-              {live ? "Live update" : "Idle"}
-            </span>
           </div>
           <select
             className="rounded-lg border px-3 py-2 text-sm"
