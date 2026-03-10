@@ -7,6 +7,7 @@ const TTL = 30_000;
 
 let orgContextCache: { value: OrgContext; at: number } | null = null;
 let servicesCache: { value: unknown[]; at: number } | null = null;
+let resourcesCache: { value: unknown[]; at: number } | null = null;
 let appointmentsCache: { value: unknown[]; at: number } | null = null;
 let ticketsCache: { value: unknown[]; at: number } | null = null;
 
@@ -17,6 +18,7 @@ function isFresh(cache: { at: number } | null, ttl = TTL) {
 function invalidateDataCaches() {
   appointmentsCache = null;
   ticketsCache = null;
+  resourcesCache = null;
 }
 
 export async function ensureOrgContext(opts?: { force?: boolean }): Promise<OrgContext> {
@@ -82,6 +84,23 @@ export async function listServices(opts?: { force?: boolean }) {
   if (error) throw error;
   const rows = data ?? [];
   servicesCache = { value: rows, at: Date.now() };
+  return rows;
+}
+
+export async function listResources(opts?: { force?: boolean }) {
+  if (!supabase) return [];
+  if (!opts?.force && isFresh(resourcesCache)) return resourcesCache!.value;
+
+  const { orgId } = await ensureOrgContext();
+  const { data, error } = await supabase
+    .from("resources")
+    .select("id,name,type,active")
+    .eq("org_id", orgId)
+    .eq("active", true)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  const rows = data ?? [];
+  resourcesCache = { value: rows, at: Date.now() };
   return rows;
 }
 
@@ -186,6 +205,7 @@ export async function createAppointment(input: {
   startAt: string;
   endAt: string;
   staffUserId?: string | null;
+  resourceId?: string | null;
 }) {
   if (!supabase) throw new Error("Supabase chưa cấu hình");
   const { orgId, branchId } = await ensureOrgContext();
@@ -199,6 +219,7 @@ export async function createAppointment(input: {
     start_at: input.startAt,
     end_at: input.endAt,
     staff_user_id: input.staffUserId ?? null,
+    resource_id: input.resourceId ?? null,
     status: "BOOKED",
   });
 

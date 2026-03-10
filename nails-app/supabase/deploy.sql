@@ -46,6 +46,16 @@ create table if not exists customers (
   created_at timestamptz not null default now()
 );
 
+create table if not exists resources (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references orgs(id) on delete cascade,
+  branch_id uuid not null references branches(id) on delete cascade,
+  name text not null,
+  type text not null check (type in ('CHAIR','TABLE','ROOM')) default 'CHAIR',
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists services (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references orgs(id) on delete cascade,
@@ -63,6 +73,7 @@ create table if not exists appointments (
   branch_id uuid not null references branches(id) on delete cascade,
   customer_id uuid references customers(id),
   staff_user_id uuid references profiles(user_id),
+  resource_id uuid references resources(id),
   start_at timestamptz not null,
   end_at timestamptz not null,
   status text not null check (status in ('BOOKED','CHECKED_IN','DONE','CANCELLED','NO_SHOW')),
@@ -71,6 +82,9 @@ create table if not exists appointments (
 
 alter table public.appointments
   add column if not exists staff_user_id uuid references public.profiles(user_id);
+
+alter table public.appointments
+  add column if not exists resource_id uuid references public.resources(id);
 
 create table if not exists tickets (
   id uuid primary key default gen_random_uuid(),
@@ -123,6 +137,7 @@ alter table branches enable row level security;
 alter table profiles enable row level security;
 alter table user_roles enable row level security;
 alter table customers enable row level security;
+alter table resources enable row level security;
 alter table services enable row level security;
 alter table appointments enable row level security;
 alter table tickets enable row level security;
@@ -153,6 +168,19 @@ as $$
 $$;
 
 -- Generic org policies
+create policy "org read resources" on resources
+for select using (org_id = public.my_org_id());
+
+create policy "owner manager reception write resources" on resources
+for all using (
+  org_id = public.my_org_id() and
+  (public.has_role('OWNER') or public.has_role('MANAGER') or public.has_role('RECEPTION'))
+)
+with check (
+  org_id = public.my_org_id() and
+  (public.has_role('OWNER') or public.has_role('MANAGER') or public.has_role('RECEPTION'))
+);
+
 create policy "org read services" on services
 for select using (org_id = public.my_org_id());
 
