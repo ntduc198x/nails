@@ -19,6 +19,7 @@ export default function Home() {
     active: 0,
     revenue: 0,
     closedCount: 0,
+    checkingInCustomers: [] as string[],
   });
 
   const load = useCallback(async (opts?: { force?: boolean }) => {
@@ -140,6 +141,21 @@ export default function Home() {
               <p className="text-3xl font-bold">{loading ? "..." : data.closedCount}</p>
               <p className="mt-3 text-sm text-neutral-500">Doanh thu / bill trung bình</p>
               <p className="text-lg font-semibold">{loading ? "..." : `${formatVnd(data.revenue)} / ${formatVnd(avgBill)}`}</p>
+
+              <p className="mt-4 text-sm text-neutral-500">Khách đang check-in</p>
+              {loading ? (
+                <p className="text-sm">...</p>
+              ) : data.checkingInCustomers.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {data.checkingInCustomers.map((name, idx) => (
+                    <span key={`${name}-${idx}`} className="rounded-full bg-red-50 px-3 py-1 text-xs text-red-700">
+                      {name}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-neutral-500">Chưa có khách check-in.</p>
+              )}
             </div>
           </div>
         </section>

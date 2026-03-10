@@ -25,7 +25,7 @@ export async function listTicketsInRange(fromIso: string, toIso: string) {
   return (data ?? []) as ReportTicketRow[];
 }
 
-let dashboardCache: { at: number; value: { appointmentsToday: number; waiting: number; active: number; revenue: number; closedCount: number } } | null = null;
+let dashboardCache: { at: number; value: { appointmentsToday: number; waiting: number; active: number; revenue: number; closedCount: number; checkingInCustomers: string[] } } | null = null;
 const DASHBOARD_TTL = 20_000;
 
 export async function getDashboardSnapshot(opts?: { force?: boolean }) {
@@ -49,7 +49,7 @@ export async function getDashboardSnapshot(opts?: { force?: boolean }) {
   const [appointmentsRes, ticketsRes] = await Promise.all([
     supabase
       .from("appointments")
-      .select("id,status")
+      .select("id,status,customers(name)")
       .eq("org_id", orgId)
       .gte("start_at", fromIso)
       .lt("start_at", toIso),
@@ -69,7 +69,14 @@ export async function getDashboardSnapshot(opts?: { force?: boolean }) {
   const tickets = ticketsRes.data ?? [];
 
   const waiting = appointments.filter((a) => a.status === "BOOKED").length;
-  const active = appointments.filter((a) => a.status === "CHECKED_IN").length;
+  const checkingInRows = appointments.filter((a) => a.status === "CHECKED_IN");
+  const active = checkingInRows.length;
+  const checkingInCustomers = checkingInRows
+    .map((a) => {
+      const c = a.customers as { name?: string } | Array<{ name?: string }> | null | undefined;
+      return Array.isArray(c) ? c[0]?.name : c?.name;
+    })
+    .filter((name): name is string => Boolean(name));
 
   const revenue = tickets.reduce((acc, t) => acc + Number((t.totals_json as { grand_total?: number } | null)?.grand_total ?? 0), 0);
   const count = tickets.length;
@@ -80,6 +87,7 @@ export async function getDashboardSnapshot(opts?: { force?: boolean }) {
     active,
     revenue,
     closedCount: count,
+    checkingInCustomers,
   };
 
   dashboardCache = { at: Date.now(), value: snapshot };
