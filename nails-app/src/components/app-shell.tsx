@@ -10,6 +10,7 @@ const links = [
   { href: "/", label: "Dashboard" },
   { href: "/appointments", label: "Appointments" },
   { href: "/services", label: "Dịch vụ" },
+  { href: "/resources", label: "Ghế/Bàn" },
   { href: "/checkout", label: "Checkout" },
   { href: "/reports", label: "Báo cáo" },
   { href: "/tax-books", label: "Sổ thuế" },
@@ -20,7 +21,7 @@ const links = [
 function canAccess(role: AppRole, href: string) {
   if (role === "OWNER") return true;
   if (role === "MANAGER") return href !== "/tax-books";
-  if (role === "RECEPTION") return ["/", "/appointments", "/checkout", "/shifts"].includes(href);
+  if (role === "RECEPTION") return ["/", "/appointments", "/resources", "/checkout", "/shifts"].includes(href);
   if (role === "TECH") return ["/", "/appointments", "/shifts"].includes(href);
   if (role === "ACCOUNTANT") return ["/", "/checkout", "/reports", "/tax-books"].includes(href);
   return false;

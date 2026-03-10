@@ -87,21 +87,47 @@ export async function listServices(opts?: { force?: boolean }) {
   return rows;
 }
 
-export async function listResources(opts?: { force?: boolean }) {
+export async function listResources(opts?: { force?: boolean; activeOnly?: boolean }) {
   if (!supabase) return [];
   if (!opts?.force && isFresh(resourcesCache)) return resourcesCache!.value;
 
   const { orgId } = await ensureOrgContext();
-  const { data, error } = await supabase
+  let query = supabase
     .from("resources")
     .select("id,name,type,active")
     .eq("org_id", orgId)
-    .eq("active", true)
     .order("created_at", { ascending: true });
+
+  if (opts?.activeOnly ?? true) {
+    query = query.eq("active", true);
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
   const rows = data ?? [];
   resourcesCache = { value: rows, at: Date.now() };
   return rows;
+}
+
+export async function createResource(input: { name: string; type: "CHAIR" | "TABLE" | "ROOM" }) {
+  if (!supabase) throw new Error("Supabase chưa cấu hình");
+  const { orgId, branchId } = await ensureOrgContext();
+
+  const { data, error } = await supabase
+    .from("resources")
+    .insert({
+      org_id: orgId,
+      branch_id: branchId,
+      name: input.name,
+      type: input.type,
+      active: true,
+    })
+    .select("id,name,type,active")
+    .single();
+  if (error) throw error;
+
+  resourcesCache = null;
+  return data;
 }
 
 export async function createService(input: {
