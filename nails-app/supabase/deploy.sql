@@ -221,18 +221,19 @@ with check (
   (public.has_role('OWNER') or public.has_role('MANAGER') or public.has_role('RECEPTION'))
 );
 
--- user_roles: chỉ owner/manager chỉnh
+-- user_roles: chỉ OWNER chỉnh role nhân sự
+drop policy if exists "read own org roles" on user_roles;
 create policy "read own org roles" on user_roles
 for select using (org_id = public.my_org_id());
 
-create policy "owner manager write roles" on user_roles
+drop policy if exists "owner manager write roles" on user_roles;
+drop policy if exists "owner write roles" on user_roles;
+create policy "owner write roles" on user_roles
 for all using (
-  org_id = public.my_org_id() and
-  (public.has_role('OWNER') or public.has_role('MANAGER'))
+  org_id = public.my_org_id() and public.has_role('OWNER')
 )
 with check (
-  org_id = public.my_org_id() and
-  (public.has_role('OWNER') or public.has_role('MANAGER'))
+  org_id = public.my_org_id() and public.has_role('OWNER')
 );
 
 -- ===== END rls.sql =====
@@ -275,6 +276,50 @@ for insert with check (auth.uid() is not null);
 drop policy if exists "user_roles self bootstrap insert" on user_roles;
 create policy "user_roles self bootstrap insert" on user_roles
 for insert with check (user_id = auth.uid());
+
+-- Enforce signup role rule at DB-level:
+-- - first account in org => OWNER
+-- - later self-signup accounts => RECEPTION
+create or replace function public.normalize_user_role_on_insert()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_owner_count int;
+begin
+  if NEW.user_id = auth.uid() then
+    select count(*)::int into v_owner_count
+    from user_roles
+    where org_id = NEW.org_id
+      and role = 'OWNER';
+
+    if v_owner_count = 0 then
+      NEW.role := 'OWNER';
+    else
+      NEW.role := 'RECEPTION';
+    end if;
+    return NEW;
+  end if;
+
+  if exists (
+    select 1 from user_roles ur
+    where ur.org_id = NEW.org_id
+      and ur.user_id = auth.uid()
+      and ur.role = 'OWNER'
+  ) then
+    return NEW;
+  end if;
+
+  raise exception 'FORBIDDEN_ROLE_INSERT';
+end;
+$$;
+
+drop trigger if exists trg_normalize_user_role_on_insert on public.user_roles;
+create trigger trg_normalize_user_role_on_insert
+before insert on public.user_roles
+for each row execute function public.normalize_user_role_on_insert();
 
 -- 4) ticket_items: cho role tài chính đọc item, lễ tân/manager/owner ghi được
 drop policy if exists "ticket_items role read" on ticket_items;

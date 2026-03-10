@@ -29,14 +29,26 @@ export async function getOrCreateRole(userId: string): Promise<AppRole> {
     });
   }
 
+  // Quy tắc signup:
+  // - user đầu tiên trong org => OWNER
+  // - user đăng ký sau => RECEPTION
+  const { count: ownerCount, error: ownerCountErr } = await supabase
+    .from("user_roles")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", orgId)
+    .eq("role", "OWNER");
+  if (ownerCountErr) throw ownerCountErr;
+
+  const nextRole: AppRole = (ownerCount ?? 0) === 0 ? "OWNER" : "RECEPTION";
+
   const { error: insertErr } = await supabase.from("user_roles").insert({
     user_id: userId,
     org_id: orgId,
-    role: "OWNER",
+    role: nextRole,
   });
   if (insertErr) throw insertErr;
 
-  return "OWNER";
+  return nextRole;
 }
 
 export async function listUserRoles() {
@@ -55,6 +67,26 @@ export async function listUserRoles() {
 
 export async function updateUserRoleByRowId(id: string, role: AppRole) {
   if (!supabase) throw new Error("Supabase chưa cấu hình");
+
+  const { data: sessionData } = await supabase.auth.getSession();
+  const currentUserId = sessionData.session?.user?.id;
+  if (!currentUserId) throw new Error("Chưa đăng nhập");
+
+  const currentRole = await getOrCreateRole(currentUserId);
+  if (currentRole !== "OWNER") {
+    throw new Error("Chỉ OWNER mới có quyền đổi role.");
+  }
+
+  const { data: target, error: targetErr } = await supabase
+    .from("user_roles")
+    .select("user_id,role")
+    .eq("id", id)
+    .single();
+  if (targetErr) throw targetErr;
+
+  if (target.user_id === currentUserId) {
+    throw new Error("Không thể tự đổi role của chính mình.");
+  }
 
   const { error } = await supabase.from("user_roles").update({ role }).eq("id", id);
   if (error) throw error;

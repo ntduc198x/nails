@@ -40,7 +40,7 @@ export default function LoginPage() {
     <main className="flex min-h-screen items-center justify-center bg-neutral-100 p-4">
       <form onSubmit={onSubmit} className="w-full max-w-md space-y-3 card">
         <h1 className="text-2xl font-bold">Nails App Login</h1>
-        <p className="text-sm text-neutral-500">Đăng nhập để dùng app. User đầu tiên sẽ được gán OWNER.</p>
+        <p className="text-sm text-neutral-500">Đăng nhập để dùng app. Tài khoản đầu tiên là OWNER, các tài khoản sau mặc định RECEPTION.</p>
 
         <div className="flex gap-2 rounded-lg bg-neutral-100 p-1 text-sm">
           <button

@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 
 type UserRoleRow = { id: string; user_id: string; role: AppRole };
 
-const roleOptions: AppRole[] = ["OWNER", "MANAGER", "RECEPTION", "ACCOUNTANT", "TECH"];
+const roleOptions: AppRole[] = ["MANAGER", "RECEPTION", "ACCOUNTANT", "TECH"];
 
 export default function TeamPage() {
   const [rows, setRows] = useState<UserRoleRow[]>([]);
@@ -15,7 +15,7 @@ export default function TeamPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const canManage = myRole === "OWNER" || myRole === "MANAGER";
+  const canManage = myRole === "OWNER";
 
   async function load() {
     try {
@@ -57,7 +57,7 @@ export default function TeamPage() {
     <AppShell>
       <div className="space-y-4">
         <h2 className="text-2xl font-bold">Nhân sự & Role (Supabase)</h2>
-        <p className="text-sm text-neutral-600">Role của bạn: <b>{myRole}</b></p>
+        <p className="text-sm text-neutral-600">Role của bạn: <b>{myRole}</b>. Chỉ OWNER được đổi role nhân sự khác.</p>
 
         <div className="card">
           {error && <p className="mb-3 text-sm text-red-600">Lỗi: {error}</p>}
@@ -72,7 +72,7 @@ export default function TeamPage() {
                     <p className="text-xs text-neutral-500">row id: {m.id}</p>
                   </div>
 
-                  {canManage ? (
+                  {canManage && m.role !== "OWNER" ? (
                     <select
                       value={m.role}
                       onChange={(e) => onChangeRole(m.id, e.target.value as AppRole)}
