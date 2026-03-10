@@ -18,8 +18,9 @@ const links = [
 ];
 
 function canAccess(role: AppRole, href: string) {
-  if (role === "OWNER" || role === "MANAGER") return true;
-  if (role === "RECEPTION") return ["/", "/appointments", "/checkout", "/tax-books", "/shifts"].includes(href);
+  if (role === "OWNER") return true;
+  if (role === "MANAGER") return href !== "/tax-books";
+  if (role === "RECEPTION") return ["/", "/appointments", "/checkout", "/shifts"].includes(href);
   if (role === "TECH") return ["/", "/appointments", "/shifts"].includes(href);
   if (role === "ACCOUNTANT") return ["/", "/checkout", "/reports", "/tax-books"].includes(href);
   return false;

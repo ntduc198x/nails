@@ -1,7 +1,7 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
-import { buildTaxBook, type TaxBookType, type TaxBookRow } from "@/lib/tax-books";
+import { buildTaxBook, type TaxBookRow } from "@/lib/tax-books";
 import { formatVnd } from "@/lib/mock-data";
 import { useEffect, useRef, useState } from "react";
 
@@ -12,17 +12,14 @@ function toDateInput(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
-function toBookLabel(type: TaxBookType) {
-  if (type === "S1A_HKD") return "S1a-HKD";
-  if (type === "S2A_HKD") return "S2a-HKD";
-  return "S3a-HKD";
+function toBookLabel() {
+  return "S1a-HKD";
 }
 
 export default function TaxBooksPage() {
   const today = new Date();
   const [fromDate, setFromDate] = useState(toDateInput(today));
   const [toDate, setToDate] = useState(toDateInput(new Date(today.getTime() + 24 * 60 * 60 * 1000)));
-  const [bookType, setBookType] = useState<TaxBookType>("S1A_HKD");
   const [rows, setRows] = useState<TaxBookRow[]>([]);
   const [ownerName, setOwnerName] = useState("");
   const [address, setAddress] = useState("");
@@ -40,7 +37,7 @@ export default function TaxBooksPage() {
       setError(null);
       const fromIso = new Date(`${fromDate}T00:00:00`).toISOString();
       const toIso = new Date(`${toDate}T00:00:00`).toISOString();
-      const data = await buildTaxBook(bookType, fromIso, toIso);
+      const data = await buildTaxBook("S1A_HKD", fromIso, toIso);
       setRows(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load tax book failed");
@@ -60,7 +57,7 @@ export default function TaxBooksPage() {
     try {
       setExporting(true);
       const XLSX = await import("xlsx");
-      const bookLabel = toBookLabel(bookType);
+      const bookLabel = toBookLabel();
       const header = [
         [`Mẫu ${bookLabel}`],
         [`Hộ, cá nhân kinh doanh: ${ownerName || "................"}`],
@@ -101,7 +98,7 @@ export default function TaxBooksPage() {
         import("html2canvas"),
       ]);
 
-      const bookLabel = toBookLabel(bookType);
+      const bookLabel = toBookLabel();
 
       try {
         const canvas = await html2canvas(printRef.current, {
@@ -192,13 +189,8 @@ export default function TaxBooksPage() {
     <AppShell>
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-2xl font-bold">Sổ thuế HKD (S1a / S2a / S3a)</h2>
+          <h2 className="text-2xl font-bold">Sổ thuế HKD - Mẫu S1a</h2>
           <div className="flex flex-wrap items-center gap-2">
-            <select className="btn btn-outline px-2 py-1 text-sm" value={bookType} onChange={(e) => setBookType(e.target.value as TaxBookType)}>
-              <option value="S1A_HKD">Mẫu S1a-HKD</option>
-              <option value="S2A_HKD">Mẫu S2a-HKD</option>
-              <option value="S3A_HKD">Mẫu S3a-HKD</option>
-            </select>
             <input className="btn btn-outline px-2 py-1 text-sm" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
             <input className="btn btn-outline px-2 py-1 text-sm" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
             <button className="btn btn-outline" onClick={load}>Nạp dữ liệu</button>
@@ -220,8 +212,7 @@ export default function TaxBooksPage() {
         </div>
 
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-          Mẫu S2a/S3a hiện đang map dữ liệu vận hành để tiện in nháp. Nếu anh muốn đúng 100% biểu mẫu nghiệp vụ kế toán,
-          em sẽ chốt lại mapping cột theo mẫu anh đang dùng và bổ sung trường còn thiếu.
+          Trang này chỉ dùng cho mẫu S1a-HKD và xuất file để in/nộp thuế.
         </div>
 
         <div className="grid gap-2 card md:grid-cols-2">
@@ -241,7 +232,7 @@ export default function TaxBooksPage() {
                 <p><strong>Mã số thuế:</strong> {taxCode || "..............."}</p>
               </div>
               <div className="text-right">
-                <p><strong>Mẫu số {toBookLabel(bookType)}</strong></p>
+                <p><strong>Mẫu số {toBookLabel()}</strong></p>
                 <p>(Kèm theo Thông tư số 152/2025/TT-BTC)</p>
               </div>
             </div>
