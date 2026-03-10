@@ -87,7 +87,7 @@ export default function AppointmentsPage() {
     }
   }
 
-  async function onQuickStatus(id: string, status: "CHECKED_IN" | "DONE" | "CANCELLED") {
+  async function onQuickStatus(id: string, status: "CHECKED_IN" | "CANCELLED") {
     if (updatingId) return;
 
     try {
@@ -195,15 +195,6 @@ export default function AppointmentsPage() {
                               disabled={!!updatingId}
                             >
                               {updatingId === a.id ? "Đang xử lý..." : "Check-in"}
-                            </button>
-                          )}
-                          {["BOOKED", "CHECKED_IN"].includes(a.status) && (
-                            <button
-                              onClick={() => onQuickStatus(a.id, "DONE")}
-                              className="btn btn-outline px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-60"
-                              disabled={!!updatingId}
-                            >
-                              {updatingId === a.id ? "Đang xử lý..." : "Done"}
                             </button>
                           )}
                           {["BOOKED", "CHECKED_IN"].includes(a.status) && (

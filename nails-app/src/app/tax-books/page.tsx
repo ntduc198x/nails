@@ -216,7 +216,6 @@ export default function TaxBooksPage() {
             >
               {exporting ? "Đang xuất..." : "Xuất PDF"}
             </button>
-            <button className="btn btn-outline" onClick={() => window.print()}>In mẫu</button>
           </div>
         </div>
 
