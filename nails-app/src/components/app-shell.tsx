@@ -144,7 +144,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   if (loading) {
-    return <div className="p-8 text-sm text-neutral-600">Đang kiểm tra đăng nhập...</div>;
+    return <div className="p-8 text-sm" style={{ color: "var(--color-text-secondary)" }}>Đang kiểm tra đăng nhập...</div>;
   }
 
   if (authError) {
@@ -163,11 +163,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50 text-neutral-900">
-      <header className="sticky top-0 z-20 border-b bg-white/95 backdrop-blur">
+    <div className="min-h-screen">
+      <header className="sticky top-0 z-20 backdrop-blur" style={{ borderBottom: "1px solid var(--color-border)", background: "rgba(255,253,249,.95)" }}>
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 p-3 md:p-4">
           <div>
-            <p className="text-xs text-neutral-500">Nails App</p>
+            <p className="text-xs" style={{ color: "var(--color-text-secondary)" }}>Nails App</p>
             <h1 className="text-lg font-semibold">MVP Sprint 2</h1>
           </div>
 
@@ -178,7 +178,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <Link
                   key={l.href}
                   href={l.href}
-                  className={`rounded-lg px-3 py-2 ${active ? "bg-neutral-900 text-white" : "text-neutral-700 hover:bg-neutral-100"}`}
+                  className="rounded-full px-4 py-2 text-sm transition"
+                  style={active ? { background: "var(--color-primary)", color: "#fff" } : { color: "var(--color-text-secondary)" }}
                 >
                   {l.label}
                 </Link>
@@ -187,9 +188,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="text-right text-xs">
-            <p className="text-neutral-500">{email || "No session"}</p>
+            <p style={{ color: "var(--color-text-secondary)" }}>{email || "No session"}</p>
             <p className="font-semibold">{role}</p>
-            <button onClick={onLogout} className="mt-1 rounded border px-2 py-1 text-xs">
+            <button onClick={onLogout} className="btn btn-outline mt-1 px-2 py-1 text-xs">
               Logout
             </button>
           </div>
