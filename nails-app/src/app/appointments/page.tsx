@@ -1,7 +1,7 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
-import { createAppointment, listAppointments, updateAppointmentStatus } from "@/lib/domain";
+import { createAppointment, listAppointments, listStaffMembers, updateAppointmentStatus } from "@/lib/domain";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -10,8 +10,11 @@ type AppointmentRow = {
   start_at: string;
   end_at: string;
   status: string;
+  staff_user_id?: string | null;
   customers?: { name: string } | { name: string }[] | null;
 };
+
+type StaffOption = { userId: string; name: string };
 
 function toInputValue(date: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -32,8 +35,10 @@ export default function AppointmentsPage() {
   const [customerName, setCustomerName] = useState("");
   const [startAt, setStartAt] = useState(toInputValue(now));
   const [endAt, setEndAt] = useState(toInputValue(new Date(now.getTime() + 60 * 60 * 1000)));
+  const [staffUserId, setStaffUserId] = useState("");
 
   const [rows, setRows] = useState<AppointmentRow[]>([]);
+  const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,8 +52,12 @@ export default function AppointmentsPage() {
       if (isInitial) setLoading(true);
       else setRefreshing(true);
       setError(null);
-      const data = await listAppointments({ force: opts?.force });
+      const [data, staffs] = await Promise.all([
+        listAppointments({ force: opts?.force }),
+        listStaffMembers(),
+      ]);
       setRows(data as AppointmentRow[]);
+      setStaffOptions(staffs as StaffOption[]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load appointments failed");
     } finally {
@@ -77,8 +86,10 @@ export default function AppointmentsPage() {
         customerName,
         startAt: new Date(startAt).toISOString(),
         endAt: new Date(endAt).toISOString(),
+        staffUserId: staffUserId || null,
       });
       setCustomerName("");
+      setStaffUserId("");
       await load({ force: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Create appointment failed");
@@ -124,7 +135,7 @@ export default function AppointmentsPage() {
           </select>
         </div>
 
-        <form onSubmit={onSubmit} className="grid gap-3 card md:grid-cols-4">
+        <form onSubmit={onSubmit} className="grid gap-3 card md:grid-cols-5">
           <input
             className="input"
             placeholder="Tên khách"
@@ -149,6 +160,19 @@ export default function AppointmentsPage() {
             disabled={submitting}
             required
           />
+          <select
+            className="input"
+            value={staffUserId}
+            onChange={(e) => setStaffUserId(e.target.value)}
+            disabled={submitting}
+          >
+            <option value="">-- Chọn thợ (tuỳ chọn) --</option>
+            {staffOptions.map((s) => (
+              <option key={s.userId} value={s.userId}>
+                {s.name}
+              </option>
+            ))}
+          </select>
           <button
             className="btn btn-primary"
             disabled={submitting}
@@ -169,6 +193,7 @@ export default function AppointmentsPage() {
                     <th className="py-2">Bắt đầu</th>
                     <th>Kết thúc</th>
                     <th>Khách</th>
+                    <th>Thợ</th>
                     <th>Trạng thái</th>
                     <th>Quick action</th>
                     <th></th>
@@ -179,11 +204,13 @@ export default function AppointmentsPage() {
                     const customer = Array.isArray(a.customers)
                       ? a.customers[0]?.name
                       : a.customers?.name;
+                    const staffName = staffOptions.find((s) => s.userId === a.staff_user_id)?.name;
                     return (
                       <tr key={a.id} className="border-t border-neutral-100">
                         <td className="py-2">{new Date(a.start_at).toLocaleString("vi-VN")}</td>
                         <td>{new Date(a.end_at).toLocaleString("vi-VN")}</td>
                         <td>{customer ?? "-"}</td>
+                        <td>{staffName ?? "-"}</td>
                         <td>
                           <span className={`rounded-full px-2 py-1 text-xs font-medium ${statusBadge(a.status)}`}>{a.status}</span>
                         </td>

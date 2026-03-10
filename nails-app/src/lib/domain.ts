@@ -136,6 +136,33 @@ async function findOrCreateCustomer(orgId: string, name: string) {
   return created.id as string;
 }
 
+export async function listStaffMembers() {
+  if (!supabase) return [];
+  const { orgId } = await ensureOrgContext();
+
+  const { data: techRoles, error: roleErr } = await supabase
+    .from("user_roles")
+    .select("user_id")
+    .eq("org_id", orgId)
+    .eq("role", "TECH");
+  if (roleErr) throw roleErr;
+
+  const ids = [...new Set((techRoles ?? []).map((r) => r.user_id as string))];
+  if (!ids.length) return [];
+
+  const { data: profiles, error: profileErr } = await supabase
+    .from("profiles")
+    .select("user_id,display_name")
+    .in("user_id", ids)
+    .eq("org_id", orgId);
+  if (profileErr) throw profileErr;
+
+  return (profiles ?? []).map((p) => ({
+    userId: p.user_id as string,
+    name: (p.display_name as string | null) || String(p.user_id).slice(0, 8),
+  }));
+}
+
 export async function listAppointments(opts?: { force?: boolean }) {
   if (!supabase) return [];
   if (!opts?.force && isFresh(appointmentsCache)) return appointmentsCache!.value;
@@ -144,7 +171,7 @@ export async function listAppointments(opts?: { force?: boolean }) {
 
   const { data, error } = await supabase
     .from("appointments")
-    .select("id,start_at,end_at,status,customers(name)")
+    .select("id,start_at,end_at,status,staff_user_id,customers(name)")
     .eq("org_id", orgId)
     .order("start_at", { ascending: true })
     .limit(50);
@@ -158,6 +185,7 @@ export async function createAppointment(input: {
   customerName: string;
   startAt: string;
   endAt: string;
+  staffUserId?: string | null;
 }) {
   if (!supabase) throw new Error("Supabase chưa cấu hình");
   const { orgId, branchId } = await ensureOrgContext();
@@ -170,6 +198,7 @@ export async function createAppointment(input: {
     customer_id: customerId,
     start_at: input.startAt,
     end_at: input.endAt,
+    staff_user_id: input.staffUserId ?? null,
     status: "BOOKED",
   });
 

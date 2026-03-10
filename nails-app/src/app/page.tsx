@@ -20,6 +20,7 @@ export default function Home() {
     revenue: 0,
     closedCount: 0,
     checkingInCustomers: [] as string[],
+    waitingSchedule: [] as Array<{ time: string; customer: string; staff: string }>,
   });
 
   const load = useCallback(async (opts?: { force?: boolean }) => {
@@ -160,22 +161,41 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="card">
-          <h3 className="text-lg font-semibold">Top dịch vụ hôm nay</h3>
-          <div className="mt-4 space-y-2 text-sm">
-            {topServices.length === 0 ? (
-              <p className="text-neutral-500">Chưa có dữ liệu dịch vụ hôm nay.</p>
-            ) : (
-              topServices.map((s, idx) => (
-                <div key={`${s.service_name}-${idx}`} className="flex items-center justify-between rounded-lg border border-neutral-100 px-3 py-2">
-                  <div>
-                    <p className="font-medium">{s.service_name}</p>
-                    <p className="text-xs text-neutral-500">SL: {s.qty}</p>
+        <section className="grid gap-3 md:grid-cols-2">
+          <div className="card">
+            <h3 className="text-lg font-semibold">Top dịch vụ hôm nay</h3>
+            <div className="mt-4 space-y-2 text-sm">
+              {topServices.length === 0 ? (
+                <p className="text-neutral-500">Chưa có dữ liệu dịch vụ hôm nay.</p>
+              ) : (
+                topServices.map((s, idx) => (
+                  <div key={`${s.service_name}-${idx}`} className="flex items-center justify-between rounded-lg border border-neutral-100 px-3 py-2">
+                    <div>
+                      <p className="font-medium">{s.service_name}</p>
+                      <p className="text-xs text-neutral-500">SL: {s.qty}</p>
+                    </div>
+                    <p className="font-semibold">{formatVnd(Number(s.subtotal))}</p>
                   </div>
-                  <p className="font-semibold">{formatVnd(Number(s.subtotal))}</p>
-                </div>
-              ))
-            )}
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="card">
+            <h3 className="text-lg font-semibold">Lịch khách chờ theo thợ (hôm nay)</h3>
+            <div className="mt-4 space-y-2 text-sm">
+              {data.waitingSchedule.length === 0 ? (
+                <p className="text-neutral-500">Hiện chưa có lịch chờ.</p>
+              ) : (
+                data.waitingSchedule.map((item, idx) => (
+                  <div key={`${item.time}-${item.customer}-${idx}`} className="grid grid-cols-3 items-center rounded-lg border border-neutral-100 px-3 py-2">
+                    <p className="font-medium">{item.time}</p>
+                    <p>{item.customer}</p>
+                    <p className="text-right text-neutral-500">{item.staff}</p>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </section>
       </div>

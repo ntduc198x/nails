@@ -62,11 +62,15 @@ create table if not exists appointments (
   org_id uuid not null references orgs(id) on delete cascade,
   branch_id uuid not null references branches(id) on delete cascade,
   customer_id uuid references customers(id),
+  staff_user_id uuid references profiles(user_id),
   start_at timestamptz not null,
   end_at timestamptz not null,
   status text not null check (status in ('BOOKED','CHECKED_IN','DONE','CANCELLED','NO_SHOW')),
   created_at timestamptz not null default now()
 );
+
+alter table public.appointments
+  add column if not exists staff_user_id uuid references public.profiles(user_id);
 
 create table if not exists tickets (
   id uuid primary key default gen_random_uuid(),

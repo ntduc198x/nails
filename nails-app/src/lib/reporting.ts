@@ -25,7 +25,7 @@ export async function listTicketsInRange(fromIso: string, toIso: string) {
   return (data ?? []) as ReportTicketRow[];
 }
 
-let dashboardCache: { at: number; value: { appointmentsToday: number; waiting: number; active: number; revenue: number; closedCount: number; checkingInCustomers: string[] } } | null = null;
+let dashboardCache: { at: number; value: { appointmentsToday: number; waiting: number; active: number; revenue: number; closedCount: number; checkingInCustomers: string[]; waitingSchedule: Array<{ time: string; customer: string; staff: string }> } } | null = null;
 const DASHBOARD_TTL = 20_000;
 
 export async function getDashboardSnapshot(opts?: { force?: boolean }) {
@@ -49,7 +49,7 @@ export async function getDashboardSnapshot(opts?: { force?: boolean }) {
   const [appointmentsRes, ticketsRes] = await Promise.all([
     supabase
       .from("appointments")
-      .select("id,status,customers(name)")
+      .select("id,status,start_at,staff_user_id,customers(name)")
       .eq("org_id", orgId)
       .gte("start_at", fromIso)
       .lt("start_at", toIso),
@@ -68,7 +68,20 @@ export async function getDashboardSnapshot(opts?: { force?: boolean }) {
   const appointments = appointmentsRes.data ?? [];
   const tickets = ticketsRes.data ?? [];
 
-  const waiting = appointments.filter((a) => a.status === "BOOKED").length;
+  const staffIds = [...new Set(appointments.map((a) => a.staff_user_id as string | null).filter((v): v is string => Boolean(v)))];
+  let staffNameMap = new Map<string, string>();
+  if (staffIds.length) {
+    const { data: staffProfiles, error: staffErr } = await supabase
+      .from("profiles")
+      .select("user_id,display_name")
+      .in("user_id", staffIds)
+      .eq("org_id", orgId);
+    if (staffErr) throw staffErr;
+    staffNameMap = new Map((staffProfiles ?? []).map((p) => [p.user_id as string, ((p.display_name as string | null) || String(p.user_id).slice(0, 8))]));
+  }
+
+  const waitingRows = appointments.filter((a) => a.status === "BOOKED");
+  const waiting = waitingRows.length;
   const checkingInRows = appointments.filter((a) => a.status === "CHECKED_IN");
   const active = checkingInRows.length;
   const checkingInCustomers = checkingInRows
@@ -81,6 +94,17 @@ export async function getDashboardSnapshot(opts?: { force?: boolean }) {
   const revenue = tickets.reduce((acc, t) => acc + Number((t.totals_json as { grand_total?: number } | null)?.grand_total ?? 0), 0);
   const count = tickets.length;
 
+  const waitingSchedule = waitingRows.map((a) => {
+    const c = a.customers as { name?: string } | Array<{ name?: string }> | null | undefined;
+    const customer = (Array.isArray(c) ? c[0]?.name : c?.name) || "-";
+    const staff = a.staff_user_id ? (staffNameMap.get(a.staff_user_id as string) ?? "-") : "-";
+    return {
+      time: new Date(a.start_at as string).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
+      customer,
+      staff,
+    };
+  });
+
   const snapshot = {
     appointmentsToday: appointments.length,
     waiting,
@@ -88,6 +112,7 @@ export async function getDashboardSnapshot(opts?: { force?: boolean }) {
     revenue,
     closedCount: count,
     checkingInCustomers,
+    waitingSchedule,
   };
 
   dashboardCache = { at: Date.now(), value: snapshot };
