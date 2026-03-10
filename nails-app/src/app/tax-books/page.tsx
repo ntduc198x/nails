@@ -194,29 +194,29 @@ export default function TaxBooksPage() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-2xl font-bold">Sổ thuế HKD (S1a / S2a / S3a)</h2>
           <div className="flex flex-wrap items-center gap-2">
-            <select className="rounded border px-2 py-1 text-sm" value={bookType} onChange={(e) => setBookType(e.target.value as TaxBookType)}>
+            <select className="btn btn-outline px-2 py-1 text-sm" value={bookType} onChange={(e) => setBookType(e.target.value as TaxBookType)}>
               <option value="S1A_HKD">Mẫu S1a-HKD</option>
               <option value="S2A_HKD">Mẫu S2a-HKD</option>
               <option value="S3A_HKD">Mẫu S3a-HKD</option>
             </select>
-            <input className="rounded border px-2 py-1 text-sm" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-            <input className="rounded border px-2 py-1 text-sm" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
-            <button className="rounded border px-3 py-2 text-sm" onClick={load}>Nạp dữ liệu</button>
+            <input className="btn btn-outline px-2 py-1 text-sm" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+            <input className="btn btn-outline px-2 py-1 text-sm" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+            <button className="btn btn-outline" onClick={load}>Nạp dữ liệu</button>
             <button
-              className="rounded border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn btn-outline disabled:cursor-not-allowed disabled:opacity-60"
               onClick={() => void exportExcel()}
               disabled={loading || exporting}
             >
               {exporting ? "Đang xuất..." : "Xuất Excel"}
             </button>
             <button
-              className="rounded border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn btn-outline disabled:cursor-not-allowed disabled:opacity-60"
               onClick={() => void exportPdf()}
               disabled={loading || exporting}
             >
               {exporting ? "Đang xuất..." : "Xuất PDF"}
             </button>
-            <button className="rounded border px-3 py-2 text-sm" onClick={() => window.print()}>In mẫu</button>
+            <button className="btn btn-outline" onClick={() => window.print()}>In mẫu</button>
           </div>
         </div>
 
@@ -225,15 +225,15 @@ export default function TaxBooksPage() {
           em sẽ chốt lại mapping cột theo mẫu anh đang dùng và bổ sung trường còn thiếu.
         </div>
 
-        <div className="grid gap-2 rounded-2xl bg-white p-4 shadow-sm md:grid-cols-2">
-          <input className="rounded border px-3 py-2 text-sm" placeholder="Hộ, cá nhân kinh doanh" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
-          <input className="rounded border px-3 py-2 text-sm" placeholder="Mã số thuế" value={taxCode} onChange={(e) => setTaxCode(e.target.value)} />
-          <input className="rounded border px-3 py-2 text-sm md:col-span-2" placeholder="Địa chỉ" value={address} onChange={(e) => setAddress(e.target.value)} />
-          <input className="rounded border px-3 py-2 text-sm" placeholder="Địa điểm kinh doanh" value={businessLocation} onChange={(e) => setBusinessLocation(e.target.value)} />
-          <input className="rounded border px-3 py-2 text-sm" placeholder="Đơn vị tính" value={unit} onChange={(e) => setUnit(e.target.value)} />
+        <div className="grid gap-2 card md:grid-cols-2">
+          <input className="btn btn-outline" placeholder="Hộ, cá nhân kinh doanh" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
+          <input className="btn btn-outline" placeholder="Mã số thuế" value={taxCode} onChange={(e) => setTaxCode(e.target.value)} />
+          <input className="btn btn-outline md:col-span-2" placeholder="Địa chỉ" value={address} onChange={(e) => setAddress(e.target.value)} />
+          <input className="btn btn-outline" placeholder="Địa điểm kinh doanh" value={businessLocation} onChange={(e) => setBusinessLocation(e.target.value)} />
+          <input className="btn btn-outline" placeholder="Đơn vị tính" value={unit} onChange={(e) => setUnit(e.target.value)} />
         </div>
 
-        <div id="tax-book-export-root" ref={printRef} className="rounded-2xl bg-white p-5 shadow-sm">
+        <div id="tax-book-export-root" ref={printRef} className="card">
           <div className="mb-4 text-sm leading-6">
             <div className="flex justify-between gap-4">
               <div>

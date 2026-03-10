@@ -38,7 +38,7 @@ export default function LoginPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-neutral-100 p-4">
-      <form onSubmit={onSubmit} className="w-full max-w-md space-y-3 rounded-2xl bg-white p-6 shadow-sm">
+      <form onSubmit={onSubmit} className="w-full max-w-md space-y-3 card">
         <h1 className="text-2xl font-bold">Nails App Login</h1>
         <p className="text-sm text-neutral-500">Đăng nhập để dùng app. User đầu tiên sẽ được gán OWNER.</p>
 
@@ -60,7 +60,7 @@ export default function LoginPage() {
         </div>
 
         <input
-          className="w-full rounded-lg border px-3 py-2"
+          className="w-full input"
           type="email"
           placeholder="Email"
           value={email}
@@ -68,7 +68,7 @@ export default function LoginPage() {
           required
         />
         <input
-          className="w-full rounded-lg border px-3 py-2"
+          className="w-full input"
           type="password"
           placeholder="Password"
           value={password}
@@ -78,7 +78,7 @@ export default function LoginPage() {
 
         <button
           disabled={loading}
-          className="w-full rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white disabled:opacity-50"
+          className="w-full btn btn-primary disabled:opacity-50"
         >
           {loading ? "Đang xử lý..." : mode === "login" ? "Đăng nhập" : "Tạo tài khoản"}
         </button>

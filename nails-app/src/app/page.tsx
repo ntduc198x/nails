@@ -79,7 +79,7 @@ export default function Home() {
   return (
     <AppShell>
       <div className="space-y-5">
-        <section className="rounded-2xl bg-white p-5 shadow-sm">
+        <section className="card">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h2 className="text-2xl font-bold">Dashboard vận hành</h2>
@@ -90,13 +90,13 @@ export default function Home() {
               <button
                 onClick={() => void load({ force: true })}
                 disabled={refreshing}
-                className="rounded border px-3 py-2 disabled:cursor-not-allowed disabled:opacity-60"
+                className="btn btn-outline"
               >
                 {refreshing ? "Đang refresh..." : "Refresh"}
               </button>
               <button
                 onClick={() => setAutoRefresh((v) => !v)}
-                className={`rounded px-3 py-2 ${autoRefresh ? "bg-neutral-900 text-white" : "border"}`}
+                className={`btn ${autoRefresh ? "btn-primary" : "btn-outline"}`}
               >
                 {autoRefresh ? "Auto: ON" : "Auto: OFF"}
               </button>
@@ -107,7 +107,7 @@ export default function Home() {
 
         <section className="grid grid-cols-2 gap-3 md:grid-cols-5">
           {cards.map((item) => (
-            <div key={item.label} className="rounded-2xl bg-white p-4 shadow-sm">
+            <div key={item.label} className="card">
               <p className="text-sm text-neutral-500">{item.label}</p>
               <p className="mt-2 text-xl font-semibold">{loading ? "..." : item.value}</p>
             </div>
@@ -115,7 +115,7 @@ export default function Home() {
         </section>
 
         <section className="grid gap-3 md:grid-cols-2">
-          <div className="rounded-2xl bg-white p-5 shadow-sm">
+          <div className="card">
             <h3 className="text-lg font-semibold">Phân bổ trạng thái lịch hẹn</h3>
             <div className="mt-4 space-y-3 text-sm">
               <div>
@@ -133,7 +133,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="rounded-2xl bg-white p-5 shadow-sm">
+          <div className="card">
             <h3 className="text-lg font-semibold">Hiệu suất thanh toán hôm nay</h3>
             <div className="mt-4 space-y-2">
               <p className="text-sm text-neutral-500">Tổng bill closed</p>
@@ -144,7 +144,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="rounded-2xl bg-white p-5 shadow-sm">
+        <section className="card">
           <h3 className="text-lg font-semibold">Top dịch vụ hôm nay</h3>
           <div className="mt-4 space-y-2 text-sm">
             {topServices.length === 0 ? (

@@ -111,7 +111,7 @@ export default function AppointmentsPage() {
             {refreshing && <span className="text-xs text-neutral-500">Đang làm mới...</span>}
           </div>
           <select
-            className="rounded-lg border px-3 py-2 text-sm"
+            className="input"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
@@ -124,9 +124,9 @@ export default function AppointmentsPage() {
           </select>
         </div>
 
-        <form onSubmit={onSubmit} className="grid gap-3 rounded-2xl bg-white p-4 shadow-sm md:grid-cols-4">
+        <form onSubmit={onSubmit} className="grid gap-3 card md:grid-cols-4">
           <input
-            className="rounded-lg border px-3 py-2"
+            className="input"
             placeholder="Tên khách"
             value={customerName}
             onChange={(e) => setCustomerName(e.target.value)}
@@ -134,7 +134,7 @@ export default function AppointmentsPage() {
             required
           />
           <input
-            className="rounded-lg border px-3 py-2"
+            className="input"
             type="datetime-local"
             value={startAt}
             onChange={(e) => setStartAt(e.target.value)}
@@ -142,7 +142,7 @@ export default function AppointmentsPage() {
             required
           />
           <input
-            className="rounded-lg border px-3 py-2"
+            className="input"
             type="datetime-local"
             value={endAt}
             onChange={(e) => setEndAt(e.target.value)}
@@ -150,14 +150,14 @@ export default function AppointmentsPage() {
             required
           />
           <button
-            className="rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
+            className="btn btn-primary"
             disabled={submitting}
           >
             {submitting ? "Đang tạo..." : "Tạo lịch hẹn"}
           </button>
         </form>
 
-        <div className="rounded-2xl bg-white p-5 shadow-sm">
+        <div className="card">
           {error && <p className="mb-3 text-sm text-red-600">Lỗi: {error}</p>}
           {loading ? (
             <p className="text-sm text-neutral-500">Đang tải...</p>
@@ -191,7 +191,7 @@ export default function AppointmentsPage() {
                           {a.status === "BOOKED" && (
                             <button
                               onClick={() => onQuickStatus(a.id, "CHECKED_IN")}
-                              className="rounded border px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                              className="btn btn-outline px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-60"
                               disabled={!!updatingId}
                             >
                               {updatingId === a.id ? "Đang xử lý..." : "Check-in"}
@@ -200,7 +200,7 @@ export default function AppointmentsPage() {
                           {["BOOKED", "CHECKED_IN"].includes(a.status) && (
                             <button
                               onClick={() => onQuickStatus(a.id, "DONE")}
-                              className="rounded border px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                              className="btn btn-outline px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-60"
                               disabled={!!updatingId}
                             >
                               {updatingId === a.id ? "Đang xử lý..." : "Done"}
@@ -209,7 +209,7 @@ export default function AppointmentsPage() {
                           {["BOOKED", "CHECKED_IN"].includes(a.status) && (
                             <button
                               onClick={() => onQuickStatus(a.id, "CANCELLED")}
-                              className="rounded border px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                              className="btn btn-outline px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-60"
                               disabled={!!updatingId}
                             >
                               {updatingId === a.id ? "Đang xử lý..." : "Cancel"}
@@ -220,7 +220,7 @@ export default function AppointmentsPage() {
                           {["BOOKED", "CHECKED_IN"].includes(a.status) ? (
                             <Link
                               href={`/checkout?customer=${encodeURIComponent(customer ?? "")}&appointmentId=${a.id}`}
-                              className="rounded border px-2 py-1 text-xs"
+                              className="btn btn-outline px-2 py-1 text-xs"
                             >
                               Open ticket
                             </Link>

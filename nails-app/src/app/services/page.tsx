@@ -91,16 +91,16 @@ export default function ServicesPage() {
           <p className="text-sm text-amber-700">Role hiện tại chỉ xem danh sách dịch vụ, không thêm/sửa.</p>
         ) : null}
 
-        <form onSubmit={onSubmit} className="grid gap-3 rounded-2xl bg-white p-4 shadow-sm md:grid-cols-5">
+        <form onSubmit={onSubmit} className="grid gap-3 card md:grid-cols-5">
           <input
-            className="rounded-lg border px-3 py-2 md:col-span-2"
+            className="input md:col-span-2"
             placeholder="Tên dịch vụ"
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
           />
           <input
-            className="rounded-lg border px-3 py-2"
+            className="input"
             type="number"
             min={5}
             value={duration}
@@ -109,7 +109,7 @@ export default function ServicesPage() {
             required
           />
           <input
-            className="rounded-lg border px-3 py-2"
+            className="input"
             type="number"
             min={0}
             value={price}
@@ -119,7 +119,7 @@ export default function ServicesPage() {
           />
           <div className="flex gap-2">
             <input
-              className="w-full rounded-lg border px-3 py-2"
+              className="w-full input"
               type="number"
               min={0}
               step={0.5}
@@ -130,14 +130,14 @@ export default function ServicesPage() {
             />
             <button
               disabled={submitting || role === "ACCOUNTANT" || role === "TECH"}
-              className="rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="btn btn-primary"
             >
               {submitting ? "Đang thêm..." : "Thêm"}
             </button>
           </div>
         </form>
 
-        <div className="rounded-2xl bg-white p-5 shadow-sm">
+        <div className="card">
           {error && <p className="mb-3 text-sm text-red-600">Lỗi: {error}</p>}
           {loading ? (
             <p className="text-sm text-neutral-500">Đang tải...</p>

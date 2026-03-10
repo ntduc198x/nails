@@ -169,34 +169,34 @@ export default function ReportsPage() {
             {refreshing && <span className="text-xs text-neutral-500">Đang làm mới...</span>}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <input className="rounded border px-2 py-1 text-sm" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+            <input className="btn btn-outline px-2 py-1 text-sm" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
             <span className="text-sm text-neutral-500">đến</span>
-            <input className="rounded border px-2 py-1 text-sm" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+            <input className="btn btn-outline px-2 py-1 text-sm" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
             <button
-              className="rounded border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn btn-outline disabled:cursor-not-allowed disabled:opacity-60"
               onClick={() => void load()}
               disabled={refreshing}
             >
               {refreshing ? "Đang lọc..." : "Lọc"}
             </button>
-            <button className="rounded border px-3 py-2 text-sm" onClick={exportCsv}>Export CSV</button>
+            <button className="btn btn-outline" onClick={exportCsv}>Export CSV</button>
           </div>
         </div>
 
         <div className="grid gap-3 md:grid-cols-4">
-          <div className="rounded-xl bg-white p-4 shadow-sm">
+          <div className="card">
             <p className="text-sm text-neutral-500">Số bill CLOSED</p>
             <p className="text-xl font-semibold">{summary.count}</p>
           </div>
-          <div className="rounded-xl bg-white p-4 shadow-sm">
+          <div className="card">
             <p className="text-sm text-neutral-500">Subtotal</p>
             <p className="text-xl font-semibold">{formatVnd(summary.subtotal)}</p>
           </div>
-          <div className="rounded-xl bg-white p-4 shadow-sm">
+          <div className="card">
             <p className="text-sm text-neutral-500">VAT</p>
             <p className="text-xl font-semibold">{formatVnd(summary.vat)}</p>
           </div>
-          <div className="rounded-xl bg-white p-4 shadow-sm">
+          <div className="card">
             <p className="text-sm text-neutral-500">Doanh thu</p>
             <p className="text-xl font-semibold">{formatVnd(summary.revenue)}</p>
           </div>
@@ -209,7 +209,7 @@ export default function ReportsPage() {
         )}
 
         <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-2xl bg-white p-5 shadow-sm">
+          <div className="card">
             <h3 className="mb-2 font-semibold">Top dịch vụ</h3>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
@@ -233,7 +233,7 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl bg-white p-5 shadow-sm">
+          <div className="card">
             <h3 className="mb-2 font-semibold">Theo phương thức thanh toán</h3>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
@@ -257,7 +257,7 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl bg-white p-5 shadow-sm">
+          <div className="card">
             <h3 className="mb-2 font-semibold">Theo thợ (giờ làm)</h3>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
@@ -282,7 +282,7 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl bg-white p-5 shadow-sm">
+        <div className="card">
           {error && <p className="mb-3 text-sm text-red-600">Lỗi: {error}</p>}
           {loading ? (
             <p className="text-sm text-neutral-500">Đang tải...</p>

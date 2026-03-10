@@ -142,14 +142,14 @@ export default function ShiftsPage() {
             <button
               onClick={clockIn}
               disabled={submitting}
-              className="rounded bg-neutral-900 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn btn-primary"
             >
               {submitting ? "Đang xử lý..." : "Clock in"}
             </button>
             <button
               onClick={clockOut}
               disabled={submitting}
-              className="rounded border px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn btn-outline disabled:cursor-not-allowed disabled:opacity-60"
             >
               {submitting ? "Đang xử lý..." : "Clock out"}
             </button>
@@ -158,7 +158,7 @@ export default function ShiftsPage() {
           <p className="text-sm text-amber-700">Role hiện tại không được chấm công.</p>
         )}
 
-        <div className="rounded-2xl bg-white p-5 shadow-sm">
+        <div className="card">
           {error && <p className="mb-3 text-sm text-red-600">Lỗi: {error}</p>}
           {loading ? (
             <p className="text-sm text-neutral-500">Đang tải...</p>

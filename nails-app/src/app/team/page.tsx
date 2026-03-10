@@ -59,7 +59,7 @@ export default function TeamPage() {
         <h2 className="text-2xl font-bold">Nhân sự & Role (Supabase)</h2>
         <p className="text-sm text-neutral-600">Role của bạn: <b>{myRole}</b></p>
 
-        <div className="rounded-2xl bg-white p-5 shadow-sm">
+        <div className="card">
           {error && <p className="mb-3 text-sm text-red-600">Lỗi: {error}</p>}
           {loading ? (
             <p className="text-sm text-neutral-500">Đang tải...</p>
@@ -76,7 +76,7 @@ export default function TeamPage() {
                     <select
                       value={m.role}
                       onChange={(e) => onChangeRole(m.id, e.target.value as AppRole)}
-                      className="rounded border px-2 py-1 text-xs"
+                      className="btn btn-outline px-2 py-1 text-xs"
                     >
                       {roleOptions.map((r) => (
                         <option key={r} value={r}>

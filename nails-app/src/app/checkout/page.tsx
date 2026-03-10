@@ -179,17 +179,17 @@ export default function CheckoutPage() {
           <p className="text-sm text-neutral-600">Đang checkout từ appointment: <code>{appointmentId}</code></p>
         )}
 
-        <form onSubmit={onSubmit} className="space-y-3 rounded-2xl bg-white p-4 shadow-sm">
+        <form onSubmit={onSubmit} className="space-y-3 card">
           <div className="grid gap-3 md:grid-cols-3">
             <input
-              className="rounded-lg border px-3 py-2"
+              className="input"
               placeholder="Tên khách"
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
               required
             />
             <select
-              className="rounded-lg border px-3 py-2"
+              className="input"
               value={paymentMethod}
               onChange={(e) => setPaymentMethod(e.target.value as "CASH" | "TRANSFER")}
             >
@@ -202,7 +202,7 @@ export default function CheckoutPage() {
           {lines.map((line, idx) => (
             <div key={idx} className="grid gap-3 md:grid-cols-4">
               <select
-                className="rounded-lg border px-3 py-2 md:col-span-3"
+                className="input md:col-span-3"
                 value={line.serviceId}
                 onChange={(e) => updateLine(idx, { serviceId: e.target.value })}
               >
@@ -214,7 +214,7 @@ export default function CheckoutPage() {
                 ))}
               </select>
               <input
-                className="rounded-lg border px-3 py-2"
+                className="input"
                 type="number"
                 min={1}
                 value={line.qty}
@@ -229,7 +229,7 @@ export default function CheckoutPage() {
             </button>
             <button
               disabled={submitting || role === "ACCOUNTANT" || role === "TECH"}
-              className="rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="btn btn-primary"
             >
               {submitting ? "Đang xử lý..." : "Pay & Close"}
             </button>
@@ -242,7 +242,7 @@ export default function CheckoutPage() {
               </button>
               <button
                 disabled={submitting || role === "ACCOUNTANT" || role === "TECH"}
-                className="flex-1 rounded-lg bg-neutral-900 px-4 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex-1 btn btn-primary py-3"
               >
                 {submitting ? "Đang xử lý..." : "Pay & Close"}
               </button>
@@ -278,7 +278,7 @@ export default function CheckoutPage() {
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{dedupeNotice}</div>
         )}
 
-        <div className="rounded-2xl bg-white p-5 shadow-sm">
+        <div className="card">
           {error && <p className="mb-3 text-sm text-red-600">Lỗi: {error}</p>}
           {loading ? (
             <p className="text-sm text-neutral-500">Đang tải...</p>
