@@ -116,47 +116,72 @@ export default function Home() {
           ))}
         </section>
 
-        <section className="grid gap-3 md:grid-cols-2">
+        <section className="grid gap-3 lg:grid-cols-[1.15fr_0.85fr]">
           <div className="card">
-            <h3 className="text-lg font-semibold">Phân bổ trạng thái lịch hẹn</h3>
-            <div className="mt-4 space-y-3 text-sm">
+            <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="mb-1 flex justify-between"><span>Đang chờ</span><span>{waitingPct}%</span></div>
-                <div className="h-2 rounded bg-neutral-100"><div className="h-2 rounded bg-amber-400" style={{ width: `${waitingPct}%` }} /></div>
+                <h3 className="text-lg font-semibold">Lịch khách chờ theo thợ hôm nay</h3>
+                <p className="page-subtitle mt-0">Reception và thợ nhìn nhanh để chủ động nhịp làm việc.</p>
               </div>
-              <div>
-                <div className="mb-1 flex justify-between"><span>Đang phục vụ</span><span>{activePct}%</span></div>
-                <div className="h-2 rounded bg-neutral-100"><div className="h-2 rounded bg-blue-500" style={{ width: `${activePct}%` }} /></div>
-              </div>
-              <div>
-                <div className="mb-1 flex justify-between"><span>Đã xử lý</span><span>{donePct}%</span></div>
-                <div className="h-2 rounded bg-neutral-100"><div className="h-2 rounded bg-emerald-500" style={{ width: `${donePct}%` }} /></div>
-              </div>
+              <span className="badge-soft">{data.waitingSchedule.length} lịch chờ</span>
+            </div>
+            <div className="mt-4 space-y-2 text-sm">
+              {data.waitingSchedule.length === 0 ? (
+                <p className="text-neutral-500">Hiện chưa có lịch chờ.</p>
+              ) : (
+                data.waitingSchedule.map((item, idx) => (
+                  <div key={`${item.time}-${item.customer}-${idx}`} className="grid grid-cols-[80px_1fr_120px] items-center rounded-2xl border border-neutral-100 px-4 py-3">
+                    <p className="font-semibold">{item.time}</p>
+                    <p className="truncate">{item.customer}</p>
+                    <p className="text-right text-neutral-500">{item.staff}</p>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
-          <div className="card">
-            <h3 className="text-lg font-semibold">Hiệu suất thanh toán hôm nay</h3>
-            <div className="mt-4 space-y-2">
-              <p className="text-sm text-neutral-500">Tổng bill closed</p>
-              <p className="text-3xl font-bold">{loading ? "..." : data.closedCount}</p>
-              <p className="mt-3 text-sm text-neutral-500">Doanh thu / bill trung bình</p>
-              <p className="text-lg font-semibold">{loading ? "..." : `${formatVnd(data.revenue)} / ${formatVnd(avgBill)}`}</p>
-
-              <p className="mt-4 text-sm text-neutral-500">Khách đang check-in</p>
-              {loading ? (
-                <p className="text-sm">...</p>
-              ) : data.checkingInCustomers.length ? (
-                <div className="flex flex-wrap gap-2">
-                  {data.checkingInCustomers.map((name, idx) => (
-                    <span key={`${name}-${idx}`} className="rounded-full bg-red-50 px-3 py-1 text-xs text-red-700">
-                      {name}
-                    </span>
-                  ))}
+          <div className="grid gap-3">
+            <div className="card">
+              <h3 className="text-lg font-semibold">Phân bổ trạng thái lịch hẹn</h3>
+              <div className="mt-4 space-y-3 text-sm">
+                <div>
+                  <div className="mb-1 flex justify-between"><span>Đang chờ</span><span>{waitingPct}%</span></div>
+                  <div className="h-2 rounded bg-neutral-100"><div className="h-2 rounded bg-amber-400" style={{ width: `${waitingPct}%` }} /></div>
                 </div>
-              ) : (
-                <p className="text-sm text-neutral-500">Chưa có khách check-in.</p>
-              )}
+                <div>
+                  <div className="mb-1 flex justify-between"><span>Đang phục vụ</span><span>{activePct}%</span></div>
+                  <div className="h-2 rounded bg-neutral-100"><div className="h-2 rounded bg-blue-500" style={{ width: `${activePct}%` }} /></div>
+                </div>
+                <div>
+                  <div className="mb-1 flex justify-between"><span>Đã xử lý</span><span>{donePct}%</span></div>
+                  <div className="h-2 rounded bg-neutral-100"><div className="h-2 rounded bg-emerald-500" style={{ width: `${donePct}%` }} /></div>
+                </div>
+              </div>
+            </div>
+
+            <div className="card">
+              <h3 className="text-lg font-semibold">Hiệu suất thanh toán hôm nay</h3>
+              <div className="mt-4 space-y-2">
+                <p className="text-sm text-neutral-500">Tổng bill closed</p>
+                <p className="text-3xl font-bold">{loading ? "..." : data.closedCount}</p>
+                <p className="mt-3 text-sm text-neutral-500">Doanh thu / bill trung bình</p>
+                <p className="text-lg font-semibold">{loading ? "..." : `${formatVnd(data.revenue)} / ${formatVnd(avgBill)}`}</p>
+
+                <p className="mt-4 text-sm text-neutral-500">Khách đang check-in</p>
+                {loading ? (
+                  <p className="text-sm">...</p>
+                ) : data.checkingInCustomers.length ? (
+                  <div className="flex flex-wrap gap-2">
+                    {data.checkingInCustomers.map((name, idx) => (
+                      <span key={`${name}-${idx}`} className="rounded-full bg-red-50 px-3 py-1 text-xs text-red-700">
+                        {name}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-neutral-500">Chưa có khách check-in.</p>
+                )}
+              </div>
             </div>
           </div>
         </section>
@@ -181,22 +206,6 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="card">
-            <h3 className="text-lg font-semibold">Lịch khách chờ theo thợ (hôm nay)</h3>
-            <div className="mt-4 space-y-2 text-sm">
-              {data.waitingSchedule.length === 0 ? (
-                <p className="text-neutral-500">Hiện chưa có lịch chờ.</p>
-              ) : (
-                data.waitingSchedule.map((item, idx) => (
-                  <div key={`${item.time}-${item.customer}-${idx}`} className="grid grid-cols-3 items-center rounded-lg border border-neutral-100 px-3 py-2">
-                    <p className="font-medium">{item.time}</p>
-                    <p>{item.customer}</p>
-                    <p className="text-right text-neutral-500">{item.staff}</p>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
         </section>
       </div>
     </AppShell>

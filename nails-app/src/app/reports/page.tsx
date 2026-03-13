@@ -163,23 +163,26 @@ export default function ReportsPage() {
   return (
     <AppShell>
       <div className="page-shell">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <h2 className="page-title">Báo cáo nhanh</h2>
-            {refreshing && <span className="text-xs text-neutral-500">Đang làm mới...</span>}
+        <div className="card">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="page-title">Báo cáo nhanh</h2>
+              <p className="page-subtitle">Đọc từ trái sang phải: tổng quan → breakdown → danh sách ticket chi tiết.</p>
+            </div>
+            {refreshing && <span className="badge-soft">Đang làm mới...</span>}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <input className="btn btn-outline px-2 py-1 text-sm" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <input className="input" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
             <span className="text-sm text-neutral-500">đến</span>
-            <input className="btn btn-outline px-2 py-1 text-sm" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+            <input className="input" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
             <button
-              className="btn btn-outline disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn btn-outline"
               onClick={() => void load()}
               disabled={refreshing}
             >
               {refreshing ? "Đang lọc..." : "Lọc"}
             </button>
-            <button className="btn btn-outline" onClick={exportCsv}>Export CSV</button>
+            <button className="btn btn-primary" onClick={exportCsv}>Export CSV</button>
           </div>
         </div>
 
@@ -211,8 +214,8 @@ export default function ReportsPage() {
         <div className="grid gap-4 md:grid-cols-3">
           <div className="card">
             <h3 className="mb-2 font-semibold">Top dịch vụ</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
+            <div className="table-wrap">
+              <table className="table">
                 <thead className="text-neutral-500">
                   <tr>
                     <th className="py-2">Dịch vụ</th>
@@ -235,8 +238,8 @@ export default function ReportsPage() {
 
           <div className="card">
             <h3 className="mb-2 font-semibold">Theo phương thức thanh toán</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
+            <div className="table-wrap">
+              <table className="table">
                 <thead className="text-neutral-500">
                   <tr>
                     <th className="py-2">Method</th>
@@ -259,8 +262,8 @@ export default function ReportsPage() {
 
           <div className="card">
             <h3 className="mb-2 font-semibold">Theo thợ (giờ làm)</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
+            <div className="table-wrap">
+              <table className="table">
                 <thead className="text-neutral-500">
                   <tr>
                     <th className="py-2">Staff user id</th>
@@ -287,8 +290,8 @@ export default function ReportsPage() {
           {loading ? (
             <p className="text-sm text-neutral-500">Đang tải...</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
+            <div className="table-wrap">
+              <table className="table">
                 <thead className="text-neutral-500">
                   <tr>
                     <th className="py-2">Thời gian</th>
