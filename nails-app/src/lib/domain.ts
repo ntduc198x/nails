@@ -243,9 +243,11 @@ export async function listStaffMembers() {
     .eq("org_id", orgId);
   if (profileErr) throw profileErr;
 
-  return (profiles ?? []).map((p) => ({
-    userId: p.user_id as string,
-    name: (p.display_name as string | null) || String(p.user_id).slice(0, 8),
+  const profileMap = new Map((profiles ?? []).map((p) => [p.user_id as string, p.display_name as string | null]));
+
+  return ids.map((id) => ({
+    userId: id,
+    name: profileMap.get(id) || id.slice(0, 8),
   }));
 }
 

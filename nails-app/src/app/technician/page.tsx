@@ -63,7 +63,7 @@ export default function TechnicianBoardPage() {
       const end = new Date(start);
       end.setDate(end.getDate() + 1);
 
-      const [appointmentsRes, resourcesRes, staffRes] = await Promise.all([
+      const [appointmentsRes, resourcesRes, techRolesRes] = await Promise.all([
         supabase
           .from("appointments")
           .select("id,start_at,end_at,status,staff_user_id,resource_id,customers(name)")
@@ -73,19 +73,29 @@ export default function TechnicianBoardPage() {
           .in("status", ["BOOKED", "CHECKED_IN", "DONE"])
           .order("start_at", { ascending: true }),
         supabase.from("resources").select("id,name").eq("org_id", orgId).eq("active", true),
-        supabase
-          .from("profiles")
-          .select("user_id,display_name")
-          .eq("org_id", orgId),
+        supabase.from("user_roles").select("user_id").eq("org_id", orgId).eq("role", "TECH"),
       ]);
 
       if (appointmentsRes.error) throw appointmentsRes.error;
       if (resourcesRes.error) throw resourcesRes.error;
-      if (staffRes.error) throw staffRes.error;
+      if (techRolesRes.error) throw techRolesRes.error;
+
+      const techIds = [...new Set((techRolesRes.data ?? []).map((r) => r.user_id as string))];
+      let staffRows: StaffRow[] = [];
+      if (techIds.length) {
+        const staffRes = await supabase
+          .from("profiles")
+          .select("user_id,display_name")
+          .in("user_id", techIds)
+          .eq("org_id", orgId);
+        if (staffRes.error) throw staffRes.error;
+        const profileMap = new Map((staffRes.data ?? []).map((p) => [p.user_id as string, p.display_name as string | null]));
+        staffRows = techIds.map((id) => ({ user_id: id, display_name: profileMap.get(id) ?? id.slice(0, 8) }));
+      }
 
       setRows((appointmentsRes.data ?? []) as AppointmentRow[]);
       setResources((resourcesRes.data ?? []) as ResourceRow[]);
-      setStaffs((staffRes.data ?? []) as StaffRow[]);
+      setStaffs(staffRows);
       setSelectedStaffId((prev) => prev || userId);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load technician board failed");
