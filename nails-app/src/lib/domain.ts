@@ -10,6 +10,7 @@ let servicesCache: { value: unknown[]; at: number } | null = null;
 let resourcesCache: { value: unknown[]; at: number } | null = null;
 let appointmentsCache: { value: unknown[]; at: number } | null = null;
 let ticketsCache: { value: unknown[]; at: number } | null = null;
+let resourceSchedulingSupported: boolean | null = null;
 
 function isFresh(cache: { at: number } | null, ttl = TTL) {
   return !!cache && Date.now() - cache.at < ttl;
@@ -19,6 +20,11 @@ function invalidateDataCaches() {
   appointmentsCache = null;
   ticketsCache = null;
   resourcesCache = null;
+}
+
+function isMissingResourceSchema(error: unknown) {
+  const msg = error instanceof Error ? error.message : String(error ?? "");
+  return msg.includes("resource_id") || msg.includes("resources") || msg.includes("staff_user_id");
 }
 
 export async function ensureOrgContext(opts?: { force?: boolean }): Promise<OrgContext> {
@@ -103,8 +109,16 @@ export async function listResources(opts?: { force?: boolean; activeOnly?: boole
   }
 
   const { data, error } = await query;
-  if (error) throw error;
+  if (error) {
+    if (isMissingResourceSchema(error)) {
+      resourceSchedulingSupported = false;
+      resourcesCache = { value: [], at: Date.now() };
+      return [];
+    }
+    throw error;
+  }
   const rows = data ?? [];
+  resourceSchedulingSupported = true;
   resourcesCache = { value: rows, at: Date.now() };
   return rows;
 }
@@ -214,12 +228,25 @@ export async function listAppointments(opts?: { force?: boolean }) {
 
   const { orgId } = await ensureOrgContext();
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("appointments")
     .select("id,start_at,end_at,status,staff_user_id,resource_id,customers(name)")
     .eq("org_id", orgId)
     .order("start_at", { ascending: true })
     .limit(50);
+
+  if (error && isMissingResourceSchema(error)) {
+    resourceSchedulingSupported = false;
+    const fallback = await supabase
+      .from("appointments")
+      .select("id,start_at,end_at,status,customers(name)")
+      .eq("org_id", orgId)
+      .order("start_at", { ascending: true })
+      .limit(50);
+    data = (fallback.data ?? []).map((row) => ({ ...row, staff_user_id: null, resource_id: null }));
+    error = fallback.error;
+  }
+
   if (error) throw error;
   const rows = data ?? [];
   appointmentsCache = { value: rows, at: Date.now() };
@@ -236,37 +263,51 @@ export async function createAppointment(input: {
   if (!supabase) throw new Error("Supabase chưa cấu hình");
   const { orgId, branchId } = await ensureOrgContext();
 
-  const { data: overlaps, error: overlapErr } = await supabase
-    .from("appointments")
-    .select("id,start_at,end_at,staff_user_id,resource_id,customers(name)")
-    .eq("org_id", orgId)
-    .in("status", ["BOOKED", "CHECKED_IN"])
-    .lt("start_at", input.endAt)
-    .gt("end_at", input.startAt)
-    .limit(50);
-  if (overlapErr) throw overlapErr;
+  let overlaps: Array<{ staff_user_id?: string | null; resource_id?: string | null; customers?: { name?: string } | Array<{ name?: string }> | null }> = [];
 
-  if (input.staffUserId) {
-    const conflictStaff = (overlaps ?? []).find((row) => row.staff_user_id === input.staffUserId);
-    if (conflictStaff) {
-      const c = conflictStaff.customers as { name?: string } | Array<{ name?: string }> | null | undefined;
-      const customer = Array.isArray(c) ? c[0]?.name : c?.name;
-      throw new Error(`Thợ đã có lịch trùng giờ${customer ? ` với khách ${customer}` : ""}.`);
-    }
-  }
+  if (resourceSchedulingSupported !== false) {
+    const overlapRes = await supabase
+      .from("appointments")
+      .select("id,start_at,end_at,staff_user_id,resource_id,customers(name)")
+      .eq("org_id", orgId)
+      .in("status", ["BOOKED", "CHECKED_IN"])
+      .lt("start_at", input.endAt)
+      .gt("end_at", input.startAt)
+      .limit(50);
 
-  if (input.resourceId) {
-    const conflictResource = (overlaps ?? []).find((row) => row.resource_id === input.resourceId);
-    if (conflictResource) {
-      const c = conflictResource.customers as { name?: string } | Array<{ name?: string }> | null | undefined;
-      const customer = Array.isArray(c) ? c[0]?.name : c?.name;
-      throw new Error(`Ghế/Bàn đã được dùng ở khung giờ này${customer ? ` cho khách ${customer}` : ""}.`);
+    if (overlapRes.error) {
+      if (isMissingResourceSchema(overlapRes.error)) {
+        resourceSchedulingSupported = false;
+      } else {
+        throw overlapRes.error;
+      }
+    } else {
+      resourceSchedulingSupported = true;
+      overlaps = (overlapRes.data ?? []) as typeof overlaps;
+
+      if (input.staffUserId) {
+        const conflictStaff = overlaps.find((row) => row.staff_user_id === input.staffUserId);
+        if (conflictStaff) {
+          const c = conflictStaff.customers as { name?: string } | Array<{ name?: string }> | null | undefined;
+          const customer = Array.isArray(c) ? c[0]?.name : c?.name;
+          throw new Error(`Thợ đã có lịch trùng giờ${customer ? ` với khách ${customer}` : ""}.`);
+        }
+      }
+
+      if (input.resourceId) {
+        const conflictResource = overlaps.find((row) => row.resource_id === input.resourceId);
+        if (conflictResource) {
+          const c = conflictResource.customers as { name?: string } | Array<{ name?: string }> | null | undefined;
+          const customer = Array.isArray(c) ? c[0]?.name : c?.name;
+          throw new Error(`Ghế/Bàn đã được dùng ở khung giờ này${customer ? ` cho khách ${customer}` : ""}.`);
+        }
+      }
     }
   }
 
   const customerId = await findOrCreateCustomer(orgId, input.customerName);
 
-  const { error } = await supabase.from("appointments").insert({
+  let { error } = await supabase.from("appointments").insert({
     org_id: orgId,
     branch_id: branchId,
     customer_id: customerId,
@@ -276,6 +317,19 @@ export async function createAppointment(input: {
     resource_id: input.resourceId ?? null,
     status: "BOOKED",
   });
+
+  if (error && isMissingResourceSchema(error)) {
+    resourceSchedulingSupported = false;
+    const fallback = await supabase.from("appointments").insert({
+      org_id: orgId,
+      branch_id: branchId,
+      customer_id: customerId,
+      start_at: input.startAt,
+      end_at: input.endAt,
+      status: "BOOKED",
+    });
+    error = fallback.error;
+  }
 
   if (error) throw error;
   invalidateDataCaches();
