@@ -137,6 +137,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [loading, pathname, role, router, visibleLinks]);
 
+  useEffect(() => {
+    document.body.classList.add("motion-ready");
+    const targets = Array.from(document.querySelectorAll(".card, .page-title, .table-wrap"));
+    targets.forEach((el) => el.classList.add("reveal-on-scroll"));
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("in-view");
+            io.unobserve(entry.target);
+          }
+        }
+      },
+      { threshold: 0.08, rootMargin: "0px 0px -8% 0px" },
+    );
+
+    targets.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [pathname]);
+
   async function onLogout() {
     if (!supabase) return;
     await supabase.auth.signOut();

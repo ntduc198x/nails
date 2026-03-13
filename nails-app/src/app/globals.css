@@ -10,10 +10,14 @@
   --color-primary-hover: #c9001f;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background: radial-gradient(circle at top, #fff6f7 0%, var(--color-background) 28%);
   color: var(--color-text-main);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), Arial, Helvetica, sans-serif;
 }
 
 .page-shell {
@@ -40,6 +44,17 @@ body {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.06);
+}
+
+.motion-ready .reveal-on-scroll {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 420ms ease, transform 420ms ease;
+}
+
+.motion-ready .reveal-on-scroll.in-view {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .btn {
