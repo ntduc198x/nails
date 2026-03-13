@@ -187,9 +187,9 @@ export default function TaxBooksPage() {
 
   return (
     <AppShell>
-      <div className="space-y-4">
+      <div className="page-shell">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-2xl font-bold">Sổ thuế HKD - Mẫu S1a</h2>
+          <h2 className="page-title">Sổ thuế HKD - Mẫu S1a</h2>
           <div className="flex flex-wrap items-center gap-2">
             <input className="btn btn-outline px-2 py-1 text-sm" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
             <input className="btn btn-outline px-2 py-1 text-sm" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />

@@ -55,8 +55,8 @@ export default function TeamPage() {
 
   return (
     <AppShell>
-      <div className="space-y-4">
-        <h2 className="text-2xl font-bold">Nhân sự & Role (Supabase)</h2>
+      <div className="page-shell">
+        <h2 className="page-title">Nhân sự & Role (Supabase)</h2>
         <p className="text-sm text-neutral-600">Role của bạn: <b>{myRole}</b>. Chỉ OWNER được đổi role nhân sự khác.</p>
 
         <div className="card">

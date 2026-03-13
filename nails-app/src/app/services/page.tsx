@@ -80,10 +80,10 @@ export default function ServicesPage() {
 
   return (
     <AppShell>
-      <div className="space-y-4">
+      <div className="page-shell">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-bold">Dịch vụ & VAT (Supabase)</h2>
+            <h2 className="page-title">Dịch vụ & VAT (Supabase)</h2>
             {refreshing && <span className="text-xs text-neutral-500">Đang làm mới...</span>}
           </div>
         </div>

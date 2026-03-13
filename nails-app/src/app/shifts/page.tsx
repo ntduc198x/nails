@@ -131,9 +131,9 @@ export default function ShiftsPage() {
 
   return (
     <AppShell>
-      <div className="space-y-4">
+      <div className="page-shell">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-2xl font-bold">Ca làm / Chấm công</h2>
+          <h2 className="page-title">Ca làm / Chấm công</h2>
           {refreshing && <span className="text-xs text-neutral-500">Đang làm mới...</span>}
           <span className="rounded-full bg-neutral-100 px-2 py-1 text-xs text-neutral-700">Đang mở: {openCount}</span>
         </div>

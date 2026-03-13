@@ -167,7 +167,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-20 backdrop-blur" style={{ borderBottom: "1px solid var(--color-border)", background: "rgba(255,253,249,.95)" }}>
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 p-3 md:p-4">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 p-3 md:p-4">
           <div>
             <p className="text-xs" style={{ color: "var(--color-text-secondary)" }}>Nails App</p>
             <h1 className="text-lg font-semibold">MVP Sprint 2</h1>
@@ -198,7 +198,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      <div className="mx-auto max-w-6xl p-6">{children}</div>
+      <div className="mx-auto max-w-7xl p-6">{children}</div>
     </div>
   );
 }

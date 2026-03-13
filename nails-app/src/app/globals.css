@@ -11,9 +11,28 @@
 }
 
 body {
-  background: var(--color-background);
+  background: radial-gradient(circle at top, #fff6f7 0%, var(--color-background) 28%);
   color: var(--color-text-main);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+.page-shell {
+  @apply space-y-5;
+}
+
+.page-title {
+  @apply text-3xl font-extrabold tracking-tight;
+}
+
+.page-subtitle {
+  color: var(--color-text-secondary);
+  @apply mt-1 text-sm;
+}
+
+.badge-soft {
+  @apply rounded-full px-3 py-1 text-xs font-medium;
+  background: #fff1f3;
+  color: #9f1239;
 }
 
 .card {

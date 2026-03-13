@@ -50,8 +50,8 @@ export default function ResourcesPage() {
 
   return (
     <AppShell>
-      <div className="space-y-4">
-        <h2 className="text-2xl font-bold">Quản lý ghế / bàn (Resources)</h2>
+      <div className="page-shell">
+        <h2 className="page-title">Quản lý ghế / bàn (Resources)</h2>
 
         <form onSubmit={onSubmit} className="card grid gap-3 md:grid-cols-4">
           <input className="input md:col-span-2" placeholder="Tên resource (VD: Ghế 01)" value={name} onChange={(e) => setName(e.target.value)} required />

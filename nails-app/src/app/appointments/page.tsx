@@ -123,10 +123,10 @@ export default function AppointmentsPage() {
 
   return (
     <AppShell>
-      <div className="space-y-4">
+      <div className="page-shell">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-bold">Appointments (Supabase)</h2>
+            <h2 className="page-title">Appointments (Supabase)</h2>
             {refreshing && <span className="text-xs text-neutral-500">Đang làm mới...</span>}
           </div>
           <select

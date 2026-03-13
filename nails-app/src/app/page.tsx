@@ -80,13 +80,13 @@ export default function Home() {
 
   return (
     <AppShell>
-      <div className="space-y-5">
+      <div className="page-shell">
         <section className="card">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h2 className="text-2xl font-bold">Dashboard vận hành</h2>
-              <p className="mt-1 text-sm text-neutral-600">Snapshot hôm nay · auto refresh mỗi 20 giây.</p>
-              <p className="mt-1 text-xs text-neutral-500">Cập nhật lúc: {lastUpdated}</p>
+              <h2 className="page-title">Dashboard vận hành</h2>
+              <p className="page-subtitle">Snapshot hôm nay · auto refresh mỗi 20 giây.</p>
+              <p className="mt-2"><span className="badge-soft">Cập nhật lúc: {lastUpdated}</span></p>
             </div>
             <div className="flex items-center gap-2 text-sm">
               <button

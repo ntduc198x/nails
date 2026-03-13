@@ -169,7 +169,7 @@ export default function CheckoutPage() {
     <AppShell>
       <div className="space-y-4 pb-24 md:pb-0">
         <div className="flex items-center gap-2">
-          <h2 className="text-2xl font-bold">Checkout (Ticket + Payment + Receipt)</h2>
+          <h2 className="page-title">Checkout (Ticket + Payment + Receipt)</h2>
           {refreshing && <span className="text-xs text-neutral-500">Đang làm mới...</span>}
         </div>
         {role === "ACCOUNTANT" && (
