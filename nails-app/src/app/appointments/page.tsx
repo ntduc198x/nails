@@ -118,7 +118,14 @@ export default function AppointmentsPage() {
       setResourceId("");
       await load({ force: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Create appointment failed");
+      if (err instanceof Error) {
+        setError(err.message);
+      } else if (err && typeof err === "object") {
+        const anyErr = err as { message?: unknown; details?: unknown; hint?: unknown };
+        setError([anyErr.message, anyErr.details, anyErr.hint].filter(Boolean).join(" | ") || "Create appointment failed");
+      } else {
+        setError("Create appointment failed");
+      }
     } finally {
       setSubmitting(false);
     }

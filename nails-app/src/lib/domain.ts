@@ -331,7 +331,12 @@ export async function createAppointment(input: {
     error = fallback.error;
   }
 
-  if (error) throw error;
+  if (error) {
+    const message = [error.message, (error as { details?: string }).details, (error as { hint?: string }).hint]
+      .filter(Boolean)
+      .join(" | ");
+    throw new Error(message || "Create appointment failed");
+  }
   invalidateDataCaches();
 }
 
