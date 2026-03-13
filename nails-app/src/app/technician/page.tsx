@@ -2,7 +2,7 @@
 
 import { AppShell } from "@/components/app-shell";
 import { getCurrentSessionRole } from "@/lib/auth";
-import { ensureOrgContext } from "@/lib/domain";
+import { ensureOrgContext, updateAppointmentStatus } from "@/lib/domain";
 import { supabase } from "@/lib/supabase";
 import { useEffect, useMemo, useState } from "react";
 
@@ -40,60 +40,61 @@ export default function TechnicianBoardPage() {
   const [role, setRole] = useState<string | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [actingId, setActingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        setLoading(true);
-        setError(null);
-        if (!supabase) throw new Error("Thiếu cấu hình Supabase");
+  async function load(opts?: { silent?: boolean }) {
+    try {
+      if (!opts?.silent) setLoading(true);
+      setError(null);
+      if (!supabase) throw new Error("Thiếu cấu hình Supabase");
 
-        const { data: sessionData } = await supabase.auth.getSession();
-        const userId = sessionData.session?.user?.id;
-        if (!userId) throw new Error("Chưa đăng nhập");
-        setMyUserId(userId);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user?.id;
+      if (!userId) throw new Error("Chưa đăng nhập");
+      setMyUserId(userId);
 
-        const currentRole = await getCurrentSessionRole();
-        setRole(currentRole);
+      const currentRole = await getCurrentSessionRole();
+      setRole(currentRole);
 
-        const { orgId } = await ensureOrgContext();
-        const start = new Date();
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(start);
-        end.setDate(end.getDate() + 1);
+      const { orgId } = await ensureOrgContext();
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 1);
 
-        const [appointmentsRes, resourcesRes, staffRes] = await Promise.all([
-          supabase
-            .from("appointments")
-            .select("id,start_at,end_at,status,staff_user_id,resource_id,customers(name)")
-            .eq("org_id", orgId)
-            .gte("start_at", start.toISOString())
-            .lt("start_at", end.toISOString())
-            .in("status", ["BOOKED", "CHECKED_IN", "DONE"])
-            .order("start_at", { ascending: true }),
-          supabase.from("resources").select("id,name").eq("org_id", orgId).eq("active", true),
-          supabase
-            .from("profiles")
-            .select("user_id,display_name")
-            .eq("org_id", orgId),
-        ]);
+      const [appointmentsRes, resourcesRes, staffRes] = await Promise.all([
+        supabase
+          .from("appointments")
+          .select("id,start_at,end_at,status,staff_user_id,resource_id,customers(name)")
+          .eq("org_id", orgId)
+          .gte("start_at", start.toISOString())
+          .lt("start_at", end.toISOString())
+          .in("status", ["BOOKED", "CHECKED_IN", "DONE"])
+          .order("start_at", { ascending: true }),
+        supabase.from("resources").select("id,name").eq("org_id", orgId).eq("active", true),
+        supabase
+          .from("profiles")
+          .select("user_id,display_name")
+          .eq("org_id", orgId),
+      ]);
 
-        if (appointmentsRes.error) throw appointmentsRes.error;
-        if (resourcesRes.error) throw resourcesRes.error;
-        if (staffRes.error) throw staffRes.error;
+      if (appointmentsRes.error) throw appointmentsRes.error;
+      if (resourcesRes.error) throw resourcesRes.error;
+      if (staffRes.error) throw staffRes.error;
 
-        setRows((appointmentsRes.data ?? []) as AppointmentRow[]);
-        setResources((resourcesRes.data ?? []) as ResourceRow[]);
-        setStaffs((staffRes.data ?? []) as StaffRow[]);
-        setSelectedStaffId(userId);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Load technician board failed");
-      } finally {
-        setLoading(false);
-      }
+      setRows((appointmentsRes.data ?? []) as AppointmentRow[]);
+      setResources((resourcesRes.data ?? []) as ResourceRow[]);
+      setStaffs((staffRes.data ?? []) as StaffRow[]);
+      setSelectedStaffId((prev) => prev || userId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Load technician board failed");
+    } finally {
+      if (!opts?.silent) setLoading(false);
     }
+  }
 
+  useEffect(() => {
     void load();
   }, []);
 
@@ -112,6 +113,21 @@ export default function TechnicianBoardPage() {
   const staffName = (id: string | null) => staffs.find((s) => s.user_id === id)?.display_name ?? "-";
 
   const canSwitchStaff = role === "OWNER" || role === "MANAGER" || role === "RECEPTION";
+
+  async function onAdvanceStatus(row: AppointmentRow) {
+    if (actingId) return;
+    try {
+      setActingId(row.id);
+      if (row.status === "BOOKED") {
+        await updateAppointmentStatus(row.id, "CHECKED_IN");
+      }
+      await load({ silent: true });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Update technician board failed");
+    } finally {
+      setActingId(null);
+    }
+  }
 
   return (
     <AppShell>
@@ -165,6 +181,20 @@ export default function TechnicianBoardPage() {
                       <div className="mt-2 text-sm text-neutral-500">
                         <p>{new Date(row.start_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} - {new Date(row.end_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</p>
                         <p>Ghế/Bàn: {resourceName(row.resource_id)}</p>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {row.status === "BOOKED" && (
+                          <button
+                            className="btn btn-primary px-3 py-1 text-xs"
+                            disabled={actingId === row.id}
+                            onClick={() => void onAdvanceStatus(row)}
+                          >
+                            {actingId === row.id ? "Đang xử lý..." : "Start / Check-in"}
+                          </button>
+                        )}
+                        {row.status === "CHECKED_IN" && (
+                          <span className="badge-soft">Chờ checkout để DONE</span>
+                        )}
                       </div>
                     </div>
                   ))
