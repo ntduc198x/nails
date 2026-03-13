@@ -236,6 +236,34 @@ export async function createAppointment(input: {
   if (!supabase) throw new Error("Supabase chưa cấu hình");
   const { orgId, branchId } = await ensureOrgContext();
 
+  const { data: overlaps, error: overlapErr } = await supabase
+    .from("appointments")
+    .select("id,start_at,end_at,staff_user_id,resource_id,customers(name)")
+    .eq("org_id", orgId)
+    .in("status", ["BOOKED", "CHECKED_IN"])
+    .lt("start_at", input.endAt)
+    .gt("end_at", input.startAt)
+    .limit(50);
+  if (overlapErr) throw overlapErr;
+
+  if (input.staffUserId) {
+    const conflictStaff = (overlaps ?? []).find((row) => row.staff_user_id === input.staffUserId);
+    if (conflictStaff) {
+      const c = conflictStaff.customers as { name?: string } | Array<{ name?: string }> | null | undefined;
+      const customer = Array.isArray(c) ? c[0]?.name : c?.name;
+      throw new Error(`Thợ đã có lịch trùng giờ${customer ? ` với khách ${customer}` : ""}.`);
+    }
+  }
+
+  if (input.resourceId) {
+    const conflictResource = (overlaps ?? []).find((row) => row.resource_id === input.resourceId);
+    if (conflictResource) {
+      const c = conflictResource.customers as { name?: string } | Array<{ name?: string }> | null | undefined;
+      const customer = Array.isArray(c) ? c[0]?.name : c?.name;
+      throw new Error(`Ghế/Bàn đã được dùng ở khung giờ này${customer ? ` cho khách ${customer}` : ""}.`);
+    }
+  }
+
   const customerId = await findOrCreateCustomer(orgId, input.customerName);
 
   const { error } = await supabase.from("appointments").insert({

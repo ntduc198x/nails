@@ -144,6 +144,9 @@ export default function AppointmentsPage() {
         </div>
 
         <form onSubmit={onSubmit} className="page-grid card md:grid-cols-6">
+          <div className="md:col-span-6 text-xs text-neutral-500">
+            Hệ thống sẽ chặn nếu thợ hoặc ghế/bàn bị trùng khung giờ với lịch khác đang BOOKED/CHECKED_IN.
+          </div>
           <input
             className="input"
             placeholder="Tên khách"
