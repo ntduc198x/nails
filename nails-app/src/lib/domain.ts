@@ -72,6 +72,33 @@ export async function ensureOrgContext(opts?: { force?: boolean }): Promise<OrgC
     throw new Error("Không thể khởi tạo org/branch context");
   }
 
+  const { data: sessionData } = await supabase.auth.getSession();
+  const user = sessionData.session?.user;
+  if (user) {
+    const { data: profile, error: profileErr } = await supabase
+      .from("profiles")
+      .select("user_id,org_id,default_branch_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (profileErr) throw profileErr;
+
+    if (!profile) {
+      const { error: insertProfileErr } = await supabase.from("profiles").insert({
+        user_id: user.id,
+        org_id: orgId,
+        default_branch_id: branchId,
+        display_name: user.email?.split("@")[0] ?? "User",
+      });
+      if (insertProfileErr) throw insertProfileErr;
+    } else if (profile.org_id !== orgId || profile.default_branch_id !== branchId) {
+      const { error: updateProfileErr } = await supabase
+        .from("profiles")
+        .update({ org_id: orgId, default_branch_id: branchId })
+        .eq("user_id", user.id);
+      if (updateProfileErr) throw updateProfileErr;
+    }
+  }
+
   const ctx = { orgId, branchId };
   orgContextCache = { value: ctx, at: Date.now() };
   return ctx;
