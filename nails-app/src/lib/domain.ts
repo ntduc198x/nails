@@ -216,7 +216,7 @@ export async function listAppointments(opts?: { force?: boolean }) {
 
   const { data, error } = await supabase
     .from("appointments")
-    .select("id,start_at,end_at,status,staff_user_id,customers(name)")
+    .select("id,start_at,end_at,status,staff_user_id,resource_id,customers(name)")
     .eq("org_id", orgId)
     .order("start_at", { ascending: true })
     .limit(50);

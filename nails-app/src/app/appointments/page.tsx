@@ -81,6 +81,24 @@ export default function AppointmentsPage() {
     return rows.filter((r) => r.status === statusFilter);
   }, [rows, statusFilter]);
 
+  const activeRows = useMemo(
+    () => rows.filter((r) => ["BOOKED", "CHECKED_IN"].includes(r.status)),
+    [rows],
+  );
+
+  const selectedStart = startAt ? new Date(startAt).toISOString() : null;
+  const selectedEnd = endAt ? new Date(endAt).toISOString() : null;
+
+  const staffBusy = useMemo(() => {
+    if (!staffUserId || !selectedStart || !selectedEnd) return false;
+    return activeRows.some((r) => r.staff_user_id === staffUserId && r.start_at < selectedEnd && r.end_at > selectedStart);
+  }, [activeRows, staffUserId, selectedStart, selectedEnd]);
+
+  const resourceBusy = useMemo(() => {
+    if (!resourceId || !selectedStart || !selectedEnd) return false;
+    return activeRows.some((r) => r.resource_id === resourceId && r.start_at < selectedEnd && r.end_at > selectedStart);
+  }, [activeRows, resourceId, selectedStart, selectedEnd]);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (submitting) return;
@@ -171,32 +189,46 @@ export default function AppointmentsPage() {
             disabled={submitting}
             required
           />
-          <select
-            className="input"
-            value={staffUserId}
-            onChange={(e) => setStaffUserId(e.target.value)}
-            disabled={submitting}
-          >
-            <option value="">-- Chọn thợ (tuỳ chọn) --</option>
-            {staffOptions.map((s) => (
-              <option key={s.userId} value={s.userId}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-          <select
-            className="input"
-            value={resourceId}
-            onChange={(e) => setResourceId(e.target.value)}
-            disabled={submitting}
-          >
-            <option value="">-- Chọn ghế/bàn (tuỳ chọn) --</option>
-            {resourceOptions.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name} ({r.type})
-              </option>
-            ))}
-          </select>
+          <div className="stack-tight">
+            <select
+              className="input w-full"
+              value={staffUserId}
+              onChange={(e) => setStaffUserId(e.target.value)}
+              disabled={submitting}
+            >
+              <option value="">-- Chọn thợ (tuỳ chọn) --</option>
+              {staffOptions.map((s) => (
+                <option key={s.userId} value={s.userId}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+            {staffUserId && (
+              <p className={`text-xs ${staffBusy ? "text-red-600" : "text-emerald-600"}`}>
+                {staffBusy ? "Thợ đang bận trong khung giờ này" : "Thợ đang rảnh trong khung giờ này"}
+              </p>
+            )}
+          </div>
+          <div className="stack-tight">
+            <select
+              className="input w-full"
+              value={resourceId}
+              onChange={(e) => setResourceId(e.target.value)}
+              disabled={submitting}
+            >
+              <option value="">-- Chọn ghế/bàn (tuỳ chọn) --</option>
+              {resourceOptions.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name} ({r.type})
+                </option>
+              ))}
+            </select>
+            {resourceId && (
+              <p className={`text-xs ${resourceBusy ? "text-red-600" : "text-emerald-600"}`}>
+                {resourceBusy ? "Ghế/Bàn đang bận trong khung giờ này" : "Ghế/Bàn đang rảnh trong khung giờ này"}
+              </p>
+            )}
+          </div>
           <button
             className="btn btn-primary"
             disabled={submitting}
