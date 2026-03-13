@@ -111,12 +111,16 @@ export default function Home() {
           {cards.map((item) => (
             <div key={item.label} className="card">
               <p className="text-sm text-neutral-500">{item.label}</p>
-              <p className="mt-2 text-xl font-semibold">{loading ? "..." : item.value}</p>
+              {loading ? (
+                <div className="skeleton mt-3 h-7 rounded-xl" />
+              ) : (
+                <p className="mt-2 text-xl font-semibold">{item.value}</p>
+              )}
             </div>
           ))}
         </section>
 
-        <section className="grid gap-3 lg:grid-cols-[1.15fr_0.85fr]">
+        <section className="page-grid lg:grid-cols-[1.15fr_0.85fr]">
           <div className="card">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -186,7 +190,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="grid gap-3 md:grid-cols-2">
+        <section className="page-grid md:grid-cols-2">
           <div className="card">
             <h3 className="text-lg font-semibold">Top dịch vụ hôm nay</h3>
             <div className="mt-4 space-y-2 text-sm">

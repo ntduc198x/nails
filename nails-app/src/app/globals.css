@@ -21,7 +21,15 @@ body {
 }
 
 .page-shell {
-  @apply space-y-5;
+  @apply space-y-4 md:space-y-5;
+}
+
+.page-grid {
+  @apply grid gap-3 md:gap-4;
+}
+
+.stack-tight {
+  @apply space-y-2 md:space-y-3;
 }
 
 .page-title {
@@ -55,6 +63,25 @@ body {
 .motion-ready .reveal-on-scroll.in-view {
   opacity: 1;
   transform: translateY(0);
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: #f3eee8;
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.8), transparent);
+  animation: shimmer 1.25s infinite;
+}
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
 }
 
 .btn {

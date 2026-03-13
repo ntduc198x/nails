@@ -186,7 +186,7 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="page-grid md:grid-cols-4">
           <div className="card">
             <p className="text-sm text-neutral-500">Số bill CLOSED</p>
             <p className="text-xl font-semibold">{summary.count}</p>
@@ -211,7 +211,7 @@ export default function ReportsPage() {
           </div>
         )}
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="page-grid md:grid-cols-3">
           <div className="card">
             <h3 className="mb-2 font-semibold">Top dịch vụ</h3>
             <div className="table-wrap">
@@ -288,7 +288,11 @@ export default function ReportsPage() {
         <div className="card">
           {error && <p className="mb-3 text-sm text-red-600">Lỗi: {error}</p>}
           {loading ? (
-            <p className="text-sm text-neutral-500">Đang tải...</p>
+            <div className="space-y-2">
+              <div className="skeleton h-10 rounded-xl" />
+              <div className="skeleton h-10 rounded-xl" />
+              <div className="skeleton h-10 rounded-xl" />
+            </div>
           ) : (
             <div className="table-wrap">
               <table className="table">

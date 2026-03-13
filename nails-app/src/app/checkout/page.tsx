@@ -180,7 +180,7 @@ export default function CheckoutPage() {
         )}
 
         <form onSubmit={onSubmit} className="space-y-3 card">
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="page-grid md:grid-cols-3">
             <input
               className="input"
               placeholder="Tên khách"
@@ -200,7 +200,7 @@ export default function CheckoutPage() {
           </div>
 
           {lines.map((line, idx) => (
-            <div key={idx} className="grid gap-3 md:grid-cols-4">
+            <div key={idx} className="page-grid md:grid-cols-4">
               <select
                 className="input md:col-span-3"
                 value={line.serviceId}

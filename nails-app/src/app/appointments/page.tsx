@@ -143,7 +143,7 @@ export default function AppointmentsPage() {
           </select>
         </div>
 
-        <form onSubmit={onSubmit} className="grid gap-3 card md:grid-cols-6">
+        <form onSubmit={onSubmit} className="page-grid card md:grid-cols-6">
           <input
             className="input"
             placeholder="Tên khách"
