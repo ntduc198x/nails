@@ -59,7 +59,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [email, setEmail] = useState<string>("");
   const [role, setRole] = useState<AppRole>("RECEPTION");
   const [authError, setAuthError] = useState<string | null>(null);
-  const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
@@ -228,7 +227,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <nav className="hidden items-center gap-2 text-sm md:flex">
             {visibleGroups.map((group) => {
               const active = group.items.some((item) => item.href === pathname);
-              const isOpen = openGroup === group.label;
               const directHref = group.href ?? group.items[0]?.href ?? "/";
 
               if (group.items.length === 1) {
@@ -245,22 +243,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               }
 
               return (
-                <div
-                  key={group.label}
-                  className="relative"
-                  onMouseEnter={() => setOpenGroup(group.label)}
-                  onMouseLeave={() => setOpenGroup(null)}
-                >
+                <div key={group.label} className="group relative">
                   <button
                     type="button"
-                    onClick={() => setOpenGroup(isOpen ? null : group.label)}
                     className="rounded-full px-4 py-2 text-sm transition"
                     style={active ? { background: "var(--color-primary)", color: "#fff" } : { color: "var(--color-text-secondary)" }}
                   >
                     {group.label}
                   </button>
-                  {isOpen && (
-                    <div className="absolute left-0 top-full z-30 mt-3 w-[340px] rounded-3xl border bg-white p-3 shadow-xl" style={{ borderColor: "var(--color-border)" }}>
+                  <div className="pointer-events-none absolute left-0 top-full z-30 pt-3 opacity-0 transition duration-150 group-hover:pointer-events-auto group-hover:opacity-100">
+                    <div className="w-[360px] rounded-3xl border bg-white p-3 shadow-xl" style={{ borderColor: "var(--color-border)" }}>
                       <div className="grid gap-2">
                         {group.items.map((item) => {
                           const itemActive = pathname === item.href;
@@ -269,7 +261,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                               key={item.href}
                               href={item.href}
                               className="rounded-2xl px-4 py-3 transition hover:bg-[#faf7f2]"
-                              onClick={() => setOpenGroup(null)}
                             >
                               <p className="text-sm font-semibold" style={{ color: itemActive ? "var(--color-primary)" : "var(--color-text-main)" }}>{item.label}</p>
                               <p className="mt-1 text-xs" style={{ color: "var(--color-text-secondary)" }}>{item.desc}</p>
@@ -278,7 +269,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         })}
                       </div>
                     </div>
-                  )}
+                  </div>
                 </div>
               );
             })}
