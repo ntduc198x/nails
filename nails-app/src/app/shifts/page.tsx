@@ -32,6 +32,7 @@ export default function ShiftsPage() {
       if (isInitial) setLoading(true);
       else setRefreshing(true);
       setError(null);
+      if (!supabase) throw new Error("Thiếu cấu hình Supabase");
 
       const { data, error } = await supabase
         .from("time_entries")
