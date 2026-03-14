@@ -1,3 +1,4 @@
+import { getCurrentSessionRole } from "@/lib/auth";
 import { ensureOrgContext } from "@/lib/domain";
 import { supabase } from "@/lib/supabase";
 
@@ -36,6 +37,7 @@ export async function getDashboardSnapshot(opts?: { force?: boolean }) {
   }
 
   const { orgId } = await ensureOrgContext();
+  const role = await getCurrentSessionRole();
 
   const now = new Date();
   const start = new Date(now);
@@ -46,27 +48,34 @@ export async function getDashboardSnapshot(opts?: { force?: boolean }) {
   const fromIso = start.toISOString();
   const toIso = end.toISOString();
 
-  const [appointmentsRes, ticketsRes] = await Promise.all([
-    supabase
-      .from("appointments")
-      .select("id,status,start_at,staff_user_id,customers(name)")
-      .eq("org_id", orgId)
-      .gte("start_at", fromIso)
-      .lt("start_at", toIso),
-    supabase
+  const appointmentsRes = await supabase
+    .from("appointments")
+    .select("id,status,start_at,staff_user_id,customers(name)")
+    .eq("org_id", orgId)
+    .gte("start_at", fromIso)
+    .lt("start_at", toIso);
+
+  if (appointmentsRes.error) throw appointmentsRes.error;
+
+  let tickets: Array<{ id: string; totals_json?: { grand_total?: number } | null }> = [];
+  if (role !== "TECH") {
+    const ticketsRes = await supabase
       .from("tickets")
       .select("id,totals_json")
       .eq("org_id", orgId)
       .eq("status", "CLOSED")
       .gte("created_at", fromIso)
-      .lt("created_at", toIso),
-  ]);
+      .lt("created_at", toIso);
+    if (ticketsRes.error) throw ticketsRes.error;
+    tickets = (ticketsRes.data ?? []) as typeof tickets;
+  }
 
-  if (appointmentsRes.error) throw appointmentsRes.error;
-  if (ticketsRes.error) throw ticketsRes.error;
-
-  const appointments = appointmentsRes.data ?? [];
-  const tickets = ticketsRes.data ?? [];
+  let appointments = appointmentsRes.data ?? [];
+  if (role === "TECH") {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session?.user?.id;
+    appointments = appointments.filter((a) => a.staff_user_id === userId);
+  }
 
   const staffIds = [...new Set(appointments.map((a) => a.staff_user_id as string | null).filter((v): v is string => Boolean(v)))];
   let staffNameMap = new Map<string, string>();
