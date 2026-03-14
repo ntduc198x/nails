@@ -151,7 +151,7 @@ export default function AppointmentsPage() {
       <div className="page-shell">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <h2 className="page-title">Appointments (Supabase)</h2>
+            <h2 className="page-title">Appointments</h2>
             {refreshing && <span className="text-xs text-neutral-500">Đang làm mới...</span>}
           </div>
           <select

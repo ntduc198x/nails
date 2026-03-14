@@ -4,6 +4,7 @@ import { AppShell } from "@/components/app-shell";
 import { getCurrentSessionRole } from "@/lib/auth";
 import { ensureOrgContext, updateAppointmentStatus } from "@/lib/domain";
 import { supabase } from "@/lib/supabase";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 type AppointmentRow = {
@@ -19,6 +20,7 @@ type AppointmentRow = {
 type ResourceRow = { id: string; name: string };
 
 type StaffRow = { user_id: string; display_name: string | null };
+type OpenTicketRow = { id: string; appointment_id: string | null; status: string };
 
 function pickCustomerName(customers: AppointmentRow["customers"]) {
   if (Array.isArray(customers)) return customers[0]?.name ?? "-";
@@ -36,6 +38,7 @@ export default function TechnicianBoardPage() {
   const [rows, setRows] = useState<AppointmentRow[]>([]);
   const [resources, setResources] = useState<ResourceRow[]>([]);
   const [staffs, setStaffs] = useState<StaffRow[]>([]);
+  const [openTickets, setOpenTickets] = useState<OpenTicketRow[]>([]);
   const [myUserId, setMyUserId] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<string>("");
@@ -64,7 +67,7 @@ export default function TechnicianBoardPage() {
       const end = new Date(start);
       end.setDate(end.getDate() + 1);
 
-      const [appointmentsRes, resourcesRes, techRolesRes] = await Promise.all([
+      const [appointmentsRes, resourcesRes, techRolesRes, ticketsRes] = await Promise.all([
         supabase
           .from("appointments")
           .select("id,start_at,end_at,status,staff_user_id,resource_id,customers(name)")
@@ -75,11 +78,13 @@ export default function TechnicianBoardPage() {
           .order("start_at", { ascending: true }),
         supabase.from("resources").select("id,name").eq("org_id", orgId).eq("active", true),
         supabase.from("user_roles").select("user_id").eq("org_id", orgId).eq("role", "TECH"),
+        supabase.from("tickets").select("id,appointment_id,status").eq("org_id", orgId).eq("status", "OPEN"),
       ]);
 
       if (appointmentsRes.error) throw appointmentsRes.error;
       if (resourcesRes.error) throw resourcesRes.error;
       if (techRolesRes.error) throw techRolesRes.error;
+      if (ticketsRes.error) throw ticketsRes.error;
 
       const techIds = [...new Set((techRolesRes.data ?? []).map((r) => r.user_id as string))];
       let staffRows: StaffRow[] = [];
@@ -97,6 +102,7 @@ export default function TechnicianBoardPage() {
       setRows((appointmentsRes.data ?? []) as AppointmentRow[]);
       setResources((resourcesRes.data ?? []) as ResourceRow[]);
       setStaffs(staffRows);
+      setOpenTickets((ticketsRes.data ?? []) as OpenTicketRow[]);
       setSelectedStaffId((prev) => {
         if (currentRole === "TECH") return prev || userId;
         return prev;
@@ -131,6 +137,7 @@ export default function TechnicianBoardPage() {
 
   const resourceName = (id: string | null) => resources.find((r) => r.id === id)?.name ?? "-";
   const staffName = (id: string | null) => staffs.find((s) => s.user_id === id)?.display_name ?? "-";
+  const openTicketForAppointment = (appointmentId: string) => openTickets.find((t) => t.appointment_id === appointmentId);
 
   const canSwitchStaff = role === "OWNER" || role === "MANAGER" || role === "RECEPTION";
 
@@ -221,7 +228,17 @@ export default function TechnicianBoardPage() {
                           </button>
                         )}
                         {row.status === "CHECKED_IN" && (
-                          <span className="badge-soft">Chờ checkout để DONE</span>
+                          <>
+                            <span className="badge-soft">Chờ checkout để DONE</span>
+                            {openTicketForAppointment(row.id) && (
+                              <Link
+                                href={`/checkout?appointmentId=${row.id}&customer=${encodeURIComponent(pickCustomerName(row.customers))}`}
+                                className="btn btn-outline px-3 py-1 text-xs"
+                              >
+                                Mở checkout
+                              </Link>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>

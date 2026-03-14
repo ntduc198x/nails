@@ -110,6 +110,25 @@ export async function updateUserRoleByRowId(id: string, role: AppRole) {
   if (error) throw error;
 }
 
+export async function updateUserDisplayName(userId: string, displayName: string) {
+  if (!supabase) throw new Error("Supabase chưa cấu hình");
+
+  const { data: sessionData } = await supabase.auth.getSession();
+  const currentUserId = sessionData.session?.user?.id;
+  if (!currentUserId) throw new Error("Chưa đăng nhập");
+
+  const currentRole = await getOrCreateRole(currentUserId);
+  if (currentRole !== "OWNER") {
+    throw new Error("Chỉ OWNER mới có quyền sửa tên nhân sự.");
+  }
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ display_name: displayName })
+    .eq("user_id", userId);
+  if (error) throw error;
+}
+
 export async function getCurrentSessionRole(): Promise<AppRole> {
   if (!supabase) throw new Error("Supabase chưa cấu hình");
   const { data } = await supabase.auth.getSession();
