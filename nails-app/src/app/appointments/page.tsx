@@ -91,8 +91,8 @@ export default function AppointmentsPage() {
   }, [rows, statusFilter, dayFilter]);
 
   const pendingCheckoutRows = useMemo(
-    () => filteredRows.filter((r) => r.status === "CHECKED_IN"),
-    [filteredRows],
+    () => rows.filter((r) => r.status === "CHECKED_IN"),
+    [rows],
   );
 
   const activeRows = useMemo(
