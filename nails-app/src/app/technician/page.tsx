@@ -87,7 +87,12 @@ export default function TechnicianBoardPage() {
 
       setRows((appointmentsRes.data ?? []) as AppointmentRow[]);
       setResources((resourcesRes.data ?? []) as ResourceRow[]);
-      setStaffs((staffRows ?? []).map((s) => ({ user_id: s.userId, display_name: s.name })) as StaffRow[]);
+      setStaffs(
+        ((staffRows ?? []) as Array<{ userId: string; name: string }>).map((s) => ({
+          user_id: s.userId,
+          display_name: s.name,
+        })) as StaffRow[],
+      );
       setOpenTickets((ticketsRes.data ?? []) as OpenTicketRow[]);
       setSelectedStaffId((prev) => {
         if (currentRole === "TECH") return prev || userId;
