@@ -5,7 +5,7 @@ import { getOrCreateRole, listUserRoles, type AppRole, updateUserRoleByRowId } f
 import { supabase } from "@/lib/supabase";
 import { useEffect, useState } from "react";
 
-type UserRoleRow = { id: string; user_id: string; role: AppRole };
+type UserRoleRow = { id: string; user_id: string; role: AppRole; display_name?: string };
 
 const roleOptions: AppRole[] = ["MANAGER", "RECEPTION", "ACCOUNTANT", "TECH"];
 
@@ -68,7 +68,7 @@ export default function TeamPage() {
               {rows.map((m) => (
                 <li key={m.id} className="flex items-center justify-between rounded-lg border border-neutral-100 p-3">
                   <div>
-                    <p className="font-medium">{m.user_id}</p>
+                    <p className="font-medium">{m.display_name || m.user_id}</p>
                     <p className="text-xs text-neutral-500">row id: {m.id}</p>
                   </div>
 

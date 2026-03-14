@@ -2,7 +2,7 @@
 
 import { AppShell } from "@/components/app-shell";
 import { getCurrentSessionRole, type AppRole } from "@/lib/auth";
-import { createService, listServices } from "@/lib/domain";
+import { createService, listServices, updateService } from "@/lib/domain";
 import { formatVnd } from "@/lib/mock-data";
 import { useCallback, useEffect, useState } from "react";
 
@@ -27,6 +27,12 @@ export default function ServicesPage() {
   const [duration, setDuration] = useState(45);
   const [price, setPrice] = useState(250000);
   const [vat, setVat] = useState(8);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDuration, setEditDuration] = useState(45);
+  const [editPrice, setEditPrice] = useState(250000);
+  const [editVat, setEditVat] = useState(8);
+  const [editActive, setEditActive] = useState(true);
 
   const load = useCallback(async (opts?: { force?: boolean }) => {
     const isInitial = rows.length === 0;
@@ -73,6 +79,37 @@ export default function ServicesPage() {
       await load({ force: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Create service failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function startEdit(row: ServiceRow) {
+    setEditingId(row.id);
+    setEditName(row.name);
+    setEditDuration(row.duration_min);
+    setEditPrice(Number(row.base_price));
+    setEditVat(Number(row.vat_rate) * 100);
+    setEditActive(row.active);
+  }
+
+  async function saveEdit() {
+    if (!editingId || submitting) return;
+    try {
+      setSubmitting(true);
+      setError(null);
+      await updateService({
+        id: editingId,
+        name: editName,
+        durationMin: editDuration,
+        basePrice: editPrice,
+        vatPercent: editVat,
+        active: editActive,
+      });
+      setEditingId(null);
+      await load({ force: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Update service failed");
     } finally {
       setSubmitting(false);
     }
@@ -142,25 +179,36 @@ export default function ServicesPage() {
           {loading ? (
             <p className="text-sm text-neutral-500">Đang tải...</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="text-neutral-500">
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
                   <tr>
                     <th className="py-2">Tên</th>
                     <th>Duration</th>
                     <th>Giá</th>
                     <th>VAT</th>
                     <th>Trạng thái</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((s) => (
                     <tr key={s.id} className="border-t border-neutral-100">
-                      <td className="py-2">{s.name}</td>
-                      <td>{s.duration_min} phút</td>
-                      <td>{formatVnd(Number(s.base_price))}</td>
-                      <td>{Number(s.vat_rate) * 100}%</td>
-                      <td>{s.active ? "Active" : "Inactive"}</td>
+                      <td className="py-2">{editingId === s.id ? <input className="input w-full" value={editName} onChange={(e) => setEditName(e.target.value)} /> : s.name}</td>
+                      <td>{editingId === s.id ? <input className="input w-28" type="number" min={5} value={editDuration} onChange={(e) => setEditDuration(Number(e.target.value))} /> : `${s.duration_min} phút`}</td>
+                      <td>{editingId === s.id ? <input className="input w-32" type="number" min={0} value={editPrice} onChange={(e) => setEditPrice(Number(e.target.value))} /> : formatVnd(Number(s.base_price))}</td>
+                      <td>{editingId === s.id ? <input className="input w-24" type="number" min={0} step={0.5} value={editVat} onChange={(e) => setEditVat(Number(e.target.value))} /> : `${Number(s.vat_rate) * 100}%`}</td>
+                      <td>{editingId === s.id ? <label className="inline-flex items-center gap-2 text-sm"><input type="checkbox" checked={editActive} onChange={(e) => setEditActive(e.target.checked)} />{editActive ? "Active" : "Inactive"}</label> : (s.active ? "Active" : "Inactive")}</td>
+                      <td className="text-right">
+                        {role === "ACCOUNTANT" || role === "TECH" ? null : editingId === s.id ? (
+                          <div className="flex justify-end gap-2">
+                            <button className="btn btn-outline" type="button" onClick={() => setEditingId(null)}>Huỷ</button>
+                            <button className="btn btn-primary" type="button" onClick={() => void saveEdit()} disabled={submitting}>{submitting ? "Đang lưu..." : "Lưu"}</button>
+                          </div>
+                        ) : (
+                          <button className="btn btn-outline" type="button" onClick={() => startEdit(s)}>Sửa</button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

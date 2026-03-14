@@ -188,6 +188,36 @@ export async function updateResource(input: { id: string; name: string; type: "C
   return data;
 }
 
+export async function updateService(input: {
+  id: string;
+  name: string;
+  durationMin: number;
+  basePrice: number;
+  vatPercent: number;
+  active: boolean;
+}) {
+  if (!supabase) throw new Error("Supabase chưa cấu hình");
+  const { orgId } = await ensureOrgContext();
+
+  const { data, error } = await supabase
+    .from("services")
+    .update({
+      name: input.name,
+      duration_min: input.durationMin,
+      base_price: input.basePrice,
+      vat_rate: input.vatPercent / 100,
+      active: input.active,
+    })
+    .eq("id", input.id)
+    .eq("org_id", orgId)
+    .select("id")
+    .single();
+  if (error) throw error;
+
+  servicesCache = null;
+  return data;
+}
+
 export async function createService(input: {
   name: string;
   durationMin: number;

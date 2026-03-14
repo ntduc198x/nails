@@ -62,7 +62,25 @@ export async function listUserRoles() {
     .order("role", { ascending: true });
 
   if (error) throw error;
-  return data ?? [];
+
+  const rows = data ?? [];
+  const ids = [...new Set(rows.map((r) => r.user_id as string))];
+  let profileMap = new Map<string, string>();
+
+  if (ids.length) {
+    const { data: profiles, error: profileErr } = await supabase
+      .from("profiles")
+      .select("user_id,display_name")
+      .in("user_id", ids)
+      .eq("org_id", orgId);
+    if (profileErr) throw profileErr;
+    profileMap = new Map((profiles ?? []).map((p) => [p.user_id as string, (p.display_name as string | null) || String(p.user_id).slice(0, 8)]));
+  }
+
+  return rows.map((r) => ({
+    ...r,
+    display_name: profileMap.get(r.user_id as string) ?? String(r.user_id).slice(0, 8),
+  }));
 }
 
 export async function updateUserRoleByRowId(id: string, role: AppRole) {
