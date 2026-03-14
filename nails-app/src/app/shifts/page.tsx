@@ -47,10 +47,10 @@ export default function ShiftsPage() {
 
       const ids = [...new Set(rows.map((r) => r.staff_user_id))];
       if (ids.length) {
-        const teamRows = await listUserRoles();
+        const teamRows = (await listUserRoles()) as Array<{ user_id: string; display_name?: string | null }>;
         const profiles = teamRows
-          .filter((r) => ids.includes(r.user_id as string))
-          .map((r) => ({ user_id: r.user_id as string, display_name: (r.display_name as string | null) ?? null }));
+          .filter((r) => ids.includes(r.user_id))
+          .map((r) => ({ user_id: r.user_id, display_name: r.display_name ?? null }));
         setStaffProfiles(profiles as StaffProfile[]);
       } else {
         setStaffProfiles([]);
