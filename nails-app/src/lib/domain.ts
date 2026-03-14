@@ -386,6 +386,22 @@ export async function createAppointment(input: {
   invalidateDataCaches();
 }
 
+export async function listCheckedInAppointments() {
+  if (!supabase) return [];
+  const { orgId } = await ensureOrgContext();
+
+  const { data, error } = await supabase
+    .from("appointments")
+    .select("id,start_at,staff_user_id,resource_id,customers(name)")
+    .eq("org_id", orgId)
+    .eq("status", "CHECKED_IN")
+    .order("start_at", { ascending: true })
+    .limit(50);
+
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function updateAppointmentStatus(appointmentId: string, status: "BOOKED" | "CHECKED_IN" | "DONE" | "CANCELLED" | "NO_SHOW") {
   if (!supabase) throw new Error("Supabase chưa cấu hình");
   const { orgId } = await ensureOrgContext();

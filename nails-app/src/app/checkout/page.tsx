@@ -2,7 +2,7 @@
 
 import { AppShell } from "@/components/app-shell";
 import { getCurrentSessionRole, type AppRole } from "@/lib/auth";
-import { createCheckout, listRecentTickets, listServices } from "@/lib/domain";
+import { createCheckout, listCheckedInAppointments, listRecentTickets, listServices } from "@/lib/domain";
 import { formatVnd } from "@/lib/mock-data";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -22,6 +22,12 @@ type TicketRow = {
   receipts?: { public_token: string; expires_at: string }[];
 };
 
+type CheckedInAppointment = {
+  id: string;
+  start_at: string;
+  customers?: { name: string } | { name: string }[] | null;
+};
+
 function mapCheckoutError(message: string) {
   if (message.includes("INVALID_SERVICES")) return "Dịch vụ không hợp lệ hoặc đã bị xóa.";
   if (message.includes("FORBIDDEN")) return "Bạn không có quyền tạo checkout.";
@@ -38,6 +44,7 @@ function mapCheckoutError(message: string) {
 export default function CheckoutPage() {
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [tickets, setTickets] = useState<TicketRow[]>([]);
+  const [checkedInAppointments, setCheckedInAppointments] = useState<CheckedInAppointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,9 +72,10 @@ export default function CheckoutPage() {
         throw new Error("Role hiện tại không có quyền truy cập trang Checkout");
       }
 
-      const [serviceRows, ticketRows] = await Promise.all([listServices(), listRecentTickets()]);
+      const [serviceRows, ticketRows, checkedInRows] = await Promise.all([listServices(), listRecentTickets(), listCheckedInAppointments()]);
       setServices(serviceRows as ServiceRow[]);
       setTickets(ticketRows as TicketRow[]);
+      setCheckedInAppointments(checkedInRows as CheckedInAppointment[]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load checkout data failed");
     } finally {
@@ -103,6 +111,13 @@ export default function CheckoutPage() {
 
   function addLine() {
     setLines((prev) => [...prev, { serviceId: "", qty: 1 }]);
+  }
+
+  function onSelectCheckedInAppointment(id: string) {
+    setAppointmentId(id || null);
+    const picked = checkedInAppointments.find((a) => a.id === id);
+    const customer = Array.isArray(picked?.customers) ? picked?.customers[0]?.name : picked?.customers?.name;
+    if (customer) setCustomerName(customer);
   }
 
   function updateLine(index: number, patch: Partial<{ serviceId: string; qty: number }>) {
@@ -149,6 +164,7 @@ export default function CheckoutPage() {
       }
 
       setCustomerName("");
+      setAppointmentId(null);
       setPaymentMethod("CASH");
       setLines([{ serviceId: "", qty: 1 }]);
       await load();
@@ -180,7 +196,22 @@ export default function CheckoutPage() {
         )}
 
         <form onSubmit={onSubmit} className="space-y-3 card">
-          <div className="page-grid md:grid-cols-3">
+          <div className="page-grid md:grid-cols-4">
+            <select
+              className="input"
+              value={appointmentId ?? ""}
+              onChange={(e) => onSelectCheckedInAppointment(e.target.value)}
+            >
+              <option value="">-- Chọn khách đang CHECKED_IN --</option>
+              {checkedInAppointments.map((a) => {
+                const customer = Array.isArray(a.customers) ? a.customers[0]?.name : a.customers?.name;
+                return (
+                  <option key={a.id} value={a.id}>
+                    {(customer ?? "Khách") + " · " + new Date(a.start_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+                  </option>
+                );
+              })}
+            </select>
             <input
               className="input"
               placeholder="Tên khách"
