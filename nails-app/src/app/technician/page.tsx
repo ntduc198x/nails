@@ -145,6 +145,7 @@ export default function TechnicianBoardPage() {
       setActingId(row.id);
       if (row.status === "BOOKED") {
         if (role === "TECH") {
+          if (!supabase) throw new Error("Thiếu cấu hình Supabase");
           const { error } = await supabase.rpc("tech_check_in_appointment_secure", { p_appointment_id: row.id });
           if (error) throw error;
         } else {
