@@ -271,12 +271,12 @@ async function findOrCreateCustomer(orgId: string, name: string) {
 }
 
 export async function listStaffMembers() {
-  const teamRows = await listUserRoles();
+  const teamRows = (await listUserRoles()) as Array<{ user_id: string; role: string; display_name?: string }>;
   return (teamRows ?? [])
     .filter((r) => r.role === "TECH")
     .map((r) => ({
-      userId: r.user_id as string,
-      name: (r.display_name as string | undefined) || String(r.user_id).slice(0, 8),
+      userId: r.user_id,
+      name: r.display_name || String(r.user_id).slice(0, 8),
     }));
 }
 
