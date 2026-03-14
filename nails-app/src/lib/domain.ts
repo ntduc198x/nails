@@ -171,6 +171,23 @@ export async function createResource(input: { name: string; type: "CHAIR" | "TAB
   return data;
 }
 
+export async function updateResource(input: { id: string; name: string; type: "CHAIR" | "TABLE" | "ROOM"; active: boolean }) {
+  if (!supabase) throw new Error("Supabase chưa cấu hình");
+  const { orgId } = await ensureOrgContext();
+
+  const { data, error } = await supabase
+    .from("resources")
+    .update({ name: input.name, type: input.type, active: input.active })
+    .eq("id", input.id)
+    .eq("org_id", orgId)
+    .select("id,name,type,active")
+    .single();
+  if (error) throw error;
+
+  resourcesCache = null;
+  return data;
+}
+
 export async function createService(input: {
   name: string;
   durationMin: number;
