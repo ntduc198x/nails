@@ -344,7 +344,6 @@ begin
   select org_id into v_org_id
   from public.user_roles
   where user_id = auth.uid()
-  order by created_at asc nulls last
   limit 1;
 
   if v_org_id is null then
@@ -356,7 +355,7 @@ begin
   from public.user_roles ur
   left join public.profiles p on p.user_id = ur.user_id and p.org_id = ur.org_id
   where ur.org_id = v_org_id
-  order by ur.role asc, ur.created_at asc;
+  order by ur.role asc, ur.user_id asc;
 end;
 $$;
 
