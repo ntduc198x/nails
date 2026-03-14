@@ -47,6 +47,7 @@ export default function AppointmentsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [dayFilter, setDayFilter] = useState(toInputValue(now).slice(0, 10));
   const [submitting, setSubmitting] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
@@ -77,9 +78,22 @@ export default function AppointmentsPage() {
   }, [load]);
 
   const filteredRows = useMemo(() => {
-    if (statusFilter === "ALL") return rows;
-    return rows.filter((r) => r.status === statusFilter);
-  }, [rows, statusFilter]);
+    const byDay = rows.filter((r) => {
+      const localDate = new Date(r.start_at);
+      const y = localDate.getFullYear();
+      const m = String(localDate.getMonth() + 1).padStart(2, "0");
+      const d = String(localDate.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}` === dayFilter;
+    });
+
+    if (statusFilter === "ALL") return byDay;
+    return byDay.filter((r) => r.status === statusFilter);
+  }, [rows, statusFilter, dayFilter]);
+
+  const pendingCheckoutRows = useMemo(
+    () => filteredRows.filter((r) => r.status === "CHECKED_IN"),
+    [filteredRows],
+  );
 
   const activeRows = useMemo(
     () => rows.filter((r) => ["BOOKED", "CHECKED_IN"].includes(r.status)),
@@ -154,18 +168,54 @@ export default function AppointmentsPage() {
             <h2 className="page-title">Appointments</h2>
             {refreshing && <span className="text-xs text-neutral-500">Đang làm mới...</span>}
           </div>
-          <select
-            className="input"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value="ALL">Tất cả trạng thái</option>
-            <option value="BOOKED">BOOKED</option>
-            <option value="CHECKED_IN">CHECKED_IN</option>
-            <option value="DONE">DONE</option>
-            <option value="CANCELLED">CANCELLED</option>
-            <option value="NO_SHOW">NO_SHOW</option>
-          </select>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              className="input"
+              type="date"
+              value={dayFilter}
+              onChange={(e) => setDayFilter(e.target.value)}
+            />
+            <select
+              className="input"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="ALL">Tất cả trạng thái</option>
+              <option value="BOOKED">BOOKED</option>
+              <option value="CHECKED_IN">CHECKED_IN</option>
+              <option value="DONE">DONE</option>
+              <option value="CANCELLED">CANCELLED</option>
+              <option value="NO_SHOW">NO_SHOW</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold">Khách chưa check out</h3>
+              <p className="page-subtitle mt-0">Các khách đang CHECKED_IN của ngày đã chọn.</p>
+            </div>
+            <span className="badge-soft">{pendingCheckoutRows.length}</span>
+          </div>
+          <div className="mt-4 stack-tight">
+            {pendingCheckoutRows.length ? (
+              pendingCheckoutRows.map((a) => {
+                const customer = Array.isArray(a.customers) ? a.customers[0]?.name : a.customers?.name;
+                const staffName = staffOptions.find((s) => s.userId === a.staff_user_id)?.name;
+                return (
+                  <div key={`pending-${a.id}`} className="grid gap-2 rounded-2xl border border-neutral-100 px-4 py-3 md:grid-cols-[120px_1fr_140px_120px] md:items-center">
+                    <p className="font-semibold">{new Date(a.start_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</p>
+                    <p>{customer ?? "-"}</p>
+                    <p className="text-neutral-500">{staffName ?? "-"}</p>
+                    <a className="btn btn-outline text-center" href={`/checkout?appointmentId=${a.id}&customer=${encodeURIComponent(customer ?? "")}`}>Checkout</a>
+                  </div>
+                );
+              })
+            ) : (
+              <p className="text-sm text-neutral-500">Không có khách nào đang chờ checkout trong ngày đã chọn.</p>
+            )}
+          </div>
         </div>
 
         <form onSubmit={onSubmit} className="page-grid card md:grid-cols-6">
