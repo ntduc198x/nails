@@ -62,7 +62,13 @@ export default function TeamPage() {
       setEditingUserId(null);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Update name failed");
+      if (e instanceof Error) setError(e.message);
+      else if (e && typeof e === "object") {
+        const anyErr = e as { message?: unknown; details?: unknown; hint?: unknown };
+        setError([anyErr.message, anyErr.details, anyErr.hint].filter(Boolean).join(" | ") || "Update name failed");
+      } else {
+        setError("Update name failed");
+      }
     }
   }
 

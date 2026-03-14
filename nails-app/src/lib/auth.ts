@@ -126,7 +126,12 @@ export async function updateUserDisplayName(userId: string, displayName: string)
     p_user_id: userId,
     p_display_name: displayName,
   });
-  if (error) throw error;
+  if (error) {
+    const message = [error.message, (error as { details?: string }).details, (error as { hint?: string }).hint]
+      .filter(Boolean)
+      .join(" | ");
+    throw new Error(message || "Update display name failed");
+  }
 }
 
 export async function getCurrentSessionRole(): Promise<AppRole> {

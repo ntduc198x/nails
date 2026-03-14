@@ -128,8 +128,8 @@ export default function ServicesPage() {
           <p className="text-sm text-amber-700">Role hiện tại chỉ xem danh sách dịch vụ, không thêm/sửa.</p>
         ) : null}
 
-        <form onSubmit={onSubmit} className="grid gap-3 card md:grid-cols-5">
-          <div className="md:col-span-2 stack-tight">
+        <form onSubmit={onSubmit} className="grid gap-3 card md:grid-cols-[2fr_1fr_1fr_1fr_auto] md:items-end">
+          <div className="stack-tight">
             <label className="text-xs text-neutral-500">Tên dịch vụ</label>
             <input
               className="input w-full"
@@ -163,29 +163,25 @@ export default function ServicesPage() {
               required
             />
           </div>
-          <div className="flex gap-2">
-            <div className="w-full stack-tight">
-              <label className="text-xs text-neutral-500">VAT %</label>
-              <input
-                className="w-full input"
-                type="number"
-                min={0}
-                step={0.5}
-                value={vat}
-                onChange={(e) => setVat(Number(e.target.value))}
-                placeholder="VAT %"
-                required
-              />
-            </div>
-            <div className="flex items-end">
-              <button
-                disabled={submitting || role === "ACCOUNTANT" || role === "TECH"}
-                className="btn btn-primary"
-              >
-                {submitting ? "Đang thêm..." : "Thêm"}
-              </button>
-            </div>
+          <div className="stack-tight">
+            <label className="text-xs text-neutral-500">VAT %</label>
+            <input
+              className="w-full input"
+              type="number"
+              min={0}
+              step={0.5}
+              value={vat}
+              onChange={(e) => setVat(Number(e.target.value))}
+              placeholder="VAT %"
+              required
+            />
           </div>
+          <button
+            disabled={submitting || role === "ACCOUNTANT" || role === "TECH"}
+            className="btn btn-primary"
+          >
+            {submitting ? "Đang thêm..." : "Thêm"}
+          </button>
         </form>
 
         <div className="card">
