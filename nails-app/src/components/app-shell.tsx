@@ -6,18 +6,37 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-const links = [
-  { href: "/", label: "Dashboard" },
-  { href: "/appointments", label: "Appointments" },
-  { href: "/services", label: "Dịch vụ" },
-  { href: "/resources", label: "Ghế/Bàn" },
-  { href: "/checkout", label: "Checkout" },
-  { href: "/reports", label: "Báo cáo" },
-  { href: "/tax-books", label: "Sổ thuế" },
-  { href: "/shifts", label: "Ca làm" },
-  { href: "/technician", label: "Technician" },
-  { href: "/team", label: "Nhân sự" },
-];
+const navGroups = [
+  {
+    label: "Dashboard",
+    href: "/",
+    items: [{ href: "/", label: "Dashboard", desc: "Tổng quan vận hành trong ngày" }],
+  },
+  {
+    label: "Vận hành",
+    items: [
+      { href: "/appointments", label: "Appointments", desc: "Lịch hẹn, check-in, phân thợ" },
+      { href: "/checkout", label: "Checkout", desc: "Ticket, thanh toán, receipt" },
+      { href: "/technician", label: "Technician", desc: "Board công việc theo thợ" },
+      { href: "/shifts", label: "Ca làm", desc: "Chấm công và ca trong ngày" },
+    ],
+  },
+  {
+    label: "Thiết lập",
+    items: [
+      { href: "/services", label: "Dịch vụ", desc: "Menu dịch vụ và VAT" },
+      { href: "/resources", label: "Ghế/Bàn", desc: "Quản lý chair, table, room" },
+      { href: "/team", label: "Nhân sự", desc: "Role và nhân sự" },
+    ],
+  },
+  {
+    label: "Báo cáo",
+    items: [
+      { href: "/reports", label: "Reports", desc: "Doanh thu và breakdown" },
+      { href: "/tax-books", label: "Sổ thuế", desc: "Mẫu S1a xuất file" },
+    ],
+  },
+] as const;
 
 function canAccess(role: AppRole, href: string) {
   if (role === "OWNER") return true;
@@ -40,6 +59,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [email, setEmail] = useState<string>("");
   const [role, setRole] = useState<AppRole>("RECEPTION");
   const [authError, setAuthError] = useState<string | null>(null);
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -112,7 +133,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [router]);
 
-  const visibleLinks = useMemo(() => links.filter((l) => canAccess(role, l.href)), [role]);
+  const visibleGroups = useMemo(() => {
+    return navGroups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => canAccess(role, item.href)),
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [role]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -127,16 +155,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Prefetch các route được phép để chuyển trang mượt hơn
-    for (const link of visibleLinks) {
-      router.prefetch(link.href);
+    for (const group of visibleGroups) {
+      for (const item of group.items) {
+        router.prefetch(item.href);
+      }
     }
-  }, [router, visibleLinks]);
+  }, [router, visibleGroups]);
 
   useEffect(() => {
     if (!loading && !canAccess(role, pathname)) {
-      router.replace(visibleLinks[0]?.href ?? "/");
+      router.replace(visibleGroups[0]?.items[0]?.href ?? "/");
     }
-  }, [loading, pathname, role, router, visibleLinks]);
+  }, [loading, pathname, role, router, visibleGroups]);
 
   useEffect(() => {
     document.body.classList.add("motion-ready");
@@ -195,23 +225,59 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <h1 className="text-lg font-semibold">MVP Sprint 2</h1>
           </div>
 
-          <nav className="flex flex-wrap gap-2 text-sm">
-            {visibleLinks.map((l) => {
-              const active = pathname === l.href;
+          <nav className="hidden items-center gap-2 text-sm md:flex">
+            {visibleGroups.map((group) => {
+              const active = group.items.some((item) => item.href === pathname);
+              const isOpen = openGroup === group.label;
+              const directHref = group.href ?? group.items[0]?.href ?? "/";
               return (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  className="rounded-full px-4 py-2 text-sm transition"
-                  style={active ? { background: "var(--color-primary)", color: "#fff" } : { color: "var(--color-text-secondary)" }}
+                <div
+                  key={group.label}
+                  className="relative"
+                  onMouseEnter={() => setOpenGroup(group.label)}
+                  onMouseLeave={() => setOpenGroup(null)}
                 >
-                  {l.label}
-                </Link>
+                  <button
+                    type="button"
+                    onClick={() => setOpenGroup(isOpen ? null : group.label)}
+                    className="rounded-full px-4 py-2 text-sm transition"
+                    style={active ? { background: "var(--color-primary)", color: "#fff" } : { color: "var(--color-text-secondary)" }}
+                  >
+                    {group.label}
+                  </button>
+                  {isOpen && group.items.length > 1 && (
+                    <div className="absolute left-0 top-full z-30 mt-3 w-[320px] rounded-3xl border bg-white p-3 shadow-xl" style={{ borderColor: "var(--color-border)" }}>
+                      <div className="grid gap-2">
+                        {group.items.map((item) => {
+                          const itemActive = pathname === item.href;
+                          return (
+                            <Link
+                              key={item.href}
+                              href={item.href}
+                              className="rounded-2xl px-4 py-3 transition hover:bg-[#faf7f2]"
+                              onClick={() => setOpenGroup(null)}
+                            >
+                              <p className="text-sm font-semibold" style={{ color: itemActive ? "var(--color-primary)" : "var(--color-text-main)" }}>{item.label}</p>
+                              <p className="mt-1 text-xs" style={{ color: "var(--color-text-secondary)" }}>{item.desc}</p>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {group.items.length === 1 && (
+                    <Link href={directHref} className="absolute inset-0" aria-label={group.label} />
+                  )}
+                </div>
               );
             })}
           </nav>
 
-          <div className="text-right text-xs">
+          <button className="btn btn-outline md:hidden" type="button" onClick={() => setMobileOpen((v) => !v)}>
+            Menu
+          </button>
+
+          <div className="hidden text-right text-xs md:block">
             <p style={{ color: "var(--color-text-secondary)" }}>{email || "No session"}</p>
             <p className="font-semibold">{role}</p>
             <button onClick={onLogout} className="btn btn-outline mt-1 px-2 py-1 text-xs">
@@ -219,6 +285,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </button>
           </div>
         </div>
+        {mobileOpen && (
+          <div className="mx-auto max-w-7xl border-t px-3 pb-3 pt-2 md:hidden" style={{ borderColor: "var(--color-border)" }}>
+            <div className="space-y-3">
+              {visibleGroups.map((group) => (
+                <details key={group.label} className="rounded-2xl border bg-white p-3" style={{ borderColor: "var(--color-border)" }}>
+                  <summary className="cursor-pointer list-none text-sm font-semibold">{group.label}</summary>
+                  <div className="mt-3 grid gap-2">
+                    {group.items.map((item) => (
+                      <Link key={item.href} href={item.href} className="rounded-xl px-3 py-2 hover:bg-[#faf7f2]" onClick={() => setMobileOpen(false)}>
+                        <p className="text-sm font-semibold">{item.label}</p>
+                        <p className="text-xs" style={{ color: "var(--color-text-secondary)" }}>{item.desc}</p>
+                      </Link>
+                    ))}
+                  </div>
+                </details>
+              ))}
+              <div className="rounded-2xl border bg-white p-3 text-xs" style={{ borderColor: "var(--color-border)" }}>
+                <p style={{ color: "var(--color-text-secondary)" }}>{email || "No session"}</p>
+                <p className="font-semibold">{role}</p>
+                <button onClick={onLogout} className="btn btn-outline mt-2 px-2 py-1 text-xs">Logout</button>
+              </div>
+            </div>
+          </div>
+        )}
       </header>
       <div className="mx-auto max-w-7xl p-6">{children}</div>
     </div>
