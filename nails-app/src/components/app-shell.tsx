@@ -230,6 +230,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               const active = group.items.some((item) => item.href === pathname);
               const isOpen = openGroup === group.label;
               const directHref = group.href ?? group.items[0]?.href ?? "/";
+
+              if (group.items.length === 1) {
+                return (
+                  <Link
+                    key={group.label}
+                    href={directHref}
+                    className="rounded-full px-4 py-2 text-sm transition"
+                    style={active ? { background: "var(--color-primary)", color: "#fff" } : { color: "var(--color-text-secondary)" }}
+                  >
+                    {group.label}
+                  </Link>
+                );
+              }
+
               return (
                 <div
                   key={group.label}
@@ -245,8 +259,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   >
                     {group.label}
                   </button>
-                  {isOpen && group.items.length > 1 && (
-                    <div className="absolute left-0 top-full z-30 mt-3 w-[320px] rounded-3xl border bg-white p-3 shadow-xl" style={{ borderColor: "var(--color-border)" }}>
+                  {isOpen && (
+                    <div className="absolute left-0 top-full z-30 mt-3 w-[340px] rounded-3xl border bg-white p-3 shadow-xl" style={{ borderColor: "var(--color-border)" }}>
                       <div className="grid gap-2">
                         {group.items.map((item) => {
                           const itemActive = pathname === item.href;
@@ -264,9 +278,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         })}
                       </div>
                     </div>
-                  )}
-                  {group.items.length === 1 && (
-                    <Link href={directHref} className="absolute inset-0" aria-label={group.label} />
                   )}
                 </div>
               );
