@@ -122,10 +122,10 @@ export async function updateUserDisplayName(userId: string, displayName: string)
     throw new Error("Chỉ OWNER mới có quyền sửa tên nhân sự.");
   }
 
-  const { error } = await supabase
-    .from("profiles")
-    .update({ display_name: displayName })
-    .eq("user_id", userId);
+  const { error } = await supabase.rpc("update_staff_display_name_secure", {
+    p_user_id: userId,
+    p_display_name: displayName,
+  });
   if (error) throw error;
 }
 

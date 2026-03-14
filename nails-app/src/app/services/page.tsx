@@ -129,48 +129,62 @@ export default function ServicesPage() {
         ) : null}
 
         <form onSubmit={onSubmit} className="grid gap-3 card md:grid-cols-5">
-          <input
-            className="input md:col-span-2"
-            placeholder="Tên dịch vụ"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
-          <input
-            className="input"
-            type="number"
-            min={5}
-            value={duration}
-            onChange={(e) => setDuration(Number(e.target.value))}
-            placeholder="Duration (phút)"
-            required
-          />
-          <input
-            className="input"
-            type="number"
-            min={0}
-            value={price}
-            onChange={(e) => setPrice(Number(e.target.value))}
-            placeholder="Giá"
-            required
-          />
-          <div className="flex gap-2">
+          <div className="md:col-span-2 stack-tight">
+            <label className="text-xs text-neutral-500">Tên dịch vụ</label>
             <input
-              className="w-full input"
-              type="number"
-              min={0}
-              step={0.5}
-              value={vat}
-              onChange={(e) => setVat(Number(e.target.value))}
-              placeholder="VAT %"
+              className="input w-full"
+              placeholder="Tên dịch vụ"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               required
             />
-            <button
-              disabled={submitting || role === "ACCOUNTANT" || role === "TECH"}
-              className="btn btn-primary"
-            >
-              {submitting ? "Đang thêm..." : "Thêm"}
-            </button>
+          </div>
+          <div className="stack-tight">
+            <label className="text-xs text-neutral-500">Duration</label>
+            <input
+              className="input w-full"
+              type="number"
+              min={5}
+              value={duration}
+              onChange={(e) => setDuration(Number(e.target.value))}
+              placeholder="Duration (phút)"
+              required
+            />
+          </div>
+          <div className="stack-tight">
+            <label className="text-xs text-neutral-500">Giá</label>
+            <input
+              className="input w-full"
+              type="number"
+              min={0}
+              value={price}
+              onChange={(e) => setPrice(Number(e.target.value))}
+              placeholder="Giá"
+              required
+            />
+          </div>
+          <div className="flex gap-2">
+            <div className="w-full stack-tight">
+              <label className="text-xs text-neutral-500">VAT %</label>
+              <input
+                className="w-full input"
+                type="number"
+                min={0}
+                step={0.5}
+                value={vat}
+                onChange={(e) => setVat(Number(e.target.value))}
+                placeholder="VAT %"
+                required
+              />
+            </div>
+            <div className="flex items-end">
+              <button
+                disabled={submitting || role === "ACCOUNTANT" || role === "TECH"}
+                className="btn btn-primary"
+              >
+                {submitting ? "Đang thêm..." : "Thêm"}
+              </button>
+            </div>
           </div>
         </form>
 

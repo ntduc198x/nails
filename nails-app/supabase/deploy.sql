@@ -287,6 +287,46 @@ drop policy if exists "profiles update own" on profiles;
 create policy "profiles update own" on profiles
 for update using (user_id = auth.uid()) with check (user_id = auth.uid());
 
+create or replace function public.update_staff_display_name_secure(
+  p_user_id uuid,
+  p_display_name text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_org_id uuid;
+begin
+  select org_id into v_org_id
+  from profiles
+  where user_id = auth.uid()
+  limit 1;
+
+  if v_org_id is null then
+    raise exception 'ORG_NOT_FOUND';
+  end if;
+
+  if not exists (
+    select 1
+    from user_roles ur
+    where ur.user_id = auth.uid()
+      and ur.org_id = v_org_id
+      and ur.role = 'OWNER'
+  ) then
+    raise exception 'FORBIDDEN';
+  end if;
+
+  update profiles
+  set display_name = coalesce(nullif(trim(p_display_name), ''), 'User')
+  where user_id = p_user_id
+    and org_id = v_org_id;
+end;
+$$;
+
+grant execute on function public.update_staff_display_name_secure(uuid, text) to authenticated;
+
 -- 2) orgs/branches bootstrap: tạm mở cho authenticated để khởi tạo ban đầu
 drop policy if exists "orgs auth read" on orgs;
 create policy "orgs auth read" on orgs
