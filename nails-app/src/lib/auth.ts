@@ -53,6 +53,12 @@ export async function getOrCreateRole(userId: string): Promise<AppRole> {
 
 export async function listUserRoles() {
   if (!supabase) throw new Error("Supabase chưa cấu hình");
+
+  const rpc = await supabase.rpc("list_team_members_secure");
+  if (!rpc.error && rpc.data) {
+    return rpc.data;
+  }
+
   const { orgId } = await ensureOrgContext();
 
   const { data, error } = await supabase
@@ -73,8 +79,9 @@ export async function listUserRoles() {
       .select("user_id,display_name")
       .in("user_id", ids)
       .eq("org_id", orgId);
-    if (profileErr) throw profileErr;
-    profileMap = new Map((profiles ?? []).map((p) => [p.user_id as string, (p.display_name as string | null) || String(p.user_id).slice(0, 8)]));
+    if (!profileErr) {
+      profileMap = new Map((profiles ?? []).map((p) => [p.user_id as string, (p.display_name as string | null) || String(p.user_id).slice(0, 8)]));
+    }
   }
 
   return rows.map((r) => ({

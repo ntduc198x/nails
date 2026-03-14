@@ -221,8 +221,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-20 backdrop-blur" style={{ borderBottom: "1px solid var(--color-border)", background: "rgba(255,253,249,.95)" }}>
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 p-3 md:p-4">
           <div>
-            <p className="text-xs" style={{ color: "var(--color-text-secondary)" }}>Nails App</p>
-            <h1 className="text-lg font-semibold">MVP Sprint 2</h1>
+            <p className="text-xs" style={{ color: "var(--color-text-secondary)" }}>Chạm Beauty</p>
+            <h1 className="text-lg font-semibold">Chạm Beauty</h1>
           </div>
 
           <nav className="hidden items-center gap-2 text-sm md:flex">

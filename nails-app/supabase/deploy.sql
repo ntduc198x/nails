@@ -327,6 +327,41 @@ $$;
 
 grant execute on function public.update_staff_display_name_secure(uuid, text) to authenticated;
 
+create or replace function public.list_team_members_secure()
+returns table (
+  id uuid,
+  user_id uuid,
+  role text,
+  display_name text
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_org_id uuid;
+begin
+  select org_id into v_org_id
+  from public.user_roles
+  where user_id = auth.uid()
+  order by created_at asc nulls last
+  limit 1;
+
+  if v_org_id is null then
+    raise exception 'ORG_NOT_FOUND';
+  end if;
+
+  return query
+  select ur.id, ur.user_id, ur.role::text, coalesce(p.display_name, left(ur.user_id::text, 8)) as display_name
+  from public.user_roles ur
+  left join public.profiles p on p.user_id = ur.user_id and p.org_id = ur.org_id
+  where ur.org_id = v_org_id
+  order by ur.role asc, ur.created_at asc;
+end;
+$$;
+
+grant execute on function public.list_team_members_secure() to authenticated;
+
 -- 2) orgs/branches bootstrap: tạm mở cho authenticated để khởi tạo ban đầu
 drop policy if exists "orgs auth read" on orgs;
 create policy "orgs auth read" on orgs
