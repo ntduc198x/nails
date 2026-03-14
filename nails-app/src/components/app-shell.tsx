@@ -229,7 +229,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {visibleGroups.map((group) => {
               const active = group.items.some((item) => item.href === pathname);
               const hovered = hoveredGroup === group.label;
-              const directHref = group.href ?? group.items[0]?.href ?? "/";
+              const directHref = ("href" in group ? group.href : undefined) ?? group.items[0]?.href ?? "/";
 
               if (group.items.length === 1) {
                 return (
