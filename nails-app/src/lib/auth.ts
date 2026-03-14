@@ -77,8 +77,7 @@ export async function listUserRoles() {
     const { data: profiles, error: profileErr } = await supabase
       .from("profiles")
       .select("user_id,display_name")
-      .in("user_id", ids)
-      .eq("org_id", orgId);
+      .in("user_id", ids);
     if (!profileErr) {
       profileMap = new Map((profiles ?? []).map((p) => [p.user_id as string, (p.display_name as string | null) || String(p.user_id).slice(0, 8)]));
     }

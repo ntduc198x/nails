@@ -353,7 +353,7 @@ begin
   return query
   select ur.id, ur.user_id, ur.role::text, coalesce(p.display_name, left(ur.user_id::text, 8)) as display_name
   from public.user_roles ur
-  left join public.profiles p on p.user_id = ur.user_id and p.org_id = ur.org_id
+  left join public.profiles p on p.user_id = ur.user_id
   where ur.org_id = v_org_id
   order by ur.role asc, ur.user_id asc;
 end;
