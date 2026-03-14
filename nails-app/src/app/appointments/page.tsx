@@ -190,34 +190,6 @@ export default function AppointmentsPage() {
           </div>
         </div>
 
-        <div className="card">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h3 className="text-lg font-semibold">Khách chưa check out</h3>
-              <p className="page-subtitle mt-0">Các khách đang CHECKED_IN của ngày đã chọn.</p>
-            </div>
-            <span className="badge-soft">{pendingCheckoutRows.length}</span>
-          </div>
-          <div className="mt-4 stack-tight">
-            {pendingCheckoutRows.length ? (
-              pendingCheckoutRows.map((a) => {
-                const customer = Array.isArray(a.customers) ? a.customers[0]?.name : a.customers?.name;
-                const staffName = staffOptions.find((s) => s.userId === a.staff_user_id)?.name;
-                return (
-                  <div key={`pending-${a.id}`} className="grid gap-2 rounded-2xl border border-neutral-100 px-4 py-3 md:grid-cols-[120px_1fr_140px_120px] md:items-center">
-                    <p className="font-semibold">{new Date(a.start_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</p>
-                    <p>{customer ?? "-"}</p>
-                    <p className="text-neutral-500">{staffName ?? "-"}</p>
-                    <a className="btn btn-outline text-center" href={`/checkout?appointmentId=${a.id}&customer=${encodeURIComponent(customer ?? "")}`}>Checkout</a>
-                  </div>
-                );
-              })
-            ) : (
-              <p className="text-sm text-neutral-500">Không có khách nào đang chờ checkout trong ngày đã chọn.</p>
-            )}
-          </div>
-        </div>
-
         <form onSubmit={onSubmit} className="page-grid card md:grid-cols-6">
           <div className="md:col-span-6 text-xs text-neutral-500">
             Hệ thống sẽ chặn nếu thợ hoặc ghế/bàn bị trùng khung giờ với lịch khác đang BOOKED/CHECKED_IN.
@@ -293,6 +265,34 @@ export default function AppointmentsPage() {
             {submitting ? "Đang tạo..." : "Tạo lịch hẹn"}
           </button>
         </form>
+
+        <div className="card">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-semibold">Khách chưa check out</h3>
+              <p className="page-subtitle mt-0">Danh sách CHECKED_IN chưa thanh toán.</p>
+            </div>
+            <span className="badge-soft">{pendingCheckoutRows.length}</span>
+          </div>
+          <div className="mt-3 stack-tight">
+            {pendingCheckoutRows.length ? (
+              pendingCheckoutRows.map((a) => {
+                const customer = Array.isArray(a.customers) ? a.customers[0]?.name : a.customers?.name;
+                const staffName = staffOptions.find((s) => s.userId === a.staff_user_id)?.name;
+                return (
+                  <div key={`pending-${a.id}`} className="grid gap-2 rounded-xl border border-neutral-100 px-3 py-2 text-sm md:grid-cols-[90px_1fr_120px_110px] md:items-center">
+                    <p className="font-medium">{new Date(a.start_at).toLocaleDateString("vi-VN")}</p>
+                    <p>{customer ?? "-"}</p>
+                    <p className="text-neutral-500">{staffName ?? "-"}</p>
+                    <a className="btn btn-outline px-3 py-1 text-center text-xs" href={`/checkout?appointmentId=${a.id}&customer=${encodeURIComponent(customer ?? "")}`}>Checkout</a>
+                  </div>
+                );
+              })
+            ) : (
+              <p className="text-sm text-neutral-500">Không có khách nào đang chờ checkout.</p>
+            )}
+          </div>
+        </div>
 
         <div className="card">
           {error && <p className="mb-3 text-sm text-red-600">Lỗi: {error}</p>}
