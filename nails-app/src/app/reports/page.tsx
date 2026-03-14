@@ -67,7 +67,12 @@ export default function ReportsPage() {
         ]);
         setBreakdown(summaryData);
 
-        const nameMap = new Map((teamRows ?? []).map((r) => [r.user_id as string, (r.display_name as string | undefined) || String(r.user_id).slice(0, 8)]));
+        const nameMap = new Map(
+          ((teamRows ?? []) as Array<{ user_id: string; display_name?: string }>).map((r) => [
+            r.user_id,
+            r.display_name || String(r.user_id).slice(0, 8),
+          ]),
+        );
         const map = new Map<string, { minutes: number; entries: number }>();
         for (const r of timeRows as Array<{ staff_user_id: string; clock_in: string; clock_out: string | null }>) {
           const key = nameMap.get(r.staff_user_id) ?? r.staff_user_id;
