@@ -1,7 +1,7 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
-import { getCurrentSessionRole, type AppRole } from "@/lib/auth";
+import { getCurrentSessionRole, listUserRoles, type AppRole } from "@/lib/auth";
 import { ensureOrgContext } from "@/lib/domain";
 import { supabase } from "@/lib/supabase";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -46,13 +46,11 @@ export default function ShiftsPage() {
 
       const ids = [...new Set(rows.map((r) => r.staff_user_id))];
       if (ids.length) {
-        const { data: profileRows, error: profileErr } = await supabase
-          .from("profiles")
-          .select("user_id,display_name")
-          .eq("org_id", targetOrgId)
-          .in("user_id", ids);
-        if (profileErr) throw profileErr;
-        setStaffProfiles((profileRows ?? []) as StaffProfile[]);
+        const teamRows = await listUserRoles();
+        const profiles = teamRows
+          .filter((r) => ids.includes(r.user_id as string))
+          .map((r) => ({ user_id: r.user_id as string, display_name: (r.display_name as string | null) ?? null }));
+        setStaffProfiles(profiles as StaffProfile[]);
       } else {
         setStaffProfiles([]);
       }

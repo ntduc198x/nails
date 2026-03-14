@@ -153,7 +153,12 @@ export default function TechnicianBoardPage() {
     try {
       setActingId(row.id);
       if (row.status === "BOOKED") {
-        await updateAppointmentStatus(row.id, "CHECKED_IN");
+        if (role === "TECH") {
+          const { error } = await supabase.rpc("tech_check_in_appointment_secure", { p_appointment_id: row.id });
+          if (error) throw error;
+        } else {
+          await updateAppointmentStatus(row.id, "CHECKED_IN");
+        }
       }
       await load({ silent: true });
     } catch (e) {

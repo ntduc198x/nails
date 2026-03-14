@@ -1,6 +1,7 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
+import { listUserRoles } from "@/lib/auth";
 import { getReportBreakdown, listTicketsInRange, listTimeEntriesInRange, type ReportTicketRow } from "@/lib/reporting";
 import { formatVnd } from "@/lib/mock-data";
 import Link from "next/link";
@@ -59,15 +60,17 @@ export default function ReportsPage() {
 
       // Breakdown là phần nâng cao, lỗi thì degrade graceful
       try {
-        const [summaryData, timeRows] = await Promise.all([
+        const [summaryData, timeRows, teamRows] = await Promise.all([
           getReportBreakdown(fromIso, toIso),
           listTimeEntriesInRange(fromIso, toIso),
+          listUserRoles(),
         ]);
         setBreakdown(summaryData);
 
+        const nameMap = new Map((teamRows ?? []).map((r) => [r.user_id as string, (r.display_name as string | undefined) || String(r.user_id).slice(0, 8)]));
         const map = new Map<string, { minutes: number; entries: number }>();
         for (const r of timeRows as Array<{ staff_user_id: string; clock_in: string; clock_out: string | null }>) {
-          const key = r.staff_user_id;
+          const key = nameMap.get(r.staff_user_id) ?? r.staff_user_id;
           const start = new Date(r.clock_in).getTime();
           const end = r.clock_out ? new Date(r.clock_out).getTime() : Date.now();
           const mins = Math.max(0, Math.round((end - start) / 60000));

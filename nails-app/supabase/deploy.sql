@@ -400,6 +400,51 @@ $$;
 
 grant execute on function public.list_team_members_secure_v2() to authenticated;
 
+create or replace function public.tech_check_in_appointment_secure(
+  p_appointment_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_org_id uuid;
+begin
+  select org_id into v_org_id
+  from public.user_roles
+  where user_id = auth.uid()
+  limit 1;
+
+  if v_org_id is null then
+    raise exception 'ORG_NOT_FOUND';
+  end if;
+
+  if not exists (
+    select 1
+    from public.user_roles ur
+    where ur.user_id = auth.uid()
+      and ur.org_id = v_org_id
+      and ur.role = 'TECH'
+  ) then
+    raise exception 'FORBIDDEN';
+  end if;
+
+  update public.appointments
+  set status = 'CHECKED_IN'
+  where id = p_appointment_id
+    and org_id = v_org_id
+    and staff_user_id = auth.uid()
+    and status = 'BOOKED';
+
+  if not found then
+    raise exception 'APPOINTMENT_NOT_FOUND_OR_NOT_ASSIGNED';
+  end if;
+end;
+$$;
+
+grant execute on function public.tech_check_in_appointment_secure(uuid) to authenticated;
+
 -- 2) orgs/branches bootstrap: tạm mở cho authenticated để khởi tạo ban đầu
 drop policy if exists "orgs auth read" on orgs;
 create policy "orgs auth read" on orgs
