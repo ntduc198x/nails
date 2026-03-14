@@ -60,6 +60,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState<AppRole>("RECEPTION");
   const [authError, setAuthError] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -227,6 +228,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <nav className="hidden items-center gap-2 text-sm md:flex">
             {visibleGroups.map((group) => {
               const active = group.items.some((item) => item.href === pathname);
+              const hovered = hoveredGroup === group.label;
               const directHref = group.href ?? group.items[0]?.href ?? "/";
 
               if (group.items.length === 1) {
@@ -235,7 +237,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     key={group.label}
                     href={directHref}
                     className="rounded-full px-4 py-2 text-sm transition"
-                    style={active ? { background: "var(--color-primary)", color: "#fff" } : { color: "var(--color-text-secondary)" }}
+                    style={active || hovered ? { background: "var(--color-primary)", color: "#fff" } : { color: "var(--color-text-secondary)" }}
                   >
                     {group.label}
                   </Link>
@@ -243,11 +245,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               }
 
               return (
-                <div key={group.label} className="nav-group group relative">
+                <div
+                  key={group.label}
+                  className="nav-group group relative"
+                  onMouseEnter={() => setHoveredGroup(group.label)}
+                  onMouseLeave={() => setHoveredGroup((current) => (current === group.label ? null : current))}
+                >
                   <button
                     type="button"
                     className="nav-group-trigger inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm transition"
-                    style={active ? { background: "var(--color-primary)", color: "#fff" } : { color: "var(--color-text-secondary)" }}
+                    style={active || hovered ? { background: "var(--color-primary)", color: "#fff" } : { color: "var(--color-text-secondary)" }}
                   >
                     <span>{group.label}</span>
                     <span className="text-xs opacity-80">▾</span>
