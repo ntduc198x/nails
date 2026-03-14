@@ -135,3 +135,8 @@ body {
 .table th { @apply px-3 py-2 font-semibold; }
 .table td { @apply px-3 py-2; }
 .table tbody tr { border-top: 1px solid var(--color-border); }
+
+.nav-group:hover .nav-group-trigger {
+  background: var(--color-primary);
+  color: #fff;
+}

@@ -243,10 +243,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               }
 
               return (
-                <div key={group.label} className="group relative">
+                <div key={group.label} className="nav-group group relative">
                   <button
                     type="button"
-                    className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm transition"
+                    className="nav-group-trigger inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm transition"
                     style={active ? { background: "var(--color-primary)", color: "#fff" } : { color: "var(--color-text-secondary)" }}
                   >
                     <span>{group.label}</span>
