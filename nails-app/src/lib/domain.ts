@@ -1,3 +1,4 @@
+import { listUserRoles } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
@@ -270,32 +271,13 @@ async function findOrCreateCustomer(orgId: string, name: string) {
 }
 
 export async function listStaffMembers() {
-  if (!supabase) return [];
-  const { orgId } = await ensureOrgContext();
-
-  const { data: techRoles, error: roleErr } = await supabase
-    .from("user_roles")
-    .select("user_id")
-    .eq("org_id", orgId)
-    .eq("role", "TECH");
-  if (roleErr) throw roleErr;
-
-  const ids = [...new Set((techRoles ?? []).map((r) => r.user_id as string))];
-  if (!ids.length) return [];
-
-  const { data: profiles, error: profileErr } = await supabase
-    .from("profiles")
-    .select("user_id,display_name")
-    .in("user_id", ids)
-    .eq("org_id", orgId);
-  if (profileErr) throw profileErr;
-
-  const profileMap = new Map((profiles ?? []).map((p) => [p.user_id as string, p.display_name as string | null]));
-
-  return ids.map((id) => ({
-    userId: id,
-    name: profileMap.get(id) || id.slice(0, 8),
-  }));
+  const teamRows = await listUserRoles();
+  return (teamRows ?? [])
+    .filter((r) => r.role === "TECH")
+    .map((r) => ({
+      userId: r.user_id as string,
+      name: (r.display_name as string | undefined) || String(r.user_id).slice(0, 8),
+    }));
 }
 
 export async function listAppointments(opts?: { force?: boolean }) {

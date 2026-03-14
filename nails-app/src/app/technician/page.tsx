@@ -2,7 +2,7 @@
 
 import { AppShell } from "@/components/app-shell";
 import { getCurrentSessionRole } from "@/lib/auth";
-import { ensureOrgContext, updateAppointmentStatus } from "@/lib/domain";
+import { ensureOrgContext, listStaffMembers, updateAppointmentStatus } from "@/lib/domain";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -19,7 +19,7 @@ type AppointmentRow = {
 
 type ResourceRow = { id: string; name: string };
 
-type StaffRow = { user_id: string; display_name: string | null };
+type StaffRow = { user_id: string; display_name: string };
 type OpenTicketRow = { id: string; appointment_id: string | null; status: string };
 
 function pickCustomerName(customers: AppointmentRow["customers"]) {
@@ -67,7 +67,7 @@ export default function TechnicianBoardPage() {
       const end = new Date(start);
       end.setDate(end.getDate() + 1);
 
-      const [appointmentsRes, resourcesRes, techRolesRes, ticketsRes] = await Promise.all([
+      const [appointmentsRes, resourcesRes, ticketsRes, staffRows] = await Promise.all([
         supabase
           .from("appointments")
           .select("id,start_at,end_at,status,staff_user_id,resource_id,customers(name)")
@@ -77,31 +77,17 @@ export default function TechnicianBoardPage() {
           .in("status", ["BOOKED", "CHECKED_IN", "DONE"])
           .order("start_at", { ascending: true }),
         supabase.from("resources").select("id,name").eq("org_id", orgId).eq("active", true),
-        supabase.from("user_roles").select("user_id").eq("org_id", orgId).eq("role", "TECH"),
         supabase.from("tickets").select("id,appointment_id,status").eq("org_id", orgId).eq("status", "OPEN"),
+        listStaffMembers(),
       ]);
 
       if (appointmentsRes.error) throw appointmentsRes.error;
       if (resourcesRes.error) throw resourcesRes.error;
-      if (techRolesRes.error) throw techRolesRes.error;
       if (ticketsRes.error) throw ticketsRes.error;
-
-      const techIds = [...new Set((techRolesRes.data ?? []).map((r) => r.user_id as string))];
-      let staffRows: StaffRow[] = [];
-      if (techIds.length) {
-        const staffRes = await supabase
-          .from("profiles")
-          .select("user_id,display_name")
-          .in("user_id", techIds)
-          .eq("org_id", orgId);
-        if (staffRes.error) throw staffRes.error;
-        const profileMap = new Map((staffRes.data ?? []).map((p) => [p.user_id as string, p.display_name as string | null]));
-        staffRows = techIds.map((id) => ({ user_id: id, display_name: profileMap.get(id) ?? id.slice(0, 8) }));
-      }
 
       setRows((appointmentsRes.data ?? []) as AppointmentRow[]);
       setResources((resourcesRes.data ?? []) as ResourceRow[]);
-      setStaffs(staffRows);
+      setStaffs((staffRows ?? []).map((s) => ({ user_id: s.userId, display_name: s.name })) as StaffRow[]);
       setOpenTickets((ticketsRes.data ?? []) as OpenTicketRow[]);
       setSelectedStaffId((prev) => {
         if (currentRole === "TECH") return prev || userId;
