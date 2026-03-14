@@ -24,7 +24,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="vi">
-      <body className={`${inter.variable} ${geistMono.variable} antialiased`}>
+      <body suppressHydrationWarning className={`${inter.variable} ${geistMono.variable} antialiased`}>
         {children}
       </body>
     </html>

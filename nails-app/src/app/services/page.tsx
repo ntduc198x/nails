@@ -130,7 +130,7 @@ export default function ServicesPage() {
 
         <form onSubmit={onSubmit} className="grid gap-3 card md:grid-cols-[2fr_1fr_1fr_1fr_auto] md:items-end">
           <div className="stack-tight">
-            <label className="text-xs text-neutral-500">Tên dịch vụ</label>
+            <label className="pl-4 text-xs text-neutral-500">Tên dịch vụ</label>
             <input
               className="input w-full"
               placeholder="Tên dịch vụ"
@@ -140,7 +140,7 @@ export default function ServicesPage() {
             />
           </div>
           <div className="stack-tight">
-            <label className="text-xs text-neutral-500">Duration</label>
+            <label className="pl-4 text-xs text-neutral-500">Duration</label>
             <input
               className="input w-full"
               type="number"
@@ -152,7 +152,7 @@ export default function ServicesPage() {
             />
           </div>
           <div className="stack-tight">
-            <label className="text-xs text-neutral-500">Giá</label>
+            <label className="pl-4 text-xs text-neutral-500">Giá</label>
             <input
               className="input w-full"
               type="number"
@@ -164,7 +164,7 @@ export default function ServicesPage() {
             />
           </div>
           <div className="stack-tight">
-            <label className="text-xs text-neutral-500">VAT %</label>
+            <label className="pl-4 text-xs text-neutral-500">VAT %</label>
             <input
               className="w-full input"
               type="number"
