@@ -42,7 +42,7 @@ function canAccess(role: AppRole, href: string) {
   if (role === "OWNER") return true;
   if (role === "MANAGER") return href !== "/tax-books";
   if (role === "RECEPTION") return ["/", "/appointments", "/resources", "/checkout", "/shifts", "/technician"].includes(href);
-  if (role === "TECH") return ["/", "/appointments", "/shifts", "/technician"].includes(href);
+  if (role === "TECH") return ["/appointments", "/shifts", "/technician"].includes(href);
   if (role === "ACCOUNTANT") return ["/", "/checkout", "/reports", "/tax-books"].includes(href);
   return false;
 }
@@ -164,7 +164,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!loading && !canAccess(role, pathname)) {
-      router.replace(visibleGroups[0]?.items[0]?.href ?? "/");
+      router.replace(visibleGroups[0]?.items[0]?.href ?? "/appointments");
     }
   }, [loading, pathname, role, router, visibleGroups]);
 

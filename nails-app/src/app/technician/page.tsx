@@ -118,6 +118,13 @@ export default function TechnicianBoardPage() {
     void load();
   }, []);
 
+  useEffect(() => {
+    const id = setInterval(() => {
+      void load({ silent: true });
+    }, 30000);
+    return () => clearInterval(id);
+  }, []);
+
   const visibleStaffId = role === "TECH" ? myUserId ?? "" : selectedStaffId;
 
   const filteredRows = useMemo(() => {
