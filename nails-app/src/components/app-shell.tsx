@@ -246,13 +246,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <div key={group.label} className="group relative">
                   <button
                     type="button"
-                    className="rounded-full px-4 py-2 text-sm transition"
+                    className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm transition"
                     style={active ? { background: "var(--color-primary)", color: "#fff" } : { color: "var(--color-text-secondary)" }}
                   >
-                    {group.label}
+                    <span>{group.label}</span>
+                    <span className="text-xs opacity-80">▾</span>
                   </button>
                   <div className="pointer-events-none absolute left-0 top-full z-30 pt-3 opacity-0 transition duration-150 group-hover:pointer-events-auto group-hover:opacity-100">
-                    <div className="w-[360px] rounded-3xl border bg-white p-3 shadow-xl" style={{ borderColor: "var(--color-border)" }}>
+                    <div className="w-[380px] rounded-[28px] border bg-white p-3 shadow-xl" style={{ borderColor: "var(--color-border)" }}>
                       <div className="grid gap-2">
                         {group.items.map((item) => {
                           const itemActive = pathname === item.href;
@@ -261,6 +262,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                               key={item.href}
                               href={item.href}
                               className="rounded-2xl px-4 py-3 transition hover:bg-[#faf7f2]"
+                              style={itemActive ? { background: "#fff1f3" } : undefined}
                             >
                               <p className="text-sm font-semibold" style={{ color: itemActive ? "var(--color-primary)" : "var(--color-text-main)" }}>{item.label}</p>
                               <p className="mt-1 text-xs" style={{ color: "var(--color-text-secondary)" }}>{item.desc}</p>
