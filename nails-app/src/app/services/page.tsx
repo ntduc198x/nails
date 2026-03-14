@@ -139,6 +139,7 @@ export default function ServicesPage() {
             />
           </div>
           <div className="stack-tight">
+            <label className="pl-4 text-xs text-neutral-500">Duration</label>
             <input
               className="input w-full"
               type="number"
@@ -150,6 +151,7 @@ export default function ServicesPage() {
             />
           </div>
           <div className="stack-tight">
+            <label className="pl-4 text-xs text-neutral-500">Giá</label>
             <input
               className="input w-full"
               type="number"
@@ -161,6 +163,7 @@ export default function ServicesPage() {
             />
           </div>
           <div className="stack-tight">
+            <label className="pl-4 text-xs text-neutral-500">VAT %</label>
             <input
               className="w-full input"
               type="number"
