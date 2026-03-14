@@ -207,6 +207,19 @@ with check (
   (public.has_role('OWNER') or public.has_role('MANAGER') or public.has_role('RECEPTION'))
 );
 
+drop policy if exists "tech update own appointments" on appointments;
+create policy "tech update own appointments" on appointments
+for update using (
+  org_id = public.my_org_id()
+  and public.has_role('TECH')
+  and staff_user_id = auth.uid()
+)
+with check (
+  org_id = public.my_org_id()
+  and public.has_role('TECH')
+  and staff_user_id = auth.uid()
+);
+
 create policy "org read customers" on customers
 for select using (org_id = public.my_org_id());
 
@@ -360,6 +373,32 @@ end;
 $$;
 
 grant execute on function public.list_team_members_secure() to authenticated;
+
+create or replace function public.list_team_members_secure_v2()
+returns table (
+  id uuid,
+  user_id uuid,
+  role text,
+  display_name text
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select
+    ur.id,
+    ur.user_id,
+    ur.role::text,
+    coalesce(nullif(trim(p.display_name), ''), left(ur.user_id::text, 8)) as display_name
+  from public.user_roles ur
+  left join public.profiles p on p.user_id = ur.user_id
+  where ur.org_id = (
+    select org_id from public.user_roles where user_id = auth.uid() limit 1
+  )
+  order by ur.role asc, ur.user_id asc
+$$;
+
+grant execute on function public.list_team_members_secure_v2() to authenticated;
 
 -- 2) orgs/branches bootstrap: tạm mở cho authenticated để khởi tạo ban đầu
 drop policy if exists "orgs auth read" on orgs;

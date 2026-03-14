@@ -54,7 +54,7 @@ export async function getOrCreateRole(userId: string): Promise<AppRole> {
 export async function listUserRoles() {
   if (!supabase) throw new Error("Supabase chưa cấu hình");
 
-  const rpc = await supabase.rpc("list_team_members_secure");
+  const rpc = await supabase.rpc("list_team_members_secure_v2");
   if (!rpc.error && rpc.data) {
     return rpc.data;
   }
