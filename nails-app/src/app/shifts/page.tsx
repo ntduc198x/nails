@@ -13,9 +13,12 @@ type Entry = {
   clock_out: string | null;
 };
 
+type StaffProfile = { user_id: string; display_name: string | null };
+
 export default function ShiftsPage() {
   const [role, setRole] = useState<AppRole | null>(null);
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [staffProfiles, setStaffProfiles] = useState<StaffProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -38,7 +41,21 @@ export default function ShiftsPage() {
         .limit(30);
 
       if (error) throw error;
-      setEntries((data ?? []) as Entry[]);
+      const rows = (data ?? []) as Entry[];
+      setEntries(rows);
+
+      const ids = [...new Set(rows.map((r) => r.staff_user_id))];
+      if (ids.length) {
+        const { data: profileRows, error: profileErr } = await supabase
+          .from("profiles")
+          .select("user_id,display_name")
+          .eq("org_id", targetOrgId)
+          .in("user_id", ids);
+        if (profileErr) throw profileErr;
+        setStaffProfiles((profileRows ?? []) as StaffProfile[]);
+      } else {
+        setStaffProfiles([]);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load shifts failed");
     } finally {
@@ -173,13 +190,16 @@ export default function ShiftsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {entries.map((e) => (
-                    <tr key={e.id} className="border-t border-neutral-100">
-                      <td className="py-2">{e.staff_user_id}</td>
-                      <td>{new Date(e.clock_in).toLocaleString("vi-VN")}</td>
-                      <td>{e.clock_out ? new Date(e.clock_out).toLocaleString("vi-VN") : "-"}</td>
-                    </tr>
-                  ))}
+                  {entries.map((e) => {
+                    const staffName = staffProfiles.find((p) => p.user_id === e.staff_user_id)?.display_name || e.staff_user_id;
+                    return (
+                      <tr key={e.id} className="border-t border-neutral-100">
+                        <td className="py-2">{staffName}</td>
+                        <td>{new Date(e.clock_in).toLocaleString("vi-VN")}</td>
+                        <td>{e.clock_out ? new Date(e.clock_out).toLocaleString("vi-VN") : "-"}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

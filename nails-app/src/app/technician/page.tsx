@@ -97,7 +97,10 @@ export default function TechnicianBoardPage() {
       setRows((appointmentsRes.data ?? []) as AppointmentRow[]);
       setResources((resourcesRes.data ?? []) as ResourceRow[]);
       setStaffs(staffRows);
-      setSelectedStaffId((prev) => prev || userId);
+      setSelectedStaffId((prev) => {
+        if (currentRole === "TECH") return prev || userId;
+        return prev;
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load technician board failed");
     } finally {
