@@ -139,30 +139,12 @@ export default function CheckoutPage() {
         {role === "ACCOUNTANT" && <p className="text-sm text-amber-700">Role ACCOUNTANT chỉ xem dữ liệu checkout, không tạo Pay & Close.</p>}
         {appointmentId && <p className="text-sm text-neutral-600">Đang checkout từ appointment: <code>{appointmentId}</code></p>}
 
-        <div className="card space-y-3">
-          <div>
-            <h3 className="font-semibold">Bộ lọc thời gian</h3>
-            <p className="text-sm text-neutral-500">Mặc định chỉ hiển thị dữ liệu trong ngày. Anh có thể đổi sang tuần, tháng hoặc tự chọn khoảng thời gian.</p>
-          </div>
-          <div className="grid gap-3 md:grid-cols-4">
-            <select className="input" value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}>
-              <option value="day">Trong ngày</option>
-              <option value="week">Trong tuần</option>
-              <option value="month">Trong tháng</option>
-              <option value="custom">Tùy chỉnh</option>
-            </select>
-            <input className="input" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} disabled={rangeMode !== "custom"} />
-            <input className="input" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} disabled={rangeMode !== "custom"} />
-            <div className="rounded-lg bg-neutral-100 px-3 py-2 text-sm">Đang xem: {range.from.toLocaleDateString("vi-VN")} → {range.to.toLocaleDateString("vi-VN")}</div>
-          </div>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-2">
-          <div className="card"><p className="text-sm text-neutral-500">Số bill trong kỳ</p><p className="mt-1 text-2xl font-semibold">{ticketSummary.count}</p></div>
-          <div className="card"><p className="text-sm text-neutral-500">Doanh thu trong kỳ</p><p className="mt-1 text-2xl font-semibold">{formatVnd(ticketSummary.total)}</p></div>
-        </div>
-
         <form onSubmit={onSubmit} className="space-y-3 card">
+          <div>
+            <h3 className="font-semibold">Pay & Close</h3>
+            <p className="text-sm text-neutral-500">Đặt panel thanh toán lên trên để thao tác với khách nhanh hơn tại quầy.</p>
+          </div>
+
           <div className="page-grid md:grid-cols-4">
             <select className="input" value={appointmentId ?? ""} onChange={(e) => onSelectCheckedInAppointment(e.target.value)}>
               <option value="">-- Chọn khách đang CHECKED_IN --</option>
@@ -189,6 +171,29 @@ export default function CheckoutPage() {
 
         {lastReceipt && <div className="space-y-2 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800"><div>Tạo receipt thành công. Token: <code>{lastReceipt}</code></div>{receiptLink && <div className="flex flex-wrap items-center gap-2"><a className="underline" href={receiptLink} target="_blank" rel="noreferrer">Mở link receipt</a><button type="button" className="rounded border border-green-400 px-2 py-1 text-xs" onClick={async () => { await navigator.clipboard.writeText(receiptLink); }}>Copy link</button></div>}</div>}
         {dedupeNotice && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{dedupeNotice}</div>}
+
+        <div className="card space-y-3">
+          <div>
+            <h3 className="font-semibold">Bộ lọc thời gian</h3>
+            <p className="text-sm text-neutral-500">Mặc định chỉ hiển thị dữ liệu trong ngày. Bạn có thể đổi sang tuần, tháng hoặc tự chọn khoảng thời gian.</p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-4">
+            <select className="input" value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}>
+              <option value="day">Trong ngày</option>
+              <option value="week">Trong tuần</option>
+              <option value="month">Trong tháng</option>
+              <option value="custom">Tùy chỉnh</option>
+            </select>
+            <input className="input" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} disabled={rangeMode !== "custom"} />
+            <input className="input" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} disabled={rangeMode !== "custom"} />
+            <div className="rounded-lg bg-neutral-100 px-3 py-2 text-sm">Đang xem: {range.from.toLocaleDateString("vi-VN")} → {range.to.toLocaleDateString("vi-VN")}</div>
+          </div>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="card"><p className="text-sm text-neutral-500">Số bill trong kỳ</p><p className="mt-1 text-2xl font-semibold">{ticketSummary.count}</p></div>
+          <div className="card"><p className="text-sm text-neutral-500">Doanh thu trong kỳ</p><p className="mt-1 text-2xl font-semibold">{formatVnd(ticketSummary.total)}</p></div>
+        </div>
 
         <div className="card">
           {error && <p className="mb-3 text-sm text-red-600">Lỗi: {error}</p>}

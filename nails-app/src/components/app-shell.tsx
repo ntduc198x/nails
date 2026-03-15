@@ -222,7 +222,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 p-3 md:p-4">
           <div>
             <p className="text-xs" style={{ color: "var(--color-text-secondary)" }}>Nails App</p>
-            <h1 className="text-lg font-semibold">Nails App</h1>
+            <h1 className="text-lg font-semibold">Chạm Beauty</h1>
           </div>
 
           <nav className="hidden items-center gap-2 text-sm md:flex">

@@ -106,7 +106,7 @@ export default function ShiftsPage() {
       if (!supabase) throw new Error("Thiếu cấu hình Supabase");
       const { data: openRows, error: existingErr } = await supabase.from("time_entries").select("id").eq("org_id", orgId).eq("staff_user_id", userId).is("clock_out", null).limit(1);
       if (existingErr) throw existingErr;
-      if (openRows?.length) throw new Error("Anh đang có một ca mở rồi, cần clock out trước khi mở ca mới.");
+      if (openRows?.length) throw new Error("Bạn đang có một ca mở rồi, cần clock out trước khi mở ca mới.");
       const { error } = await supabase.from("time_entries").insert({ org_id: orgId, staff_user_id: userId, clock_in: new Date().toISOString() });
       if (error) throw error;
       await loadEntries(orgId);
@@ -210,12 +210,12 @@ export default function ShiftsPage() {
           <div className="card"><p className="text-sm text-neutral-500">Nhân sự hiển thị</p><p className="mt-1 text-2xl font-semibold">{new Set(filteredEntries.map((e) => e.staff_user_id)).size}</p></div>
         </div>
 
-        <div className="card space-y-3">
-          <div>
-            <h3 className="font-semibold">Bộ lọc nhanh</h3>
-            <p className="text-sm text-neutral-500">{canManageView ? "OWNER và MANAGER xem được bộ lọc của toàn bộ thợ, nhân viên." : "Nhân viên chỉ xem được ca làm của chính mình."}</p>
-          </div>
-          {canManageView ? (
+        {canManageView && (
+          <div className="card space-y-3">
+            <div>
+              <h3 className="font-semibold">Bộ lọc nhanh</h3>
+              <p className="text-sm text-neutral-500">OWNER và MANAGER xem được bộ lọc của toàn bộ thợ, nhân viên.</p>
+            </div>
             <div className="grid gap-3 md:grid-cols-2">
               <select className="input" value={staffFilter} onChange={(e) => setStaffFilter(e.target.value)}>
                 <option value="ALL">Tất cả nhân sự</option>
@@ -226,8 +226,8 @@ export default function ShiftsPage() {
                 {roleOptions.map((value) => <option key={value} value={value}>{value}</option>)}
               </select>
             </div>
-          ) : <div className="rounded-lg bg-neutral-50 px-3 py-3 text-sm text-neutral-600">Dữ liệu đang hiển thị theo tài khoản hiện tại của anh.</div>}
-        </div>
+          </div>
+        )}
 
         <div className="card">
           {error && <p className="mb-3 text-sm text-red-600">Lỗi: {error}</p>}
