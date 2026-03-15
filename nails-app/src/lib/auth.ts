@@ -21,11 +21,12 @@ export async function getOrCreateRole(userId: string): Promise<AppRole> {
   // bootstrap profile để dùng với RLS helper my_org_id()
   const { data: profile } = await supabase.from("profiles").select("user_id").eq("user_id", userId).maybeSingle();
   if (!profile) {
+    const { data: sessionData } = await supabase.auth.getSession();
     await supabase.from("profiles").insert({
       user_id: userId,
       org_id: orgId,
       default_branch_id: branchId,
-      display_name: "User",
+      display_name: (sessionData.session?.user.user_metadata?.display_name as string | undefined)?.trim() || "User",
     });
   }
 

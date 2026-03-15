@@ -88,7 +88,7 @@ export async function ensureOrgContext(opts?: { force?: boolean }): Promise<OrgC
         user_id: user.id,
         org_id: orgId,
         default_branch_id: branchId,
-        display_name: user.email?.split("@")[0] ?? "User",
+        display_name: (user.user_metadata?.display_name as string | undefined)?.trim() || user.email?.split("@")[0] || "User",
       });
       if (insertProfileErr) throw insertProfileErr;
     } else if (profile.org_id !== orgId || profile.default_branch_id !== branchId) {
