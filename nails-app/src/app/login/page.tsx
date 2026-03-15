@@ -46,7 +46,7 @@ export default function LoginPage() {
           },
         });
         if (error) throw error;
-        setMsg("Tạo tài khoản thành công. Nếu hệ thống bật xác nhận email, anh kiểm tra inbox rồi đăng nhập lại nhé.");
+        setMsg("Tạo tài khoản thành công. Nếu hệ thống bật xác nhận email, kiểm tra inbox rồi đăng nhập lại.");
         setName("");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -62,7 +62,7 @@ export default function LoginPage() {
 
   async function onForgotPassword() {
     if (!supabase) return setMsg("Thiếu cấu hình Supabase env.");
-    if (!email.trim()) return setMsg("Anh nhập email trước, em mới gửi link đặt lại mật khẩu được.");
+    if (!email.trim()) return setMsg("Bạn cần nhập email trước mới gửi link đặt lại mật khẩu được.");
 
     try {
       setResetting(true);
@@ -71,7 +71,7 @@ export default function LoginPage() {
         redirectTo: getResetRedirectUrl(),
       });
       if (error) throw error;
-      setMsg("Em đã gửi link đặt lại mật khẩu. Anh kiểm tra email nhé.");
+      setMsg("Đã gửi link đặt lại mật khẩu. Hãy kiểm tra email.");
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Reset password failed");
     } finally {
@@ -114,7 +114,7 @@ export default function LoginPage() {
           <input
             className="w-full input"
             type="text"
-            placeholder="Tên nhân viên"
+            placeholder="Tên của bạn"
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
@@ -159,8 +159,8 @@ export default function LoginPage() {
 
         <div className="rounded-lg bg-neutral-50 p-3 text-xs leading-5 text-neutral-500">
           {mode === "signup"
-            ? "Tài khoản đầu tiên trong tổ chức sẽ được gán OWNER. Các tài khoản tạo sau sẽ mặc định là RECEPTION."
-            : "Nếu anh chưa có tài khoản, chuyển sang tab Tạo tài khoản để khởi tạo nhanh cho tiệm."}
+            ? "Tài khoản tạo xong sẽ cần xác nhận trong email để đăng nhập."
+            : "Nếu bạn chưa có tài khoản, chuyển sang tab Tạo tài khoản để khởi tạo nhanh cho tiệm."}
         </div>
 
         {msg && <p className="rounded-lg bg-neutral-50 p-3 text-sm text-neutral-700">{msg}</p>}
