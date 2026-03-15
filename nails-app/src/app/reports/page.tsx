@@ -68,7 +68,7 @@ export default function ReportsPage() {
         setBreakdown(summaryData);
 
         const nameMap = new Map(
-          ((teamRows ?? []) as Array<{ user_id: string; display_name?: string }>).map((r) => [
+          ((teamRows ?? []) as Array<{ user_id: string; display_name?: string }>).map((r: { user_id: string; display_name?: string }) => [
             r.user_id,
             r.display_name || String(r.user_id).slice(0, 8),
           ]),
