@@ -496,22 +496,30 @@ export async function createCheckout(input: CheckoutInput) {
   throw new Error("Checkout RPC không trả dữ liệu.");
 }
 
-export async function listRecentTickets(opts?: { force?: boolean }) {
+export async function listRecentTickets(opts?: { force?: boolean; fromIso?: string; toIso?: string; limit?: number }) {
   if (!supabase) return [];
-  if (!opts?.force && isFresh(ticketsCache)) return ticketsCache!.value;
+  const useCache = !opts?.force && !opts?.fromIso && !opts?.toIso && isFresh(ticketsCache);
+  if (useCache) return ticketsCache!.value;
 
   const { orgId } = await ensureOrgContext();
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("tickets")
     .select("id,status,totals_json,created_at,customers(name),receipts(public_token,expires_at)")
     .eq("org_id", orgId)
     .order("created_at", { ascending: false })
-    .limit(20);
+    .limit(opts?.limit ?? 100);
+
+  if (opts?.fromIso) query = query.gte("created_at", opts.fromIso);
+  if (opts?.toIso) query = query.lte("created_at", opts.toIso);
+
+  const { data, error } = await query;
 
   if (error) throw error;
   const rows = data ?? [];
-  ticketsCache = { value: rows, at: Date.now() };
+  if (!opts?.fromIso && !opts?.toIso) {
+    ticketsCache = { value: rows, at: Date.now() };
+  }
   return rows;
 }
 
