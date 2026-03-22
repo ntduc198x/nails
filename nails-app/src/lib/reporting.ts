@@ -6,6 +6,8 @@ export type ReportTicketRow = {
   id: string;
   status: string;
   created_at: string;
+  appointment_id?: string | null;
+  staff_user_id?: string | null;
   totals_json?: { subtotal?: number; vat_total?: number; grand_total?: number };
 };
 
@@ -15,7 +17,7 @@ export async function listTicketsInRange(fromIso: string, toIso: string) {
 
   const { data, error } = await supabase
     .from("tickets")
-    .select("id,status,created_at,totals_json")
+    .select("id,status,created_at,appointment_id,totals_json")
     .eq("org_id", orgId)
     .gte("created_at", fromIso)
     .lt("created_at", toIso)
@@ -23,17 +25,38 @@ export async function listTicketsInRange(fromIso: string, toIso: string) {
     .limit(500);
 
   if (error) throw error;
-  return (data ?? []) as ReportTicketRow[];
+
+  const rows = (data ?? []) as ReportTicketRow[];
+  const appointmentIds = [...new Set(rows.map((r) => r.appointment_id).filter((v): v is string => Boolean(v)))];
+  if (!appointmentIds.length) return rows;
+
+  const { data: appointments, error: appointmentErr } = await supabase
+    .from("appointments")
+    .select("id,staff_user_id")
+    .eq("org_id", orgId)
+    .in("id", appointmentIds);
+  if (appointmentErr) throw appointmentErr;
+
+  const appointmentMap = new Map((appointments ?? []).map((row) => [row.id as string, (row.staff_user_id as string | null) ?? null]));
+  return rows.map((row) => ({
+    ...row,
+    staff_user_id: row.appointment_id ? (appointmentMap.get(row.appointment_id) ?? null) : null,
+  }));
 }
 
-let dashboardCache: { at: number; value: { appointmentsToday: number; waiting: number; active: number; revenue: number; closedCount: number; checkingInCustomers: string[]; waitingSchedule: Array<{ time: string; customer: string; staff: string }> } } | null = null;
+let dashboardCache: { at: number; value: { appointmentsToday: number; waiting: number; active: number; revenue: number; closedCount: number; checkingInCustomers: string[]; waitingSchedule: Array<{ time: string; customer: string; staff: string }>; activeServiceBoard: Array<{ time: string; customer: string; staff: string }> } } | null = null;
 const DASHBOARD_TTL = 20_000;
 
-export async function getDashboardSnapshot(opts?: { force?: boolean }) {
+export async function getDashboardSnapshot(opts?: { force?: boolean }): Promise<{ appointmentsToday: number; waiting: number; active: number; revenue: number; closedCount: number; checkingInCustomers: string[]; waitingSchedule: Array<{ time: string; customer: string; staff: string }>; activeServiceBoard: Array<{ time: string; customer: string; staff: string; status: string; appointmentId: string }> }> {
   if (!supabase) throw new Error("Supabase chưa cấu hình");
 
   if (!opts?.force && dashboardCache && Date.now() - dashboardCache.at < DASHBOARD_TTL) {
-    return dashboardCache.value;
+    return {
+      ...dashboardCache.value,
+      activeServiceBoard: dashboardCache.value.activeServiceBoard ?? [],
+      waitingSchedule: dashboardCache.value.waitingSchedule ?? [],
+      checkingInCustomers: dashboardCache.value.checkingInCustomers ?? [],
+    };
   }
 
   const { orgId } = await ensureOrgContext();
@@ -222,6 +245,48 @@ export async function listTimeEntriesInRange(fromIso: string, toIso: string) {
 
   if (error) throw error;
   return data ?? [];
+}
+
+export async function getStaffRevenueInRange(fromIso: string, toIso: string) {
+  if (!supabase) return [];
+  const { orgId } = await ensureOrgContext();
+
+  const { data: tickets, error: ticketErr } = await supabase
+    .from("tickets")
+    .select("id,appointment_id,totals_json")
+    .eq("org_id", orgId)
+    .eq("status", "CLOSED")
+    .gte("created_at", fromIso)
+    .lt("created_at", toIso)
+    .not("appointment_id", "is", null)
+    .limit(500);
+  if (ticketErr) throw ticketErr;
+
+  const appointmentIds = [...new Set((tickets ?? []).map((t) => t.appointment_id as string | null).filter((v): v is string => Boolean(v)))];
+  if (!appointmentIds.length) return [];
+
+  const { data: appointments, error: apptErr } = await supabase
+    .from("appointments")
+    .select("id,staff_user_id")
+    .eq("org_id", orgId)
+    .in("id", appointmentIds);
+  if (apptErr) throw apptErr;
+
+  const teamRows = (await listUserRoles()) as Array<{ user_id: string; display_name?: string }>;
+  const nameMap = new Map(teamRows.map((row) => [row.user_id, row.display_name || String(row.user_id).slice(0, 8)]));
+  const apptMap = new Map((appointments ?? []).map((a) => [a.id as string, a.staff_user_id as string | null]));
+  const totals = new Map<string, { staff: string; revenue: number; tickets: number }>();
+
+  for (const ticket of (tickets ?? []) as Array<{ appointment_id?: string | null; totals_json?: { grand_total?: number } | null }>) {
+    const staffUserId = ticket.appointment_id ? apptMap.get(ticket.appointment_id) : null;
+    if (!staffUserId) continue;
+    const prev = totals.get(staffUserId) ?? { staff: nameMap.get(staffUserId) ?? staffUserId, revenue: 0, tickets: 0 };
+    prev.revenue += Number(ticket.totals_json?.grand_total ?? 0);
+    prev.tickets += 1;
+    totals.set(staffUserId, prev);
+  }
+
+  return Array.from(totals.entries()).map(([staffUserId, val]) => ({ staffUserId, staff: val.staff, revenue: val.revenue, tickets: val.tickets })).sort((a, b) => b.revenue - a.revenue);
 }
 
 export async function getTicketDetail(ticketId: string) {

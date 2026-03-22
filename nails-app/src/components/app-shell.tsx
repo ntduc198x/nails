@@ -15,9 +15,9 @@ const navGroups = [
   {
     label: "Vận hành",
     items: [
+      { href: "/technician", label: "Techboard", desc: "Board công việc theo thợ" },
       { href: "/appointments", label: "Appointments", desc: "Lịch hẹn, check-in, phân thợ" },
       { href: "/checkout", label: "Checkout", desc: "Ticket, thanh toán, receipt" },
-      { href: "/technician", label: "Technician", desc: "Board công việc theo thợ" },
       { href: "/shifts", label: "Ca làm", desc: "Chấm công và ca trong ngày" },
     ],
   },
@@ -42,7 +42,7 @@ function canAccess(role: AppRole, href: string) {
   if (role === "OWNER") return true;
   if (role === "MANAGER") return href !== "/tax-books";
   if (role === "RECEPTION") return ["/", "/appointments", "/resources", "/checkout", "/shifts", "/technician"].includes(href);
-  if (role === "TECH") return ["/appointments", "/shifts", "/technician"].includes(href);
+  if (role === "TECH") return ["/appointments", "/checkout", "/technician", "/shifts"].includes(href);
   if (role === "ACCOUNTANT") return ["/", "/checkout", "/reports", "/tax-books"].includes(href);
   return false;
 }
@@ -72,7 +72,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        // Fast path: dùng cache RAM để chuyển trang mượt, không chờ round-trip auth mỗi lần
         if (authCache && Date.now() - authCache.cachedAt < AUTH_CACHE_TTL) {
           setEmail(authCache.email);
           setRole(authCache.role);
@@ -80,7 +79,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        // Fallback cache từ sessionStorage (khi reload tab)
         try {
           const raw = sessionStorage.getItem("nails.auth.cache");
           if (raw) {
@@ -93,13 +91,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               return;
             }
           }
-        } catch {
-          // ignore cache parse errors
-        }
+        } catch {}
 
         const { data } = await supabase.auth.getSession();
         const session = data.session;
-
         if (!session?.user) {
           router.replace("/login");
           return;
@@ -127,13 +122,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       }
     }
 
-    run();
+    void run();
     return () => {
       mounted = false;
     };
   }, [router]);
 
   const visibleGroups = useMemo(() => {
+    if (role === "TECH") {
+      const operationalGroup = navGroups.find((group) => group.label === "Vận hành");
+      return (operationalGroup?.items ?? []).filter((item) => canAccess(role, item.href)).map((item) => ({
+        label: item.label,
+        href: item.href,
+        items: [item],
+      }));
+    }
+
     return navGroups
       .map((group) => ({
         ...group,
@@ -154,11 +158,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // Prefetch các route được phép để chuyển trang mượt hơn
     for (const group of visibleGroups) {
-      for (const item of group.items) {
-        router.prefetch(item.href);
-      }
+      for (const item of group.items) router.prefetch(item.href);
     }
   }, [router, visibleGroups]);
 
@@ -168,27 +169,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [loading, pathname, role, router, visibleGroups]);
 
-  useEffect(() => {
-    document.body.classList.add("motion-ready");
-    const targets = Array.from(document.querySelectorAll(".card, .page-title, .table-wrap"));
-    targets.forEach((el) => el.classList.add("reveal-on-scroll"));
-
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("in-view");
-            io.unobserve(entry.target);
-          }
-        }
-      },
-      { threshold: 0.08, rootMargin: "0px 0px -8% 0px" },
-    );
-
-    targets.forEach((el) => io.observe(el));
-    return () => io.disconnect();
-  }, [pathname]);
-
   async function onLogout() {
     if (!supabase) return;
     await supabase.auth.signOut();
@@ -197,21 +177,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     router.replace("/login");
   }
 
-  if (loading) {
-    return <div className="p-8 text-sm" style={{ color: "var(--color-text-secondary)" }}>Đang kiểm tra đăng nhập...</div>;
-  }
+  if (loading) return <div className="p-8 text-sm" style={{ color: "var(--color-text-secondary)" }}>Đang kiểm tra đăng nhập...</div>;
 
   if (authError) {
     return (
       <div className="space-y-3 p-8 text-sm">
         <p className="font-semibold text-red-600">Không thể xác thực phiên đăng nhập.</p>
         <p className="text-neutral-700">Chi tiết: {authError}</p>
-        <button
-          onClick={() => router.replace("/login")}
-          className="rounded border px-3 py-2 text-xs"
-        >
-          Về trang login
-        </button>
+        <button onClick={() => router.replace("/login")} className="rounded border px-3 py-2 text-xs">Về trang login</button>
       </div>
     );
   }
@@ -233,16 +206,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
               if (group.items.length === 1) {
                 return (
-                  <div
-                    key={group.label}
-                    onMouseEnter={() => setHoveredGroup(group.label)}
-                    onMouseLeave={() => setHoveredGroup((current) => (current === group.label ? null : current))}
-                  >
-                    <Link
-                      href={directHref}
-                      className="nav-link rounded-full px-4 py-2 text-sm transition"
-                      style={active || hovered ? { background: "var(--color-primary)", color: "#fff" } : { color: "var(--color-text-secondary)" }}
-                    >
+                  <div key={group.label} onMouseEnter={() => setHoveredGroup(group.label)} onMouseLeave={() => setHoveredGroup((current) => (current === group.label ? null : current))}>
+                    <Link href={directHref} className="nav-link rounded-full px-4 py-2 text-sm transition" style={active || hovered ? { background: "var(--color-primary)", color: "#fff" } : { color: "var(--color-text-secondary)" }}>
                       {group.label}
                     </Link>
                   </div>
@@ -250,17 +215,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               }
 
               return (
-                <div
-                  key={group.label}
-                  className="nav-group group relative"
-                  onMouseEnter={() => setHoveredGroup(group.label)}
-                  onMouseLeave={() => setHoveredGroup((current) => (current === group.label ? null : current))}
-                >
-                  <button
-                    type="button"
-                    className="nav-group-trigger inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm transition"
-                    style={active || hovered ? { background: "var(--color-primary)", color: "#fff" } : { color: "var(--color-text-secondary)" }}
-                  >
+                <div key={group.label} className="nav-group group relative" onMouseEnter={() => setHoveredGroup(group.label)} onMouseLeave={() => setHoveredGroup((current) => (current === group.label ? null : current))}>
+                  <button type="button" className="nav-group-trigger inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm transition" style={active || hovered ? { background: "var(--color-primary)", color: "#fff" } : { color: "var(--color-text-secondary)" }}>
                     <span>{group.label}</span>
                     <span className="text-xs opacity-80">▾</span>
                   </button>
@@ -270,12 +226,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         {group.items.map((item) => {
                           const itemActive = pathname === item.href;
                           return (
-                            <Link
-                              key={item.href}
-                              href={item.href}
-                              className="rounded-2xl px-4 py-3 transition hover:bg-[#faf7f2]"
-                              style={itemActive ? { background: "#fff1f3" } : undefined}
-                            >
+                            <Link key={item.href} href={item.href} className="rounded-2xl px-4 py-3 transition hover:bg-[#faf7f2]" style={itemActive ? { background: "#fff1f3" } : undefined}>
                               <p className="text-sm font-semibold" style={{ color: itemActive ? "var(--color-primary)" : "var(--color-text-main)" }}>{item.label}</p>
                               <p className="mt-1 text-xs" style={{ color: "var(--color-text-secondary)" }}>{item.desc}</p>
                             </Link>
@@ -289,18 +240,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
 
-          <button className="btn btn-outline md:hidden" type="button" onClick={() => setMobileOpen((v) => !v)}>
-            Menu
-          </button>
+          <button className="btn btn-outline md:hidden" type="button" onClick={() => setMobileOpen((v) => !v)}>Menu</button>
 
           <div className="hidden text-right text-xs md:block">
             <p style={{ color: "var(--color-text-secondary)" }}>{email || "No session"}</p>
             <p className="font-semibold">{role}</p>
-            <button onClick={onLogout} className="btn btn-outline mt-1 px-2 py-1 text-xs">
-              Logout
-            </button>
+            <button onClick={onLogout} className="btn btn-outline mt-1 px-2 py-1 text-xs">Logout</button>
           </div>
         </div>
+
         {mobileOpen && (
           <div className="mx-auto max-w-7xl border-t px-3 pb-3 pt-2 md:hidden" style={{ borderColor: "var(--color-border)" }}>
             <div className="space-y-3">

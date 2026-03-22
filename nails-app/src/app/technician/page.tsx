@@ -7,6 +7,8 @@ import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+type RangeMode = "day" | "week" | "month";
+
 type AppointmentRow = {
   id: string;
   start_at: string;
@@ -18,9 +20,42 @@ type AppointmentRow = {
 };
 
 type ResourceRow = { id: string; name: string };
-
 type StaffRow = { user_id: string; display_name: string };
 type OpenTicketRow = { id: string; appointment_id: string | null; status: string };
+
+function startOfDay(date: Date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function endOfDay(date: Date) {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+function startOfWeek(date: Date) {
+  const d = startOfDay(date);
+  const day = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - day);
+  return d;
+}
+
+function endOfWeek(date: Date) {
+  const d = startOfWeek(date);
+  d.setDate(d.getDate() + 6);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+function startOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
+}
+
+function endOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+}
 
 function pickCustomerName(customers: AppointmentRow["customers"]) {
   if (Array.isArray(customers)) return customers[0]?.name ?? "-";
@@ -43,6 +78,7 @@ export default function TechnicianBoardPage() {
   const [role, setRole] = useState<string | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "BOOKED" | "CHECKED_IN" | "DONE">("ALL");
+  const [rangeMode, setRangeMode] = useState<RangeMode>("day");
   const [loading, setLoading] = useState(true);
   const [actingId, setActingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,19 +98,19 @@ export default function TechnicianBoardPage() {
       setRole(currentRole);
 
       const { orgId } = await ensureOrgContext();
-      const start = new Date();
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(start);
-      end.setDate(end.getDate() + 1);
+      const now = new Date();
+      const range = rangeMode === "day"
+        ? { start: startOfDay(now), end: endOfDay(now) }
+        : rangeMode === "week"
+          ? { start: startOfWeek(now), end: endOfWeek(now) }
+          : { start: startOfMonth(now), end: endOfMonth(now) };
 
       const [appointmentsRes, resourcesRes, ticketsRes, staffRows] = await Promise.all([
         supabase
           .from("appointments")
           .select("id,start_at,end_at,status,staff_user_id,resource_id,customers(name)")
           .eq("org_id", orgId)
-          .gte("start_at", start.toISOString())
-          .lt("start_at", end.toISOString())
-          .in("status", ["BOOKED", "CHECKED_IN", "DONE"])
+          .or(`and(status.eq.BOOKED,start_at.lte.${range.end.toISOString()}),and(status.eq.CHECKED_IN,start_at.lte.${range.end.toISOString()}),and(status.eq.DONE,start_at.gte.${range.start.toISOString()},start_at.lte.${range.end.toISOString()})`)
           .order("start_at", { ascending: true }),
         supabase.from("resources").select("id,name").eq("org_id", orgId).eq("active", true),
         supabase.from("tickets").select("id,appointment_id,status").eq("org_id", orgId).eq("status", "OPEN"),
@@ -87,17 +123,9 @@ export default function TechnicianBoardPage() {
 
       setRows((appointmentsRes.data ?? []) as AppointmentRow[]);
       setResources((resourcesRes.data ?? []) as ResourceRow[]);
-      setStaffs(
-        ((staffRows ?? []) as Array<{ userId: string; name: string }>).map((s) => ({
-          user_id: s.userId,
-          display_name: s.name,
-        })) as StaffRow[],
-      );
+      setStaffs(((staffRows ?? []) as Array<{ userId: string; name: string }>).map((s) => ({ user_id: s.userId, display_name: s.name })) as StaffRow[]);
       setOpenTickets((ticketsRes.data ?? []) as OpenTicketRow[]);
-      setSelectedStaffId((prev) => {
-        if (currentRole === "TECH") return prev || userId;
-        return prev;
-      });
+      setSelectedStaffId((prev) => (currentRole === "TECH" ? prev || userId : prev));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load technician board failed");
     } finally {
@@ -107,14 +135,14 @@ export default function TechnicianBoardPage() {
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [rangeMode]);
 
   useEffect(() => {
     const id = setInterval(() => {
       void load({ silent: true });
     }, 30000);
     return () => clearInterval(id);
-  }, []);
+  }, [rangeMode]);
 
   const visibleStaffId = role === "TECH" ? myUserId ?? "" : selectedStaffId;
 
@@ -128,15 +156,11 @@ export default function TechnicianBoardPage() {
   const active = filteredRows.filter((r) => r.status === "CHECKED_IN");
   const done = filteredRows.filter((r) => r.status === "DONE");
 
-  const timelineRows = useMemo(
-    () => [...filteredRows].sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime()),
-    [filteredRows],
-  );
+  const timelineRows = useMemo(() => [...filteredRows].sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime()), [filteredRows]);
 
   const resourceName = (id: string | null) => resources.find((r) => r.id === id)?.name ?? "-";
   const staffName = (id: string | null) => staffs.find((s) => s.user_id === id)?.display_name ?? "-";
   const openTicketForAppointment = (appointmentId: string) => openTickets.find((t) => t.appointment_id === appointmentId);
-
   const canSwitchStaff = role === "OWNER" || role === "MANAGER" || role === "RECEPTION";
 
   async function onAdvanceStatus(row: AppointmentRow) {
@@ -166,22 +190,23 @@ export default function TechnicianBoardPage() {
         <section className="card">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="page-title">Technician board hôm nay</h2>
+              <h2 className="page-title">Techboard hôm nay</h2>
               <p className="page-subtitle">Theo dõi khách đang chờ, đang làm và đã xong của từng thợ.</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {canSwitchStaff ? (
                 <select className="input" value={selectedStaffId} onChange={(e) => setSelectedStaffId(e.target.value)}>
                   <option value="">-- Chọn thợ --</option>
-                  {staffs.map((s) => (
-                    <option key={s.user_id} value={s.user_id}>
-                      {s.display_name || s.user_id.slice(0, 8)}
-                    </option>
-                  ))}
+                  {staffs.map((s) => <option key={s.user_id} value={s.user_id}>{s.display_name || s.user_id.slice(0, 8)}</option>)}
                 </select>
               ) : (
                 <span className="badge-soft">{staffName(myUserId)}</span>
               )}
+              <select className="input" value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}>
+                <option value="day">Trong ngày</option>
+                <option value="week">Trong tuần</option>
+                <option value="month">Trong tháng</option>
+              </select>
               <select className="input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}>
                 <option value="ALL">Tất cả</option>
                 <option value="BOOKED">Khách chờ</option>
@@ -191,65 +216,38 @@ export default function TechnicianBoardPage() {
             </div>
           </div>
           {error && <p className="mt-3 text-sm text-red-600">Lỗi: {error}</p>}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <a href="/appointments" className="rounded-full border border-[#eadfce] bg-[#f6efe6] px-4 py-2 text-sm transition hover:bg-[var(--color-primary)] hover:text-white">Appointments</a>
+            <a href="/checkout" className="rounded-full border border-[#eadfce] bg-[#f6efe6] px-4 py-2 text-sm transition hover:bg-[var(--color-primary)] hover:text-white">Checkout</a>
+            <a href="/shifts" className="rounded-full border border-[#eadfce] bg-[#f6efe6] px-4 py-2 text-sm transition hover:bg-[var(--color-primary)] hover:text-white">Ca làm</a>
+          </div>
         </section>
 
         <section className="page-grid md:grid-cols-3">
-          {[
-            { title: "Khách đang chờ", rows: booked },
-            { title: "Đang phục vụ", rows: active },
-            { title: "Đã xong hôm nay", rows: done },
-          ].map((group) => (
+          {[{ title: "Khách đang chờ", rows: booked }, { title: "Đang phục vụ", rows: active }, { title: "Đã xong", rows: done }].map((group) => (
             <div key={group.title} className="card">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">{group.title}</h3>
-                <span className="badge-soft">{group.rows.length}</span>
-              </div>
+              <div className="flex items-center justify-between"><h3 className="text-lg font-semibold">{group.title}</h3><span className="badge-soft">{group.rows.length}</span></div>
               <div className="mt-4 stack-tight">
                 {loading ? (
-                  <>
-                    <div className="skeleton h-20 rounded-2xl" />
-                    <div className="skeleton h-20 rounded-2xl" />
-                  </>
+                  <><div className="skeleton h-20 rounded-2xl" /><div className="skeleton h-20 rounded-2xl" /></>
                 ) : group.rows.length ? (
                   group.rows.map((row) => (
                     <div key={row.id} className="rounded-2xl border border-neutral-100 px-4 py-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="font-semibold">{pickCustomerName(row.customers)}</p>
-                        <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusTone(row.status)}`}>{row.status}</span>
-                      </div>
-                      <div className="mt-2 text-sm text-neutral-500">
-                        <p>{new Date(row.start_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} - {new Date(row.end_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</p>
-                        <p>Ghế/Bàn: {resourceName(row.resource_id)}</p>
-                      </div>
+                      <div className="flex items-center justify-between gap-3"><p className="font-semibold">{pickCustomerName(row.customers)}</p><span className={`rounded-full px-3 py-1 text-xs font-medium ${statusTone(row.status)}`}>{row.status}</span></div>
+                      <div className="mt-2 text-sm text-neutral-500"><p>{new Date(row.start_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} - {new Date(row.end_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</p><p>Ghế/Bàn: {resourceName(row.resource_id)}</p></div>
                       <div className="mt-3 flex flex-wrap gap-2">
                         {row.status === "BOOKED" && (
-                          <button
-                            className="btn btn-primary px-3 py-1 text-xs"
-                            disabled={actingId === row.id}
-                            onClick={() => void onAdvanceStatus(row)}
-                          >
+                          <button className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-emerald-700" disabled={actingId === row.id} onClick={() => void onAdvanceStatus(row)}>
                             {actingId === row.id ? "Đang xử lý..." : "Start / Check-in"}
                           </button>
                         )}
                         {row.status === "CHECKED_IN" && (
-                          <>
-                            <span className="badge-soft">Chờ checkout để DONE</span>
-                            {openTicketForAppointment(row.id) && (
-                              <Link
-                                href={`/checkout?appointmentId=${row.id}&customer=${encodeURIComponent(pickCustomerName(row.customers))}`}
-                                className="btn btn-outline px-3 py-1 text-xs"
-                              >
-                                Mở checkout
-                              </Link>
-                            )}
-                          </>
+                          <Link href={`/checkout?appointmentId=${row.id}&customer=${encodeURIComponent(pickCustomerName(row.customers))}`} className="rounded-lg border border-[#eadfce] bg-[#f6efe6] px-3 py-1 text-xs font-medium transition hover:bg-[var(--color-primary)] hover:text-white">Checkout</Link>
                         )}
                       </div>
                     </div>
                   ))
-                ) : (
-                  <p className="text-sm text-neutral-500">Không có dữ liệu.</p>
-                )}
+                ) : <p className="text-sm text-neutral-500">Không có dữ liệu.</p>}
               </div>
             </div>
           ))}
@@ -258,36 +256,24 @@ export default function TechnicianBoardPage() {
         <section className="card">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h3 className="text-lg font-semibold">Timeline trong ngày</h3>
+              <h3 className="text-lg font-semibold">Timeline</h3>
               <p className="page-subtitle mt-0">Xem lịch theo thứ tự giờ để tránh sót khách và chồng ca.</p>
             </div>
             <span className="badge-soft">{timelineRows.length} lịch</span>
           </div>
           <div className="mt-4 stack-tight">
             {loading ? (
-              <>
-                <div className="skeleton h-16 rounded-2xl" />
-                <div className="skeleton h-16 rounded-2xl" />
-                <div className="skeleton h-16 rounded-2xl" />
-              </>
+              <><div className="skeleton h-16 rounded-2xl" /><div className="skeleton h-16 rounded-2xl" /><div className="skeleton h-16 rounded-2xl" /></>
             ) : timelineRows.length ? (
               timelineRows.map((row) => (
                 <div key={`timeline-${row.id}`} className="grid gap-2 rounded-2xl border border-neutral-100 px-4 py-3 md:grid-cols-[120px_1fr_180px_120px] md:items-center">
-                  <p className="font-semibold">
-                    {new Date(row.start_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
-                    <span className="ml-2 text-neutral-400">→</span>
-                    <span className="ml-2">{new Date(row.end_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</span>
-                  </p>
+                  <p className="font-semibold">{new Date(row.start_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}<span className="ml-2 text-neutral-400">→</span><span className="ml-2">{new Date(row.end_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</span></p>
                   <p>{pickCustomerName(row.customers)}</p>
                   <p className="text-neutral-500">Ghế/Bàn: {resourceName(row.resource_id)}</p>
-                  <div className="flex justify-start md:justify-end">
-                    <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusTone(row.status)}`}>{row.status}</span>
-                  </div>
+                  <div className="flex justify-start md:justify-end"><span className={`rounded-full px-3 py-1 text-xs font-medium ${statusTone(row.status)}`}>{row.status}</span></div>
                 </div>
               ))
-            ) : (
-              <p className="text-sm text-neutral-500">Không có lịch trong bộ lọc hiện tại.</p>
-            )}
+            ) : <p className="text-sm text-neutral-500">Không có lịch trong bộ lọc hiện tại.</p>}
           </div>
         </section>
       </div>

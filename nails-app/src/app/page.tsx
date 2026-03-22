@@ -1,189 +1,214 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
-import { getDashboardSnapshot, getReportBreakdown } from "@/lib/reporting";
+import { listAppointments, listStaffMembers } from "@/lib/domain";
+import { getReportBreakdown, getStaffRevenueInRange } from "@/lib/reporting";
 import { formatVnd } from "@/lib/mock-data";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export default function Home() {
+type DashboardAppointment = {
+  id: string;
+  start_at: string;
+  end_at: string;
+  status: string;
+  staff_user_id?: string | null;
+  customers?: { name?: string } | { name?: string }[] | null;
+};
+
+type DashboardData = {
+  appointmentsToday: number;
+  waiting: number;
+  active: number;
+  revenue: number;
+  closedCount: number;
+  waitingSchedule: Array<{ time: string; customer: string; staff: string }>;
+  activeServiceBoard: Array<{ time: string; customer: string; staff: string; status: string; appointmentId: string }>;
+};
+
+function pickCustomerName(customers: DashboardAppointment["customers"]) {
+  if (Array.isArray(customers)) return customers[0]?.name ?? "-";
+  return customers?.name ?? "-";
+}
+
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).replace(", ", " • ");
+}
+
+export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [autoRefresh, setAutoRefresh] = useState(true);
-  const [lastUpdated, setLastUpdated] = useState<string>("-");
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const hasLoadedRef = useRef(false);
   const [topServices, setTopServices] = useState<Array<{ service_name: string; qty: number; subtotal: number }>>([]);
-  const [data, setData] = useState({
+  const [topStaffRevenue, setTopStaffRevenue] = useState<Array<{ staffUserId: string; staff: string; revenue: number; tickets: number }>>([]);
+  const [data, setData] = useState<DashboardData>({
     appointmentsToday: 0,
     waiting: 0,
     active: 0,
     revenue: 0,
     closedCount: 0,
-    checkingInCustomers: [] as string[],
-    waitingSchedule: [] as Array<{ time: string; customer: string; staff: string }>,
+    waitingSchedule: [],
+    activeServiceBoard: [],
   });
 
-  const load = useCallback(async (opts?: { force?: boolean }) => {
-    const isInitial = !hasLoadedRef.current;
+  const load = useCallback(async (opts?: { force?: boolean; silent?: boolean }) => {
     try {
-      if (!isInitial) setRefreshing(true);
+      if (!opts?.silent) setLoading(true);
       setError(null);
-      const now = new Date();
-      const start = new Date(now);
+
+      const start = new Date();
       start.setHours(0, 0, 0, 0);
       const end = new Date(start);
       end.setDate(end.getDate() + 1);
 
-      const [snapshot, breakdown] = await Promise.all([
-        getDashboardSnapshot({ force: opts?.force }),
+      const [appointments, staffRows, breakdown, staffRevenue] = await Promise.all([
+        listAppointments({ force: opts?.force }),
+        listStaffMembers(),
         getReportBreakdown(start.toISOString(), end.toISOString()),
+        getStaffRevenueInRange(start.toISOString(), end.toISOString()),
       ]);
 
-      setData(snapshot);
+      const staffMap = new Map((staffRows ?? []).map((s: { userId: string; name: string }) => [s.userId, s.name]));
+      const rows = (appointments ?? []) as DashboardAppointment[];
+      const appointmentsTodayRows = rows.filter((row) => {
+        const t = new Date(row.start_at).getTime();
+        return t >= start.getTime() && t < end.getTime();
+      });
+      const waitingRows = rows.filter((row) => row.status === "BOOKED");
+      const activeRows = rows.filter((row) => row.status === "CHECKED_IN");
+
+      setData({
+        appointmentsToday: appointmentsTodayRows.length,
+        waiting: waitingRows.length,
+        active: activeRows.length,
+        revenue: Number(breakdown.summary?.revenue ?? 0),
+        closedCount: Number(breakdown.summary?.count ?? 0),
+        waitingSchedule: waitingRows
+          .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())
+          .map((row) => ({
+            time: formatDateTime(row.start_at),
+            customer: pickCustomerName(row.customers),
+            staff: row.staff_user_id ? (staffMap.get(row.staff_user_id) ?? row.staff_user_id.slice(0, 8)) : "-",
+          })),
+        activeServiceBoard: activeRows
+          .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())
+          .map((row) => ({
+            appointmentId: row.id,
+            time: formatDateTime(row.start_at),
+            customer: pickCustomerName(row.customers),
+            staff: row.staff_user_id ? (staffMap.get(row.staff_user_id) ?? row.staff_user_id.slice(0, 8)) : "-",
+            status: row.status,
+          })),
+      });
+
       setTopServices((breakdown.by_service ?? []).slice(0, 3));
-      setLastUpdated(new Date().toLocaleTimeString("vi-VN"));
-      hasLoadedRef.current = true;
+      setTopStaffRevenue(staffRevenue.slice(0, 5));
+      setLastUpdated(new Date());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load dashboard failed");
     } finally {
-      if (isInitial) setLoading(false);
-      setRefreshing(false);
+      if (!opts?.silent) setLoading(false);
+      hasLoadedRef.current = true;
     }
   }, []);
 
   useEffect(() => {
-    void load({ force: true });
+    void load();
   }, [load]);
 
   useEffect(() => {
-    if (!autoRefresh) return;
+    if (!hasLoadedRef.current) return;
     const id = setInterval(() => {
-      void load();
-    }, 20000);
+      void load({ silent: true });
+    }, 30000);
     return () => clearInterval(id);
-  }, [autoRefresh, load]);
+  }, [load]);
 
-  const avgBill = data.closedCount > 0 ? data.revenue / data.closedCount : 0;
-  const totalFlow = Math.max(data.appointmentsToday, 1);
-  const waitingPct = Math.min(100, Math.round((data.waiting / totalFlow) * 100));
-  const activePct = Math.min(100, Math.round((data.active / totalFlow) * 100));
-  const doneApprox = Math.max(0, data.appointmentsToday - data.waiting - data.active);
-  const donePct = Math.min(100, Math.round((doneApprox / totalFlow) * 100));
-
-  const cards = [
-    { label: "Lịch hẹn hôm nay", value: String(data.appointmentsToday) },
-    { label: "Khách đang chờ", value: String(data.waiting) },
-    { label: "Đang phục vụ", value: String(data.active) },
-    { label: "Doanh thu hôm nay", value: formatVnd(data.revenue) },
-    { label: "Bill trung bình", value: formatVnd(avgBill) },
-  ];
+  const avgBill = data.closedCount ? data.revenue / data.closedCount : 0;
 
   return (
     <AppShell>
-      <div className="page-shell">
+      <div className="page-shell space-y-4">
         <section className="card">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h2 className="page-title">Dashboard vận hành</h2>
-              <p className="page-subtitle">Snapshot hôm nay · auto refresh mỗi 20 giây.</p>
-              <p className="mt-2"><span className="badge-soft">Cập nhật lúc: {lastUpdated}</span></p>
+              <h2 className="page-title">Dashboard</h2>
+              <p className="page-subtitle">Tổng quan vận hành trong ngày theo logic Techboard.</p>
             </div>
-            <div className="flex items-center gap-2 text-sm">
-              <button
-                onClick={() => void load({ force: true })}
-                disabled={refreshing}
-                className="btn btn-outline"
-              >
-                {refreshing ? "Đang refresh..." : "Refresh"}
-              </button>
-              <button
-                onClick={() => setAutoRefresh((v) => !v)}
-                className={`btn ${autoRefresh ? "btn-primary" : "btn-outline"}`}
-              >
-                {autoRefresh ? "Auto: ON" : "Auto: OFF"}
-              </button>
+            <div className="text-right text-xs text-neutral-500">
+              <p>{lastUpdated ? `Cập nhật lúc ${lastUpdated.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}` : "Đang tải dữ liệu..."}</p>
             </div>
           </div>
           {error && <p className="mt-2 text-sm text-red-600">Lỗi: {error}</p>}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <a href="/technician" className="rounded-full border border-[#eadfce] bg-[#f6efe6] px-4 py-2 text-sm transition hover:bg-[var(--color-primary)] hover:text-white">Techboard</a>
+            <a href="/appointments" className="rounded-full border border-[#eadfce] bg-[#f6efe6] px-4 py-2 text-sm transition hover:bg-[var(--color-primary)] hover:text-white">Appointments</a>
+            <a href="/checkout" className="rounded-full border border-[#eadfce] bg-[#f6efe6] px-4 py-2 text-sm transition hover:bg-[var(--color-primary)] hover:text-white">Checkout</a>
+            <a href="/shifts" className="rounded-full border border-[#eadfce] bg-[#f6efe6] px-4 py-2 text-sm transition hover:bg-[var(--color-primary)] hover:text-white">Ca làm</a>
+          </div>
         </section>
 
-        <section className="grid grid-cols-2 gap-3 md:grid-cols-5">
-          {cards.map((item) => (
-            <div key={item.label} className="card">
-              <p className="text-sm text-neutral-500">{item.label}</p>
-              {loading ? (
-                <div className="skeleton mt-3 h-7 rounded-xl" />
-              ) : (
-                <p className="mt-2 text-xl font-semibold">{item.value}</p>
-              )}
-            </div>
-          ))}
+        <section className="page-grid md:grid-cols-4">
+          <div className="card"><p className="text-sm text-neutral-500">Lịch hôm nay</p><p className="mt-1 text-3xl font-bold">{loading ? "..." : data.appointmentsToday}</p></div>
+          <div className="card"><p className="text-sm text-neutral-500">Khách chờ</p><p className="mt-1 text-3xl font-bold">{loading ? "..." : data.waiting}</p></div>
+          <div className="card"><p className="text-sm text-neutral-500">Đang phục vụ</p><p className="mt-1 text-3xl font-bold">{loading ? "..." : data.active}</p></div>
+          <div className="card"><p className="text-sm text-neutral-500">Doanh thu hôm nay</p><p className="mt-1 text-3xl font-bold">{loading ? "..." : formatVnd(data.revenue)}</p></div>
         </section>
 
-        <section className="page-grid lg:grid-cols-[1.15fr_0.85fr]">
+        <section className="page-grid md:grid-cols-3">
           <div className="card">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-lg font-semibold">Lịch khách chờ theo thợ hôm nay</h3>
-                <p className="page-subtitle mt-0">Reception và thợ nhìn nhanh để chủ động nhịp làm việc.</p>
-              </div>
-              <span className="badge-soft">{data.waitingSchedule.length} lịch chờ</span>
-            </div>
-            <div className="mt-4 space-y-2 text-sm">
-              {data.waitingSchedule.length === 0 ? (
-                <p className="text-neutral-500">Hiện chưa có lịch chờ.</p>
-              ) : (
+            <h3 className="text-lg font-semibold">Lịch khách chờ theo thợ</h3>
+            <div className="mt-4 space-y-2">
+              {loading ? (
+                <><div className="skeleton h-16 rounded-2xl" /><div className="skeleton h-16 rounded-2xl" /></>
+              ) : data.waitingSchedule.length ? (
                 data.waitingSchedule.map((item, idx) => (
-                  <div key={`${item.time}-${item.customer}-${idx}`} className="grid grid-cols-[80px_1fr_120px] items-center rounded-2xl border border-neutral-100 px-4 py-3">
+                  <div key={`${item.time}-${item.customer}-${idx}`} className="rounded-2xl border border-neutral-100 px-4 py-3 text-sm">
                     <p className="font-semibold">{item.time}</p>
-                    <p className="truncate">{item.customer}</p>
-                    <p className="text-right text-neutral-500">{item.staff}</p>
+                    <p className="mt-1 font-medium">Khách: {item.customer}</p>
+                    <p className="text-neutral-500">Thợ: {item.staff}</p>
                   </div>
                 ))
+              ) : (
+                <p className="text-sm text-neutral-500">Chưa có khách chờ.</p>
               )}
             </div>
           </div>
 
-          <div className="grid gap-3">
-            <div className="card">
-              <h3 className="text-lg font-semibold">Phân bổ trạng thái lịch hẹn</h3>
-              <div className="mt-4 space-y-3 text-sm">
-                <div>
-                  <div className="mb-1 flex justify-between"><span>Đang chờ</span><span>{waitingPct}%</span></div>
-                  <div className="h-2 rounded bg-neutral-100"><div className="h-2 rounded bg-amber-400" style={{ width: `${waitingPct}%` }} /></div>
-                </div>
-                <div>
-                  <div className="mb-1 flex justify-between"><span>Đang phục vụ</span><span>{activePct}%</span></div>
-                  <div className="h-2 rounded bg-neutral-100"><div className="h-2 rounded bg-blue-500" style={{ width: `${activePct}%` }} /></div>
-                </div>
-                <div>
-                  <div className="mb-1 flex justify-between"><span>Đã xử lý</span><span>{donePct}%</span></div>
-                  <div className="h-2 rounded bg-neutral-100"><div className="h-2 rounded bg-emerald-500" style={{ width: `${donePct}%` }} /></div>
-                </div>
-              </div>
-            </div>
-
-            <div className="card">
-              <h3 className="text-lg font-semibold">Hiệu suất thanh toán hôm nay</h3>
-              <div className="mt-4 space-y-2">
+          <div className="card md:col-span-2">
+            <h3 className="text-lg font-semibold">Hiệu suất thanh toán</h3>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div>
                 <p className="text-sm text-neutral-500">Tổng bill closed</p>
                 <p className="text-3xl font-bold">{loading ? "..." : data.closedCount}</p>
                 <p className="mt-3 text-sm text-neutral-500">Doanh thu / bill trung bình</p>
                 <p className="text-lg font-semibold">{loading ? "..." : `${formatVnd(data.revenue)} / ${formatVnd(avgBill)}`}</p>
-
-                <p className="mt-4 text-sm text-neutral-500">Khách đang check-in</p>
+              </div>
+              <div>
+                <p className="text-sm text-neutral-500">Khách đang phục vụ</p>
                 {loading ? (
                   <p className="text-sm">...</p>
-                ) : data.checkingInCustomers.length ? (
-                  <div className="flex flex-wrap gap-2">
-                    {data.checkingInCustomers.map((name, idx) => (
-                      <span key={`${name}-${idx}`} className="rounded-full bg-red-50 px-3 py-1 text-xs text-red-700">
-                        {name}
-                      </span>
+                ) : data.activeServiceBoard.length ? (
+                  <div className="space-y-2">
+                    {data.activeServiceBoard.map((item, idx) => (
+                      <div key={`${item.customer}-${item.appointmentId}-${idx}`} className="rounded-lg border border-neutral-100 px-3 py-2 text-sm">
+                        <p className="font-medium">Khách: {item.customer}</p>
+                        <p className="text-neutral-500">Thợ: {item.staff}</p>
+                        <p className="text-neutral-500">Ngày giờ hẹn/phục vụ: {item.time}</p>
+                        <p className="text-neutral-500">Trạng thái: {item.status}</p>
+                        <div className="mt-2">
+                          <a href={`/checkout?appointmentId=${item.appointmentId}&customer=${encodeURIComponent(item.customer)}`} className="rounded-lg border border-[#eadfce] bg-[#f6efe6] px-3 py-1 text-xs font-medium transition hover:bg-[var(--color-primary)] hover:text-white">Checkout</a>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-neutral-500">Chưa có khách check-in.</p>
+                  <p className="text-sm text-neutral-500">Chưa có khách đang phục vụ.</p>
                 )}
               </div>
             </div>
@@ -210,6 +235,24 @@ export default function Home() {
             </div>
           </div>
 
+          <div className="card">
+            <h3 className="text-lg font-semibold">Top nhân viên theo doanh thu hôm nay</h3>
+            <div className="mt-4 space-y-2 text-sm">
+              {topStaffRevenue.length === 0 ? (
+                <p className="text-neutral-500">Chưa có dữ liệu doanh thu theo nhân viên hôm nay.</p>
+              ) : (
+                topStaffRevenue.map((s) => (
+                  <div key={s.staffUserId} className="flex items-center justify-between rounded-lg border border-neutral-100 px-3 py-2">
+                    <div>
+                      <p className="font-medium">{s.staff}</p>
+                      <p className="text-xs text-neutral-500">{s.tickets} bill</p>
+                    </div>
+                    <p className="font-semibold">{formatVnd(s.revenue)}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </section>
       </div>
     </AppShell>

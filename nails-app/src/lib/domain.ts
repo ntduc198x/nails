@@ -317,6 +317,7 @@ export async function createAppointment(input: {
   endAt: string;
   staffUserId?: string | null;
   resourceId?: string | null;
+  appointmentId?: string | null;
 }) {
   if (!supabase) throw new Error("Supabase chưa cấu hình");
   const { orgId, branchId } = await ensureOrgContext();
@@ -328,7 +329,7 @@ export async function createAppointment(input: {
       .from("appointments")
       .select("id,start_at,end_at,staff_user_id,resource_id,customers(name)")
       .eq("org_id", orgId)
-      .in("status", ["BOOKED", "CHECKED_IN"])
+      .eq("status", "BOOKED")
       .lt("start_at", input.endAt)
       .gt("end_at", input.startAt)
       .limit(50);
@@ -365,16 +366,29 @@ export async function createAppointment(input: {
 
   const customerId = await findOrCreateCustomer(orgId, input.customerName);
 
-  let { error } = await supabase.from("appointments").insert({
-    org_id: orgId,
-    branch_id: branchId,
-    customer_id: customerId,
-    start_at: input.startAt,
-    end_at: input.endAt,
-    staff_user_id: input.staffUserId ?? null,
-    resource_id: input.resourceId ?? null,
-    status: "BOOKED",
-  });
+  let error;
+  if (input.appointmentId) {
+    const updateRes = await supabase.from("appointments").update({
+      customer_id: customerId,
+      start_at: input.startAt,
+      end_at: input.endAt,
+      staff_user_id: input.staffUserId ?? null,
+      resource_id: input.resourceId ?? null,
+    }).eq("id", input.appointmentId).eq("org_id", orgId).eq("status", "BOOKED");
+    error = updateRes.error;
+  } else {
+    const insertRes = await supabase.from("appointments").insert({
+      org_id: orgId,
+      branch_id: branchId,
+      customer_id: customerId,
+      start_at: input.startAt,
+      end_at: input.endAt,
+      staff_user_id: input.staffUserId ?? null,
+      resource_id: input.resourceId ?? null,
+      status: "BOOKED",
+    });
+    error = insertRes.error;
+  }
 
   if (error && isMissingResourceSchema(error)) {
     resourceSchedulingSupported = false;

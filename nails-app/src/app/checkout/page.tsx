@@ -67,7 +67,7 @@ export default function CheckoutPage() {
       setError(null);
       const currentRole = await getCurrentSessionRole();
       setRole(currentRole);
-      if (!["OWNER", "MANAGER", "RECEPTION", "ACCOUNTANT"].includes(currentRole)) throw new Error("Role hiện tại không có quyền truy cập trang Checkout");
+      if (!["OWNER", "MANAGER", "RECEPTION", "ACCOUNTANT", "TECH"].includes(currentRole)) throw new Error("Role hiện tại không có quyền truy cập trang Checkout");
       const [serviceRows, ticketRows, checkedInRows] = await Promise.all([
         listServices(),
         listRecentTickets({ fromIso: range.from.toISOString(), toIso: range.to.toISOString(), limit: 200, force: true }),
@@ -165,8 +165,8 @@ export default function CheckoutPage() {
             </div>
           ))}
 
-          <div className="hidden gap-2 md:flex"><button type="button" onClick={addLine} className="rounded-lg border px-4 py-2 text-sm">+ Thêm dòng</button><button disabled={submitting || role === "ACCOUNTANT" || role === "TECH"} className="btn btn-primary">{submitting ? "Đang xử lý..." : "Pay & Close"}</button></div>
-          <div className="fixed bottom-0 left-0 right-0 z-10 border-t bg-white p-3 md:hidden"><div className="mx-auto flex max-w-6xl gap-2"><button type="button" onClick={addLine} className="flex-1 rounded-lg border px-4 py-3 text-sm font-medium">+ Thêm dòng</button><button disabled={submitting || role === "ACCOUNTANT" || role === "TECH"} className="flex-1 btn btn-primary py-3">{submitting ? "Đang xử lý..." : "Pay & Close"}</button></div></div>
+          <div className="hidden gap-2 md:flex"><button type="button" onClick={addLine} className="rounded-lg border px-4 py-2 text-sm">+ Thêm dòng</button><button disabled={submitting || role === "ACCOUNTANT"} className="btn btn-primary">{submitting ? "Đang xử lý..." : "Pay & Close"}</button></div>
+          <div className="fixed bottom-0 left-0 right-0 z-10 border-t bg-white p-3 md:hidden"><div className="mx-auto flex max-w-6xl gap-2"><button type="button" onClick={addLine} className="flex-1 rounded-lg border px-4 py-3 text-sm font-medium">+ Thêm dòng</button><button disabled={submitting || role === "ACCOUNTANT"} className="flex-1 btn btn-primary py-3">{submitting ? "Đang xử lý..." : "Pay & Close"}</button></div></div>
         </form>
 
         {lastReceipt && <div className="space-y-2 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800"><div>Tạo receipt thành công. Token: <code>{lastReceipt}</code></div>{receiptLink && <div className="flex flex-wrap items-center gap-2"><a className="underline" href={receiptLink} target="_blank" rel="noreferrer">Mở link receipt</a><button type="button" className="rounded border border-green-400 px-2 py-1 text-xs" onClick={async () => { await navigator.clipboard.writeText(receiptLink); }}>Copy link</button></div>}</div>}
