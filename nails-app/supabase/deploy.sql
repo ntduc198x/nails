@@ -26,8 +26,11 @@ create table if not exists profiles (
   org_id uuid not null references orgs(id) on delete cascade,
   default_branch_id uuid references branches(id),
   display_name text,
+  phone text,
   created_at timestamptz not null default now()
 );
+
+alter table public.profiles add column if not exists phone text;
 
 create table if not exists user_roles (
   id uuid primary key default gen_random_uuid(),

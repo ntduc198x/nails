@@ -39,6 +39,7 @@ const navGroups = [
 ] as const;
 
 function canAccess(role: AppRole, href: string) {
+  if (href === "/account") return true;
   if (role === "OWNER") return true;
   if (role === "MANAGER") return href !== "/tax-books";
   if (role === "RECEPTION") return ["/", "/appointments", "/resources", "/checkout", "/shifts", "/technician"].includes(href);
@@ -242,10 +243,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           <button className="btn btn-outline md:hidden" type="button" onClick={() => setMobileOpen((v) => !v)}>Menu</button>
 
-          <div className="hidden text-right text-xs md:block">
-            <p style={{ color: "var(--color-text-secondary)" }}>{email || "No session"}</p>
-            <p className="font-semibold">{role}</p>
-            <button onClick={onLogout} className="btn btn-outline mt-1 px-2 py-1 text-xs">Logout</button>
+          <div className="hidden items-center gap-2 md:flex">
+            <Link
+              href="/account"
+              className="rounded-2xl border px-4 py-2 text-right text-xs transition hover:bg-[#faf7f2]"
+              style={{ borderColor: "var(--color-border)", background: "#fff8cf" }}
+            >
+              <p style={{ color: "var(--color-text-secondary)" }}>{email || "No session"}</p>
+              <p className="font-semibold">{role}</p>
+            </Link>
+            <button onClick={onLogout} className="btn btn-outline px-2 py-1 text-xs">Logout</button>
           </div>
         </div>
 
@@ -266,8 +273,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </details>
               ))}
               <div className="rounded-2xl border bg-white p-3 text-xs" style={{ borderColor: "var(--color-border)" }}>
-                <p style={{ color: "var(--color-text-secondary)" }}>{email || "No session"}</p>
-                <p className="font-semibold">{role}</p>
+                <Link
+                  href="/account"
+                  className="block rounded-2xl border px-4 py-3 transition hover:bg-[#faf7f2]"
+                  style={{ borderColor: "var(--color-border)", background: "#fff8cf" }}
+                  onClick={() => setMobileOpen(false)}
+                >
+                  <p style={{ color: "var(--color-text-secondary)" }}>{email || "No session"}</p>
+                  <p className="font-semibold">{role}</p>
+                </Link>
                 <button onClick={onLogout} className="btn btn-outline mt-2 px-2 py-1 text-xs">Logout</button>
               </div>
             </div>
