@@ -5,13 +5,50 @@ import { listUserRoles } from "@/lib/auth";
 import { getReportBreakdown, getStaffRevenueInRange, listTicketsInRange, listTimeEntriesInRange, type ReportTicketRow } from "@/lib/reporting";
 import { formatVnd } from "@/lib/mock-data";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+type RangeMode = "day" | "week" | "month" | "custom";
 
 function toDateInput(d: Date) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+function startOfDay(date: Date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function endOfDay(date: Date) {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+function startOfWeek(date: Date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const day = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - day);
+  return d;
+}
+
+function endOfWeek(date: Date) {
+  const d = startOfWeek(date);
+  d.setDate(d.getDate() + 6);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+function startOfMonth(year: number, monthIndex: number) {
+  return new Date(year, monthIndex, 1, 0, 0, 0, 0);
+}
+
+function endOfMonth(year: number, monthIndex: number) {
+  return new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
 }
 
 function downloadCsv(filename: string, rows: string[][]) {
@@ -26,7 +63,12 @@ function downloadCsv(filename: string, rows: string[][]) {
 }
 
 export default function ReportsPage() {
-  const today = new Date();
+  const [today] = useState(() => new Date());
+  const [rangeMode, setRangeMode] = useState<RangeMode>("day");
+  const [dayValue, setDayValue] = useState(toDateInput(today));
+  const [weekAnchor, setWeekAnchor] = useState(toDateInput(today));
+  const [monthValue, setMonthValue] = useState(String(today.getMonth() + 1));
+  const [yearValue, setYearValue] = useState(String(today.getFullYear()));
   const [fromDate, setFromDate] = useState(toDateInput(today));
   const [toDate, setToDate] = useState(toDateInput(new Date(today.getTime() + 24 * 60 * 60 * 1000)));
   const [staffFilter, setStaffFilter] = useState<string>("ALL");
@@ -43,17 +85,38 @@ export default function ReportsPage() {
   const [breakdownError, setBreakdownError] = useState<string | null>(null);
   const [staffHours, setStaffHours] = useState<Array<{ staff: string; minutes: number; entries: number }>>([]);
   const [staffRevenue, setStaffRevenue] = useState<Array<{ staffUserId: string; staff: string; revenue: number; tickets: number }>>([]);
+  const hasLoadedRef = useRef(false);
+
+  const range = useMemo(() => {
+    if (rangeMode === "day") {
+      const day = new Date(`${dayValue}T00:00:00`);
+      return { from: startOfDay(day), to: endOfDay(day) };
+    }
+    if (rangeMode === "week") {
+      const anchor = new Date(`${weekAnchor}T00:00:00`);
+      return { from: startOfWeek(anchor), to: endOfWeek(anchor) };
+    }
+    if (rangeMode === "month") {
+      const year = Number(yearValue) || today.getFullYear();
+      const monthIndex = Math.max(0, Math.min(11, (Number(monthValue) || 1) - 1));
+      return { from: startOfMonth(year, monthIndex), to: endOfMonth(year, monthIndex) };
+    }
+    return {
+      from: new Date(`${fromDate}T00:00:00`),
+      to: new Date(`${toDate}T23:59:59`),
+    };
+  }, [rangeMode, dayValue, weekAnchor, monthValue, yearValue, fromDate, toDate, today]);
 
   const load = useCallback(async () => {
-    const isInitial = rows.length === 0;
+    const isInitial = !hasLoadedRef.current;
     try {
       setError(null);
       setBreakdownError(null);
       if (isInitial) setLoading(true);
       else setRefreshing(true);
 
-      const fromIso = new Date(`${fromDate}T00:00:00`).toISOString();
-      const toIso = new Date(`${toDate}T00:00:00`).toISOString();
+      const fromIso = range.from.toISOString();
+      const toIso = range.to.toISOString();
 
       const data = await listTicketsInRange(fromIso, toIso);
       setRows(data);
@@ -69,15 +132,15 @@ export default function ReportsPage() {
         setBreakdown(summaryData);
         setStaffRevenue(staffRevenueRows);
 
+        const team = (teamRows ?? []) as Array<{ user_id: string; display_name?: string; role?: string }>;
+        const eligibleStaffIds = new Set(team.filter((r) => r.role !== "OWNER").map((r) => r.user_id));
         const nameMap = new Map(
-          ((teamRows ?? []) as Array<{ user_id: string; display_name?: string }>).map((r: { user_id: string; display_name?: string }) => [
-            r.user_id,
-            r.display_name || String(r.user_id).slice(0, 8),
-          ]),
+          team.map((r) => [r.user_id, r.display_name || String(r.user_id).slice(0, 8)]),
         );
 
         const map = new Map<string, { minutes: number; entries: number }>();
         for (const r of timeRows as Array<{ staff_user_id: string; clock_in: string; clock_out: string | null }>) {
+          if (!eligibleStaffIds.has(r.staff_user_id)) continue;
           const key = nameMap.get(r.staff_user_id) ?? r.staff_user_id;
           const start = new Date(r.clock_in).getTime();
           const end = r.clock_out ? new Date(r.clock_out).getTime() : Date.now();
@@ -100,10 +163,11 @@ export default function ReportsPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load reports failed");
     } finally {
+      hasLoadedRef.current = true;
       if (isInitial) setLoading(false);
       else setRefreshing(false);
     }
-  }, [fromDate, toDate, rows.length]);
+  }, [range.from, range.to]);
 
   useEffect(() => {
     void load();
@@ -176,7 +240,7 @@ export default function ReportsPage() {
       ]);
     }
 
-    downloadCsv(`nails-report-${fromDate}-to-${toDate}.csv`, rowsOut);
+    downloadCsv(`nails-report-${rangeMode}.csv`, rowsOut);
   }
 
   return (
@@ -191,9 +255,40 @@ export default function ReportsPage() {
             {refreshing && <span className="badge-soft">Đang làm mới...</span>}
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            <input className="input" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-            <span className="text-sm text-neutral-500">đến</span>
-            <input className="input" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+            <select className="input" value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}>
+              <option value="day">Hôm nay / theo ngày</option>
+              <option value="week">Theo tuần</option>
+              <option value="month">Theo tháng</option>
+              <option value="custom">Tùy chỉnh</option>
+            </select>
+
+            {rangeMode === "day" && (
+              <input className="input" type="date" value={dayValue} onChange={(e) => setDayValue(e.target.value)} />
+            )}
+
+            {rangeMode === "week" && (
+              <input className="input" type="date" value={weekAnchor} onChange={(e) => setWeekAnchor(e.target.value)} />
+            )}
+
+            {rangeMode === "month" && (
+              <>
+                <select className="input" value={monthValue} onChange={(e) => setMonthValue(e.target.value)}>
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                    <option key={m} value={String(m)}>{`Tháng ${m}`}</option>
+                  ))}
+                </select>
+                <input className="input w-[120px]" type="number" value={yearValue} onChange={(e) => setYearValue(e.target.value)} />
+              </>
+            )}
+
+            {rangeMode === "custom" && (
+              <>
+                <input className="input" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+                <span className="text-sm text-neutral-500">đến</span>
+                <input className="input" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+              </>
+            )}
+
             <select className="input" value={staffFilter} onChange={(e) => setStaffFilter(e.target.value)}>
               <option value="ALL">Tất cả nhân viên</option>
               {staffRevenue.map((row) => (

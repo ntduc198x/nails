@@ -1,4 +1,4 @@
-import { getCurrentSessionRole } from "@/lib/auth";
+import { getCurrentSessionRole, listUserRoles } from "@/lib/auth";
 import { ensureOrgContext } from "@/lib/domain";
 import { supabase } from "@/lib/supabase";
 
@@ -44,7 +44,7 @@ export async function listTicketsInRange(fromIso: string, toIso: string) {
   }));
 }
 
-let dashboardCache: { at: number; value: { appointmentsToday: number; waiting: number; active: number; revenue: number; closedCount: number; checkingInCustomers: string[]; waitingSchedule: Array<{ time: string; customer: string; staff: string }>; activeServiceBoard: Array<{ time: string; customer: string; staff: string }> } } | null = null;
+let dashboardCache: { at: number; value: { appointmentsToday: number; waiting: number; active: number; revenue: number; closedCount: number; checkingInCustomers: string[]; waitingSchedule: Array<{ time: string; customer: string; staff: string }>; activeServiceBoard: Array<{ time: string; customer: string; staff: string; status: string; appointmentId: string }> } } | null = null;
 const DASHBOARD_TTL = 20_000;
 
 export async function getDashboardSnapshot(opts?: { force?: boolean }): Promise<{ appointmentsToday: number; waiting: number; active: number; revenue: number; closedCount: number; checkingInCustomers: string[]; waitingSchedule: Array<{ time: string; customer: string; staff: string }>; activeServiceBoard: Array<{ time: string; customer: string; staff: string; status: string; appointmentId: string }> }> {
@@ -137,6 +137,19 @@ export async function getDashboardSnapshot(opts?: { force?: boolean }): Promise<
     };
   });
 
+  const activeServiceBoard = checkingInRows.map((a) => {
+    const c = a.customers as { name?: string } | Array<{ name?: string }> | null | undefined;
+    const customer = (Array.isArray(c) ? c[0]?.name : c?.name) || "-";
+    const staff = a.staff_user_id ? (staffNameMap.get(a.staff_user_id as string) ?? "-") : "-";
+    return {
+      time: new Date(a.start_at as string).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
+      customer,
+      staff,
+      status: String(a.status ?? "CHECKED_IN"),
+      appointmentId: String(a.id ?? ""),
+    };
+  });
+
   const snapshot = {
     appointmentsToday: appointments.length,
     waiting,
@@ -145,6 +158,7 @@ export async function getDashboardSnapshot(opts?: { force?: boolean }): Promise<
     closedCount: count,
     checkingInCustomers,
     waitingSchedule,
+    activeServiceBoard,
   };
 
   dashboardCache = { at: Date.now(), value: snapshot };
