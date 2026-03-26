@@ -115,7 +115,7 @@ export default function CheckoutPage() {
     if (submitting) return;
     try {
       setSubmitting(true); setError(null); setDedupeNotice(null);
-      if (role === "ACCOUNTANT" || role === "TECH") throw new Error("Role hiện tại không được phép tạo thanh toán.");
+      if (role === "ACCOUNTANT") throw new Error("Role hiện tại không được phép tạo thanh toán.");
       const valid = lines.filter((l) => l.serviceId && l.qty > 0);
       if (!valid.length) throw new Error("Vui lòng chọn ít nhất 1 dịch vụ trước khi Pay & Close");
       const idempotencyKey = (typeof crypto !== "undefined" && "randomUUID" in crypto) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -137,6 +137,7 @@ export default function CheckoutPage() {
       <div className="space-y-4 pb-24 md:pb-0">
         <div className="flex items-center gap-2"><h2 className="page-title">Checkout (Ticket + Payment + Receipt)</h2>{refreshing && <span className="text-xs text-neutral-500">Đang làm mới...</span>}</div>
         {role === "ACCOUNTANT" && <p className="text-sm text-amber-700">Role ACCOUNTANT chỉ xem dữ liệu checkout, không tạo Pay & Close.</p>}
+        {role === "TECH" && <p className="text-sm text-emerald-700">Role TECH đã được mở quyền checkout cho khách trong luồng vận hành.</p>}
         {appointmentId && <p className="text-sm text-neutral-600">Đang checkout từ appointment: <code>{appointmentId}</code></p>}
 
         <form onSubmit={onSubmit} className="space-y-3 card">

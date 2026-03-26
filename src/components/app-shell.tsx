@@ -1,5 +1,6 @@
 "use client";
 
+import { countNewBookingRequests } from "@/lib/booking-requests";
 import { getOrCreateRole, type AppRole } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
@@ -63,6 +64,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [authError, setAuthError] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
+  const [newBookingCount, setNewBookingCount] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -130,6 +132,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [router]);
 
+  useEffect(() => {
+    if (!["OWNER", "MANAGER", "RECEPTION"].includes(role)) return;
+    let disposed = false;
+
+    async function loadBookingBadge() {
+      try {
+        const count = await countNewBookingRequests();
+        if (!disposed) setNewBookingCount(count);
+      } catch {}
+    }
+
+    void loadBookingBadge();
+    const id = setInterval(() => {
+      void loadBookingBadge();
+    }, 30000);
+
+    return () => {
+      disposed = true;
+      clearInterval(id);
+    };
+  }, [role]);
+
   const visibleGroups = useMemo(() => {
     if (role === "TECH") {
       const operationalGroup = navGroups.find((group) => group.label === "Vận hành");
@@ -179,6 +203,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     router.replace("/login");
   }
 
+  function renderItemLabel(label: string, href: string) {
+    const isBookingRequests = href === "/manage/booking-requests";
+    return (
+      <span className="inline-flex items-center gap-2">
+        <span>{label}</span>
+        {isBookingRequests && newBookingCount > 0 && (
+          <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[var(--color-primary)] px-1.5 py-0.5 text-[10px] font-bold text-white">
+            {newBookingCount > 99 ? "99+" : newBookingCount}
+          </span>
+        )}
+      </span>
+    );
+  }
+
   if (loading) return <div className="p-8 text-sm" style={{ color: "var(--color-text-secondary)" }}>Đang kiểm tra đăng nhập...</div>;
 
   if (authError) {
@@ -210,7 +248,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 return (
                   <div key={group.label} onMouseEnter={() => setHoveredGroup(group.label)} onMouseLeave={() => setHoveredGroup((current) => (current === group.label ? null : current))}>
                     <Link href={directHref} className="nav-link rounded-full px-4 py-2 text-sm transition" style={active || hovered ? { background: "var(--color-primary)", color: "#fff" } : { color: "var(--color-text-secondary)" }}>
-                      {group.label}
+                      {renderItemLabel(group.label, directHref)}
                     </Link>
                   </div>
                 );
@@ -229,7 +267,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                           const itemActive = pathname === item.href;
                           return (
                             <Link key={item.href} href={item.href} className="rounded-2xl px-4 py-3 transition hover:bg-[#faf7f2]" style={itemActive ? { background: "#fff1f3" } : undefined}>
-                              <p className="text-sm font-semibold" style={{ color: itemActive ? "var(--color-primary)" : "var(--color-text-main)" }}>{item.label}</p>
+                              <p className="text-sm font-semibold" style={{ color: itemActive ? "var(--color-primary)" : "var(--color-text-main)" }}>{renderItemLabel(item.label, item.href)}</p>
                               <p className="mt-1 text-xs" style={{ color: "var(--color-text-secondary)" }}>{item.desc}</p>
                             </Link>
                           );
@@ -266,7 +304,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <div className="mt-3 grid gap-2">
                     {group.items.map((item) => (
                       <Link key={item.href} href={item.href} className="rounded-xl px-3 py-2 hover:bg-[#faf7f2]" onClick={() => setMobileOpen(false)}>
-                        <p className="text-sm font-semibold">{item.label}</p>
+                        <p className="text-sm font-semibold">{renderItemLabel(item.label, item.href)}</p>
                         <p className="text-xs" style={{ color: "var(--color-text-secondary)" }}>{item.desc}</p>
                       </Link>
                     ))}

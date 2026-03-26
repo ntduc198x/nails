@@ -1,9 +1,10 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
+import { countNewBookingRequests, listBookingRequests, type BookingRequestRow } from "@/lib/booking-requests";
 import { listAppointments, listStaffMembers } from "@/lib/domain";
-import { getReportBreakdown, getStaffRevenueInRange } from "@/lib/reporting";
 import { formatVnd } from "@/lib/mock-data";
+import { getReportBreakdown, getStaffRevenueInRange } from "@/lib/reporting";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type DashboardAppointment = {
@@ -46,6 +47,8 @@ export default function DashboardPage() {
   const hasLoadedRef = useRef(false);
   const [topServices, setTopServices] = useState<Array<{ service_name: string; qty: number; subtotal: number }>>([]);
   const [topStaffRevenue, setTopStaffRevenue] = useState<Array<{ staffUserId: string; staff: string; revenue: number; tickets: number }>>([]);
+  const [newBookingCount, setNewBookingCount] = useState(0);
+  const [latestBookingRequests, setLatestBookingRequests] = useState<BookingRequestRow[]>([]);
   const [data, setData] = useState<DashboardData>({
     appointmentsToday: 0,
     waiting: 0,
@@ -66,11 +69,13 @@ export default function DashboardPage() {
       const end = new Date(start);
       end.setDate(end.getDate() + 1);
 
-      const [appointments, staffRows, breakdown, staffRevenue] = await Promise.all([
+      const [appointments, staffRows, breakdown, staffRevenue, bookingRequests, bookingCount] = await Promise.all([
         listAppointments({ force: opts?.force }),
         listStaffMembers(),
         getReportBreakdown(start.toISOString(), end.toISOString()),
         getStaffRevenueInRange(start.toISOString(), end.toISOString()),
+        listBookingRequests("NEW"),
+        countNewBookingRequests(),
       ]);
 
       const staffMap = new Map((staffRows ?? []).map((s: { userId: string; name: string }) => [s.userId, s.name]));
@@ -108,6 +113,8 @@ export default function DashboardPage() {
 
       setTopServices((breakdown.by_service ?? []).slice(0, 3));
       setTopStaffRevenue(staffRevenue.slice(0, 5));
+      setLatestBookingRequests((bookingRequests as BookingRequestRow[]).slice(0, 5));
+      setNewBookingCount(bookingCount);
       setLastUpdated(new Date());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load dashboard failed");
@@ -146,6 +153,9 @@ export default function DashboardPage() {
           </div>
           {error && <p className="mt-2 text-sm text-red-600">Lỗi: {error}</p>}
           <div className="mt-4 flex flex-wrap gap-2">
+            <a href="/manage/booking-requests" className="rounded-full border border-[#eadfce] bg-[#fff1f3] px-4 py-2 text-sm font-medium text-[var(--color-primary)] transition hover:bg-[var(--color-primary)] hover:text-white">
+              Booking requests {newBookingCount > 0 ? `(${newBookingCount})` : ""}
+            </a>
             <a href="/manage/technician" className="rounded-full border border-[#eadfce] bg-[#f6efe6] px-4 py-2 text-sm transition hover:bg-[var(--color-primary)] hover:text-white">Techboard</a>
             <a href="/manage/appointments" className="rounded-full border border-[#eadfce] bg-[#f6efe6] px-4 py-2 text-sm transition hover:bg-[var(--color-primary)] hover:text-white">Appointments</a>
             <a href="/manage/checkout" className="rounded-full border border-[#eadfce] bg-[#f6efe6] px-4 py-2 text-sm transition hover:bg-[var(--color-primary)] hover:text-white">Checkout</a>
@@ -162,27 +172,36 @@ export default function DashboardPage() {
 
         <section className="page-grid md:grid-cols-3">
           <div className="card">
-            <h3 className="text-lg font-semibold">Lịch khách chờ theo thợ</h3>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-lg font-semibold">Booking requests mới</h3>
+              <a href="/manage/booking-requests" className="text-xs font-medium text-[var(--color-primary)] underline underline-offset-2">Mở trang xử lý</a>
+            </div>
             <div className="mt-4 space-y-2">
               {loading ? (
                 <><div className="skeleton h-16 rounded-2xl" /><div className="skeleton h-16 rounded-2xl" /></>
-              ) : data.waitingSchedule.length ? (
-                data.waitingSchedule.map((item, idx) => (
-                  <div key={`${item.time}-${item.customer}-${idx}`} className="rounded-2xl border border-neutral-100 px-4 py-3 text-sm">
-                    <p className="font-semibold">{item.time}</p>
-                    <p className="mt-1 font-medium">Khách: {item.customer}</p>
-                    <p className="text-neutral-500">Thợ: {item.staff}</p>
+              ) : latestBookingRequests.length ? (
+                latestBookingRequests.map((item) => (
+                  <div key={item.id} className="rounded-2xl border border-neutral-100 px-4 py-3 text-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold">{item.customer_name}</p>
+                        <p className="mt-1 text-neutral-500">{item.customer_phone}</p>
+                      </div>
+                      <span className="badge-soft">{item.status}</span>
+                    </div>
+                    <p className="mt-2 text-neutral-600">{new Date(item.requested_start_at).toLocaleString("vi-VN")}</p>
+                    <p className="text-neutral-500">DV: {item.requested_service ?? "-"}</p>
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-neutral-500">Chưa có khách chờ.</p>
+                <p className="text-sm text-neutral-500">Chưa có booking request mới.</p>
               )}
             </div>
           </div>
 
           <div className="card md:col-span-2">
             <h3 className="text-lg font-semibold">Hiệu suất thanh toán</h3>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
               <div>
                 <p className="text-sm text-neutral-500">Tổng bill closed</p>
                 <p className="text-3xl font-bold">{loading ? "..." : data.closedCount}</p>
@@ -190,17 +209,34 @@ export default function DashboardPage() {
                 <p className="text-lg font-semibold">{loading ? "..." : `${formatVnd(data.revenue)} / ${formatVnd(avgBill)}`}</p>
               </div>
               <div>
-                <p className="text-sm text-neutral-500">Khách đang phục vụ</p>
+                <p className="mb-2 text-sm text-neutral-500">Khách chờ</p>
+                {loading ? (
+                  <p className="text-sm">...</p>
+                ) : data.waitingSchedule.length ? (
+                  <div className="space-y-2">
+                    {data.waitingSchedule.slice(0, 5).map((item, idx) => (
+                      <div key={`${item.time}-${item.customer}-${idx}`} className="rounded-lg border border-neutral-100 px-3 py-2 text-sm">
+                        <p className="font-medium">{item.customer}</p>
+                        <p className="text-neutral-500">{item.time}</p>
+                        <p className="text-neutral-500">Thợ: {item.staff}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-neutral-500">Chưa có khách chờ.</p>
+                )}
+              </div>
+              <div>
+                <p className="mb-2 text-sm text-neutral-500">Khách đang phục vụ</p>
                 {loading ? (
                   <p className="text-sm">...</p>
                 ) : data.activeServiceBoard.length ? (
                   <div className="space-y-2">
-                    {data.activeServiceBoard.map((item, idx) => (
+                    {data.activeServiceBoard.slice(0, 5).map((item, idx) => (
                       <div key={`${item.customer}-${item.appointmentId}-${idx}`} className="rounded-lg border border-neutral-100 px-3 py-2 text-sm">
-                        <p className="font-medium">Khách: {item.customer}</p>
+                        <p className="font-medium">{item.customer}</p>
                         <p className="text-neutral-500">Thợ: {item.staff}</p>
-                        <p className="text-neutral-500">Ngày giờ hẹn/phục vụ: {item.time}</p>
-                        <p className="text-neutral-500">Trạng thái: {item.status}</p>
+                        <p className="text-neutral-500">{item.time}</p>
                         <div className="mt-2">
                           <a href={`/manage/checkout?appointmentId=${item.appointmentId}&customer=${encodeURIComponent(item.customer)}`} className="rounded-lg border border-[#eadfce] bg-[#f6efe6] px-3 py-1 text-xs font-medium transition hover:bg-[var(--color-primary)] hover:text-white">Checkout</a>
                         </div>

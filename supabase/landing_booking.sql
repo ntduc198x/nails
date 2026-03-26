@@ -15,8 +15,15 @@ create table if not exists public.booking_requests (
   source text not null default 'landing_page',
   status text not null default 'NEW' check (status in ('NEW','CONFIRMED','CANCELLED','CONVERTED')),
   appointment_id uuid references public.appointments(id) on delete set null,
+  telegram_message_id bigint,
+  telegram_chat_id text,
+  notified_at timestamptz,
   created_at timestamptz not null default now()
 );
+
+alter table public.booking_requests add column if not exists telegram_message_id bigint;
+alter table public.booking_requests add column if not exists telegram_chat_id text;
+alter table public.booking_requests add column if not exists notified_at timestamptz;
 
 create index if not exists idx_booking_requests_org_created_at
   on public.booking_requests (org_id, created_at desc);

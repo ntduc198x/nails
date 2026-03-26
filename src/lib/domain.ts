@@ -456,16 +456,29 @@ export async function createCheckout(input: CheckoutInput) {
   if (!input.lines.length) throw new Error("Cần ít nhất 1 dịch vụ");
 
   const rpcDedupeWindowMs = input.dedupeWindowMs ?? 15000;
-  const { data: rpcData, error: rpcErr } = await supabase.rpc("checkout_close_ticket_secure", {
+  const params = {
     p_customer_name: input.customerName,
     p_payment_method: input.paymentMethod,
     p_lines: input.lines,
     p_appointment_id: input.appointmentId ?? null,
     p_dedupe_window_ms: rpcDedupeWindowMs,
     p_idempotency_key: input.idempotencyKey ?? null,
-  });
+  };
 
-  // Nếu đã deploy RPC mới: dùng kết quả atomic luôn.
+  let { data: rpcData, error: rpcErr } = await supabase.rpc("checkout_close_ticket_secure", params);
+
+  const combinedErr = rpcErr
+    ? [rpcErr.message, (rpcErr as { details?: string }).details, (rpcErr as { hint?: string }).hint]
+        .filter(Boolean)
+        .join(" | ")
+    : "";
+
+  if (rpcErr && combinedErr.includes("FORBIDDEN")) {
+    const fallback = await supabase.rpc("create_checkout_secure", params);
+    rpcData = fallback.data;
+    rpcErr = fallback.error;
+  }
+
   if (!rpcErr && rpcData) {
     ticketsCache = null;
     invalidateDataCaches();
@@ -483,7 +496,6 @@ export async function createCheckout(input: CheckoutInput) {
     const ticketId = out.ticketId ?? out.ticket_id ?? "";
     let receiptToken = out.receiptToken ?? out.receipt_token ?? "";
 
-    // Safety net: nếu RPC chưa trả token nhưng có ticketId thì đọc lại từ receipts
     if (!receiptToken && ticketId) {
       const { data: receiptRows } = await supabase
         .from("receipts")
