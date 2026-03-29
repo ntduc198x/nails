@@ -26,8 +26,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Chạm Beauty | High-End Nail Art",
-  description: "Landing page và hệ thống quản lý lịch hẹn, checkout cho Chạm Beauty.",
+  title: "ChamBeauty AI | Tin tức AI & Công nghệ",
+  description: "ChamBeauty AI - Nền tảng tin tức AI và công nghệ, cập nhật xu hướng trí tuệ nhân tạo mỗi ngày.",
 };
 
 export default function RootLayout({
