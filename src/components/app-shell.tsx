@@ -43,7 +43,6 @@ const navGroups = [
 function canAccess(role: AppRole, href: string) {
   if (href === "/manage/account") return true;
   if (role === "OWNER") return true;
-  if (role === "DEV") return true;
   if (role === "MANAGER") return href !== "/manage/tax-books";
   if (role === "RECEPTION") return ["/manage", "/manage/booking-requests", "/manage/appointments", "/manage/resources", "/manage/checkout", "/manage/shifts", "/manage/technician"].includes(href);
   if (role === "TECH") return ["/manage/appointments", "/manage/checkout", "/manage/technician", "/manage/shifts"].includes(href);

@@ -69,7 +69,7 @@ export default function CheckoutPage() {
       setError(null);
       const currentRole = await getCurrentSessionRole();
       setRole(currentRole);
-      if (!["OWNER", "MANAGER", "RECEPTION", "ACCOUNTANT", "TECH", "DEV"].includes(currentRole)) throw new Error("Vai trò hiện tại không có quyền truy cập trang thanh toán");
+      if (!["OWNER", "MANAGER", "RECEPTION", "ACCOUNTANT", "TECH"].includes(currentRole)) throw new Error("Vai trò hiện tại không có quyền truy cập trang thanh toán");
       const [serviceRows, ticketRows, checkedInRows, openShift] = await Promise.all([
         listServices(),
         listRecentTickets({ fromIso: range.from.toISOString(), toIso: range.to.toISOString(), limit: 200, force: true }),
@@ -163,7 +163,6 @@ export default function CheckoutPage() {
           <div className="mt-3 flex flex-wrap gap-2 text-sm">
              {role === "ACCOUNTANT" && <div className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">Kế toán chỉ xem dữ liệu thanh toán</div>}
              {role === "TECH" && <div className={`rounded-full px-3 py-1 ${techShiftOpen ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{techShiftOpen ? "Kỹ thuật viên đang mở ca, được phép thanh toán" : "Kỹ thuật viên đang đóng ca, không được thanh toán"}</div>}
-+            {role === "DEV" && <div className="rounded-full bg-sky-50 px-3 py-1 text-sky-700">DEV chỉ xem trước giao diện thanh toán, không được tạo bill</div>}
             {role === "ACCOUNTANT" && <div className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">Kế toán chỉ xem dữ liệu thanh toán</div>}
             {role === "TECH" && <div className={`rounded-full px-3 py-1 ${techShiftOpen ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{techShiftOpen ? "Kỹ thuật viên đang mở ca, được phép thanh toán" : "Kỹ thuật viên đang đóng ca, không được thanh toán"}</div>}
             {appointmentId && <div className="rounded-full bg-neutral-100 px-3 py-1 text-neutral-700">Đang gắn appointment: <code>{appointmentId}</code></div>}
@@ -335,13 +334,13 @@ export default function CheckoutPage() {
               </div>
 
               <div className="hidden md:flex flex-col gap-2">
-                <button disabled={submitting || role === "ACCOUNTANT" || role === "DEV" || (role === "TECH" && techShiftOpen === false)} className="btn btn-primary w-full py-3 text-base">{submitting ? "Đang xử lý..." : "Thanh toán và đóng bill"}</button>
+                <button disabled={submitting || role === "ACCOUNTANT" || (role === "TECH" && techShiftOpen === false)} className="btn btn-primary w-full py-3 text-base">{submitting ? "Đang xử lý..." : "Thanh toán và đóng bill"}</button>
                 {role === "TECH" && techShiftOpen === false && <p className="text-xs text-amber-700">Cần mở ca trước khi thanh toán.</p>}
               </div>
             </div>
           </div>
 
-          <div className="fixed bottom-0 left-0 right-0 z-10 border-t bg-white p-3 md:hidden"><div className="mx-auto flex max-w-6xl gap-2"><button type="button" onClick={addLine} className="flex-1 rounded-lg border px-4 py-3 text-sm font-medium" disabled={role === "DEV"}>+ Thêm dòng</button><button disabled={submitting || role === "ACCOUNTANT" || role === "DEV" || (role === "TECH" && techShiftOpen === false)} className="flex-1 btn btn-primary py-3">{submitting ? "Đang xử lý..." : "Thanh toán"}</button></div>{role === "TECH" && techShiftOpen === false && <p className="mt-2 text-xs text-amber-700">Cần mở ca trước khi thanh toán.</p>}{role === "DEV" && <p className="mt-2 text-xs text-sky-700">DEV chỉ xem trước flow thanh toán, không được thao tác.</p>}</div>
+          <div className="fixed bottom-0 left-0 right-0 z-10 border-t bg-white p-3 md:hidden"><div className="mx-auto flex max-w-6xl gap-2"><button type="button" onClick={addLine} className="flex-1 rounded-lg border px-4 py-3 text-sm font-medium">+ Thêm dòng</button><button disabled={submitting || role === "ACCOUNTANT" || (role === "TECH" && techShiftOpen === false)} className="flex-1 btn btn-primary py-3">{submitting ? "Đang xử lý..." : "Thanh toán"}</button></div>{role === "TECH" && techShiftOpen === false && <p className="mt-2 text-xs text-amber-700">Cần mở ca trước khi thanh toán.</p>}</div>
         </form>
       </div>
     </AppShell>

@@ -227,7 +227,6 @@ export default function AppointmentsPage() {
     });
   }, [scopedRows, statusFilter, filterRange]);
 
-  const isDevPreview = role === "DEV";
   const pendingCheckoutRows = useMemo(() => scopedRows.filter((r) => r.status === "CHECKED_IN"), [scopedRows]);
   const activeBookedRows = useMemo(() => scopedRows.filter((r) => r.status === "BOOKED"), [scopedRows]);
 
@@ -344,10 +343,6 @@ export default function AppointmentsPage() {
           <div className="manage-error-box">{error}</div>
         ) : null}
 
-        {isDevPreview ? (
-          <div className="manage-warn-box">DEV đang ở chế độ xem trước. Có thể xem lịch hẹn nhưng không được tạo mới, đổi trạng thái hay điều phối nhân sự/tài nguyên.</div>
-        ) : null}
-
         <ManageQuickNav items={[
           { href: "/manage/technician", label: "Bảng kỹ thuật" },
           { href: "/manage/checkout", label: "Thanh toán" },
@@ -384,7 +379,7 @@ export default function AppointmentsPage() {
 
               <div>
                 <FieldLabel>Thợ phụ trách</FieldLabel>
-                <SelectInput value={staffUserId} onChange={(e) => setStaffUserId(e.target.value)} disabled={submitting || role === "TECH" || isDevPreview}>
+                <SelectInput value={staffUserId} onChange={(e) => setStaffUserId(e.target.value)} disabled={submitting || role === "TECH"}>
                   <option value="">-- Chọn thợ --</option>
                   {staffOptions.map((s) => <option key={s.userId} value={s.userId}>{s.name}</option>)}
                 </SelectInput>
@@ -392,7 +387,7 @@ export default function AppointmentsPage() {
 
               <div>
                 <FieldLabel>Số ghế</FieldLabel>
-                <SelectInput value={resourceId} onChange={(e) => setResourceId(e.target.value)} disabled={submitting || isDevPreview} required>
+                <SelectInput value={resourceId} onChange={(e) => setResourceId(e.target.value)} disabled={submitting} required>
                   <option value="">-- Chọn số ghế --</option>
                   {resourceOptions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
                 </SelectInput>
@@ -413,7 +408,7 @@ export default function AppointmentsPage() {
               </div>
 
               <div className="flex gap-2">
-                <button className="flex-1 rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting || !staffUserId || !resourceId || isDevPreview}>
+                <button className="flex-1 rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting || !staffUserId || !resourceId}>
                   {submitting ? "Đang xử lý..." : editingId ? "Lưu lịch hẹn" : "Tạo lịch hẹn"}
                 </button>
                 {editingId && (

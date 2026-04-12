@@ -140,7 +140,6 @@ export default function ShiftsPage() {
   }
 
   const canUse = role === "OWNER" || role === "MANAGER" || role === "RECEPTION" || role === "TECH";
-  const isDevPreview = role === "DEV";
   const canManageView = canManageTeamView(role);
   const memberMap = useMemo(() => new Map(teamMembers.map((m) => [m.user_id, { name: (m.display_name || String(m.user_id).slice(0, 8)).trim(), role: m.role || "-" }])), [teamMembers]);
   const visibleEntries = useMemo(() => {
@@ -233,7 +232,7 @@ export default function ShiftsPage() {
             <button onClick={clockIn} disabled={role === "OWNER" || submitting || Boolean(activeEntry)} className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-60">{submitting ? "Đang xử lý..." : "Mở ca"}</button>
             <button onClick={clockOut} disabled={role === "OWNER" || submitting || !activeEntry} className="btn btn-outline disabled:cursor-not-allowed disabled:opacity-60">{submitting ? "Đang xử lý..." : "Đóng ca"}</button>
           </div>
-        ) : isDevPreview ? <div className="manage-warn-box">DEV chỉ xem trước màn chấm công và báo cáo ca làm, không được mở ca hoặc đóng ca.</div> : <p className="text-sm text-amber-700">Vai trò hiện tại không được chấm công.</p>}
+        ) : <p className="text-sm text-amber-700">Vai trò hiện tại không được chấm công.</p>}
 
         <div className="grid gap-3 md:grid-cols-3">
           <ManageStatCard label="Tổng ca theo bộ lọc" value={filteredEntries.length} />

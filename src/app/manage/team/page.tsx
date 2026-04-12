@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 
 type UserRoleRow = { id: string; user_id: string; role: AppRole; display_name?: string };
 
-const roleOptions: AppRole[] = ["DEV", "MANAGER", "RECEPTION", "ACCOUNTANT", "TECH"];
+const roleOptions: AppRole[] = ["MANAGER", "RECEPTION", "ACCOUNTANT", "TECH"];
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">{children}</label>;
@@ -36,7 +36,6 @@ export default function TeamPage() {
   const [error, setError] = useState<string | null>(null);
 
   const canManage = myRole === "OWNER";
-  const isDevPreview = myRole === "DEV";
 
   const roleStats = useMemo(() => {
     const stats = new Map<AppRole, number>();
@@ -146,10 +145,6 @@ export default function TeamPage() {
 
         {error ? (
           <div className="manage-error-box">{error}</div>
-        ) : null}
-
-        {isDevPreview ? (
-          <div className="manage-warn-box">Tài khoản DEV chỉ xem trước tính năng và dữ liệu. Mọi thao tác đổi vai trò, tạo mã mời hoặc chỉnh sửa nhân sự đều bị khóa.</div>
         ) : null}
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">

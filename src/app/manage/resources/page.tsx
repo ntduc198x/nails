@@ -59,7 +59,6 @@ export default function ResourcesPage() {
     void load();
   }, []);
 
-  const isDevPreview = role === "DEV";
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -116,10 +115,6 @@ export default function ResourcesPage() {
           <div className="manage-error-box">{error}</div>
         ) : null}
 
-        {isDevPreview ? (
-          <div className="manage-warn-box">DEV chỉ xem trước dữ liệu tài nguyên. Các thao tác thêm, sửa hoặc bật tắt trạng thái đều bị khóa.</div>
-        ) : null}
-
         <form onSubmit={onSubmit} className="manage-surface md:p-6">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
@@ -132,17 +127,17 @@ export default function ResourcesPage() {
           <div className="grid gap-4 md:grid-cols-[1.3fr_0.9fr_auto] md:items-end">
             <div>
               <FieldLabel>Tên tài nguyên</FieldLabel>
-              <TextInput placeholder="Ví dụ: Ghế 01" value={name} onChange={(e) => setName(e.target.value)} required disabled={isDevPreview} />
+              <TextInput placeholder="Ví dụ: Ghế 01" value={name} onChange={(e) => setName(e.target.value)} required />
             </div>
             <div>
               <FieldLabel>Loại</FieldLabel>
-              <SelectInput value={type} onChange={(e) => setType(e.target.value as "CHAIR" | "TABLE" | "ROOM") } disabled={isDevPreview}>
+              <SelectInput value={type} onChange={(e) => setType(e.target.value as "CHAIR" | "TABLE" | "ROOM") }>
                 <option value="CHAIR">CHAIR</option>
                 <option value="TABLE">TABLE</option>
                 <option value="ROOM">ROOM</option>
               </SelectInput>
             </div>
-            <button className="rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting || isDevPreview}>
+            <button className="rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting}>
               {submitting ? "Đang thêm..." : "Thêm tài nguyên"}
             </button>
           </div>
@@ -179,7 +174,7 @@ export default function ResourcesPage() {
                         <p className="mt-1 text-sm text-neutral-500">Loại: {r.type}</p>
                       </div>
                       {!isEditing ? (
-                        <button className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50" onClick={() => startEdit(r)} type="button" disabled={isDevPreview}>
+                        <button className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50" onClick={() => startEdit(r)} type="button">
                           Sửa
                         </button>
                       ) : null}
@@ -189,25 +184,25 @@ export default function ResourcesPage() {
                       <div className="space-y-4">
                         <div>
                           <FieldLabel>Tên</FieldLabel>
-                          <TextInput value={editName} onChange={(e) => setEditName(e.target.value)} disabled={isDevPreview} />
+                          <TextInput value={editName} onChange={(e) => setEditName(e.target.value)} />
                         </div>
                         <div>
                           <FieldLabel>Loại</FieldLabel>
-                          <SelectInput value={editType} onChange={(e) => setEditType(e.target.value as "CHAIR" | "TABLE" | "ROOM") } disabled={isDevPreview}>
+                          <SelectInput value={editType} onChange={(e) => setEditType(e.target.value as "CHAIR" | "TABLE" | "ROOM") }>
                             <option value="CHAIR">CHAIR</option>
                             <option value="TABLE">TABLE</option>
                             <option value="ROOM">ROOM</option>
                           </SelectInput>
                         </div>
                         <label className="flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-700">
-                          <input type="checkbox" className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-400" checked={editActive} onChange={(e) => setEditActive(e.target.checked)} disabled={isDevPreview} />
+                          <input type="checkbox" className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-400" checked={editActive} onChange={(e) => setEditActive(e.target.checked)} />
                           Tài nguyên đang hoạt động
                         </label>
                         <div className="flex gap-2">
                           <button className="flex-1 rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50" onClick={() => setEditingId(null)} type="button">
                             Huỷ
                           </button>
-                          <button className="flex-1 rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60" onClick={() => void saveEdit()} type="button" disabled={submitting || isDevPreview}>
+                          <button className="flex-1 rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60" onClick={() => void saveEdit()} type="button" disabled={submitting}>
                             {submitting ? "Đang lưu..." : "Lưu"}
                           </button>
                         </div>

@@ -211,7 +211,7 @@ export default function ServicesPage() {
           </div>
         </div>
 
-        {role === "ACCOUNTANT" || role === "TECH" || role === "DEV" ? (
+        {role === "ACCOUNTANT" || role === "TECH" ? (
           <div className="manage-warn-box">
             Vai trò hiện tại chỉ xem danh sách dịch vụ, không thêm hoặc chỉnh sửa dữ liệu.
           </div>
@@ -300,7 +300,7 @@ export default function ServicesPage() {
                 Gợi ý: dùng ảnh tỉ lệ dọc hoặc ngang rõ sản phẩm. Với bản hoàn chỉnh này, ảnh thật nằm ở storage/CDN, còn DB chỉ lưu <b>image_url</b>.
               </div>
 
-              <button disabled={submitting || role === "ACCOUNTANT" || role === "TECH" || role === "DEV"} className="w-full rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60">
+              <button disabled={submitting || role === "ACCOUNTANT" || role === "TECH"} className="w-full rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60">
                 {submitting ? "Đang thêm dịch vụ..." : "Thêm dịch vụ"}
               </button>
             </div>
@@ -372,7 +372,7 @@ export default function ServicesPage() {
                             <p className="mt-2 text-sm text-neutral-500">{isEditing ? "Chỉnh dịch vụ và dữ liệu hiển thị ngoài landing." : (s.short_description || "Chưa có mô tả ngắn cho landing.")}</p>
                           </div>
 
-                          {role === "ACCOUNTANT" || role === "TECH" || role === "DEV" ? null : isEditing ? (
+                          {role === "ACCOUNTANT" || role === "TECH" ? null : isEditing ? (
                             <div className="flex gap-2">
                               <button className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50" type="button" onClick={() => setEditingId(null)}>
                                 Huỷ

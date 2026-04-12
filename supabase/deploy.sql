@@ -1,5 +1,6 @@
 -- Unified Supabase deploy script (single-file setup)
 -- This file consolidates schema + RLS + RPC + integrity + indexes.
+-- Active deploy target: run this file as the canonical setup script.
 
 
 -- ===== BEGIN schema.sql =====
@@ -70,6 +71,12 @@ create table if not exists services (
   created_at timestamptz not null default now()
 );
 
+alter table public.services
+  add column if not exists short_description text,
+  add column if not exists image_url text,
+  add column if not exists display_order int not null default 0,
+  add column if not exists featured_in_lookbook boolean not null default false;
+
 create table if not exists appointments (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references orgs(id) on delete cascade,
@@ -130,6 +137,56 @@ create table if not exists receipts (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.invite_codes (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references public.orgs(id) on delete cascade,
+  code text not null,
+  created_by uuid,
+  allowed_role text not null check (allowed_role in ('MANAGER','RECEPTION','ACCOUNTANT','TECH')) default 'TECH',
+  expires_at timestamptz not null default (now() + interval '15 minutes'),
+  max_uses int not null default 1 check (max_uses = 1),
+  used_count int not null default 0 check (used_count >= 0 and used_count <= max_uses),
+  used_by uuid,
+  used_at timestamptz,
+  revoked_at timestamptz,
+  note text,
+  created_at timestamptz not null default now(),
+  unique (org_id, code)
+);
+
+create table if not exists public.booking_requests (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references public.orgs(id) on delete cascade,
+  branch_id uuid not null references public.branches(id) on delete cascade,
+  customer_name text not null,
+  customer_phone text not null,
+  requested_service text,
+  preferred_staff text,
+  note text,
+  requested_start_at timestamptz not null,
+  requested_end_at timestamptz not null,
+  source text not null default 'landing_page',
+  status text not null default 'NEW' check (status in ('NEW','CONFIRMED','NEEDS_RESCHEDULE','CANCELLED','CONVERTED')),
+  appointment_id uuid references public.appointments(id) on delete set null,
+  telegram_message_id bigint,
+  telegram_chat_id text,
+  notified_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+alter table public.booking_requests add column if not exists telegram_message_id bigint;
+alter table public.booking_requests add column if not exists telegram_chat_id text;
+alter table public.booking_requests add column if not exists notified_at timestamptz;
+
+create index if not exists idx_services_org_active_display_order
+  on public.services (org_id, active, featured_in_lookbook, display_order asc, created_at asc);
+
+create index if not exists idx_booking_requests_org_created_at
+  on public.booking_requests (org_id, created_at desc);
+
+create index if not exists idx_booking_requests_org_status_start
+  on public.booking_requests (org_id, status, requested_start_at);
+
 -- ===== END schema.sql =====
 
 -- ===== BEGIN rls.sql =====
@@ -147,6 +204,8 @@ alter table tickets enable row level security;
 alter table ticket_items enable row level security;
 alter table payments enable row level security;
 alter table receipts enable row level security;
+alter table public.invite_codes enable row level security;
+alter table public.booking_requests enable row level security;
 
 create or replace function public.my_org_id()
 returns uuid
@@ -282,6 +341,46 @@ for all using (
 )
 with check (
   org_id = public.my_org_id() and public.has_role('OWNER')
+);
+
+drop policy if exists "owner dev read invite codes" on public.invite_codes;
+drop policy if exists "owner read invite codes" on public.invite_codes;
+create policy "owner read invite codes" on public.invite_codes
+for select using (
+  org_id = public.my_org_id() and (
+    public.has_role('OWNER')
+    or auth.jwt() ->> 'role' = 'service_role'
+  )
+);
+
+drop policy if exists "org read booking_requests" on public.booking_requests;
+create policy "org read booking_requests" on public.booking_requests
+for select using (
+  org_id = public.my_org_id()
+  and (
+    public.has_role('OWNER')
+    or public.has_role('MANAGER')
+    or public.has_role('RECEPTION')
+  )
+);
+
+drop policy if exists "org update booking_requests" on public.booking_requests;
+create policy "org update booking_requests" on public.booking_requests
+for update using (
+  org_id = public.my_org_id()
+  and (
+    public.has_role('OWNER')
+    or public.has_role('MANAGER')
+    or public.has_role('RECEPTION')
+  )
+)
+with check (
+  org_id = public.my_org_id()
+  and (
+    public.has_role('OWNER')
+    or public.has_role('MANAGER')
+    or public.has_role('RECEPTION')
+  )
 );
 
 -- ===== END rls.sql =====
@@ -834,6 +933,418 @@ $$;
 grant execute on function public.get_receipt_public(text) to anon, authenticated;
 
 -- ===== END public_receipt_rpc.sql =====
+
+-- ===== BEGIN invite_codes.sql =====
+create or replace function public.generate_invite_code_secure(
+  p_allowed_role text default 'TECH',
+  p_note text default null
+)
+returns public.invite_codes
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_org_id uuid;
+  v_role text;
+  v_code text;
+  v_row public.invite_codes;
+begin
+  if auth.uid() is null then
+    raise exception 'UNAUTHENTICATED';
+  end if;
+
+  select p.org_id into v_org_id
+  from public.profiles p
+  where p.user_id = auth.uid()
+  limit 1;
+
+  if v_org_id is null then
+    raise exception 'ORG_CONTEXT_REQUIRED';
+  end if;
+
+  if not (public.has_role('OWNER')) then
+    raise exception 'FORBIDDEN';
+  end if;
+
+  v_role := coalesce(nullif(trim(p_allowed_role), ''), 'TECH');
+  if v_role not in ('MANAGER','RECEPTION','ACCOUNTANT','TECH') then
+    raise exception 'INVALID_ROLE';
+  end if;
+
+  loop
+    v_code := upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8));
+    begin
+      insert into public.invite_codes (org_id, code, created_by, allowed_role, expires_at, note)
+      values (v_org_id, v_code, auth.uid(), v_role, now() + interval '15 minutes', nullif(trim(p_note), ''))
+      returning * into v_row;
+      exit;
+    exception when unique_violation then
+    end;
+  end loop;
+
+  return v_row;
+end;
+$$;
+
+create or replace function public.revoke_invite_code_secure(
+  p_invite_id uuid
+)
+returns public.invite_codes
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_org_id uuid;
+  v_row public.invite_codes;
+begin
+  if auth.uid() is null then
+    raise exception 'UNAUTHENTICATED';
+  end if;
+
+  select p.org_id into v_org_id
+  from public.profiles p
+  where p.user_id = auth.uid()
+  limit 1;
+
+  if v_org_id is null then
+    raise exception 'ORG_CONTEXT_REQUIRED';
+  end if;
+
+  if not (public.has_role('OWNER')) then
+    raise exception 'FORBIDDEN';
+  end if;
+
+  update public.invite_codes
+  set revoked_at = now()
+  where id = p_invite_id
+    and org_id = v_org_id
+    and revoked_at is null
+    and used_count < max_uses
+  returning * into v_row;
+
+  if v_row.id is null then
+    raise exception 'INVITE_NOT_FOUND_OR_FINALIZED';
+  end if;
+
+  return v_row;
+end;
+$$;
+
+create or replace function public.consume_invite_code_secure(
+  p_code text,
+  p_user_id uuid,
+  p_display_name text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_invite public.invite_codes;
+  v_branch_id uuid;
+  v_display_name text;
+begin
+  if p_user_id is null then
+    raise exception 'USER_REQUIRED';
+  end if;
+
+  select * into v_invite
+  from public.invite_codes
+  where code = upper(trim(p_code))
+    and revoked_at is null
+    and used_count < max_uses
+    and expires_at > now()
+  order by created_at desc
+  limit 1
+  for update;
+
+  if v_invite.id is null then
+    raise exception 'INVITE_INVALID';
+  end if;
+
+  update public.invite_codes
+  set used_count = used_count + 1,
+      used_by = p_user_id,
+      used_at = now()
+  where id = v_invite.id
+    and used_count < max_uses;
+
+  if not found then
+    raise exception 'INVITE_ALREADY_USED';
+  end if;
+
+  select id into v_branch_id
+  from public.branches
+  where org_id = v_invite.org_id
+  order by created_at asc
+  limit 1;
+
+  v_display_name := nullif(trim(coalesce(p_display_name, '')), '');
+
+  insert into public.profiles (user_id, org_id, default_branch_id, display_name)
+  values (p_user_id, v_invite.org_id, v_branch_id, coalesce(v_display_name, 'User'))
+  on conflict (user_id) do update
+    set org_id = excluded.org_id,
+        default_branch_id = excluded.default_branch_id,
+        display_name = coalesce(nullif(excluded.display_name, ''), public.profiles.display_name, 'User');
+
+  insert into public.user_roles (user_id, org_id, role)
+  values (p_user_id, v_invite.org_id, v_invite.allowed_role)
+  on conflict (user_id, org_id, role) do nothing;
+
+  return jsonb_build_object(
+    'inviteId', v_invite.id,
+    'orgId', v_invite.org_id,
+    'role', v_invite.allowed_role,
+    'expiresAt', v_invite.expires_at
+  );
+end;
+$$;
+
+grant execute on function public.generate_invite_code_secure(text, text) to authenticated;
+grant execute on function public.revoke_invite_code_secure(uuid) to authenticated;
+grant execute on function public.consume_invite_code_secure(text, uuid, text) to anon, authenticated;
+
+-- ===== END invite_codes.sql =====
+
+-- ===== BEGIN landing_booking.sql =====
+create or replace function public.create_booking_request_public(
+  p_customer_name text,
+  p_customer_phone text,
+  p_requested_service text default null,
+  p_preferred_staff text default null,
+  p_note text default null,
+  p_requested_start_at timestamptz default null,
+  p_requested_end_at timestamptz default null,
+  p_source text default 'landing_page'
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_org_id uuid;
+  v_branch_id uuid;
+  v_start timestamptz;
+  v_end timestamptz;
+  v_row public.booking_requests;
+begin
+  if p_customer_name is null or btrim(p_customer_name) = '' then
+    raise exception 'CUSTOMER_NAME_REQUIRED';
+  end if;
+
+  if p_customer_phone is null or btrim(p_customer_phone) = '' then
+    raise exception 'CUSTOMER_PHONE_REQUIRED';
+  end if;
+
+  if p_requested_start_at is null then
+    raise exception 'REQUESTED_START_REQUIRED';
+  end if;
+
+  v_start := p_requested_start_at;
+  v_end := coalesce(p_requested_end_at, p_requested_start_at + interval '60 minutes');
+
+  if v_end <= v_start then
+    raise exception 'INVALID_TIME_RANGE';
+  end if;
+
+  select id into v_org_id
+  from public.orgs
+  order by created_at asc
+  limit 1;
+
+  if v_org_id is null then
+    raise exception 'ORG_NOT_READY';
+  end if;
+
+  select id into v_branch_id
+  from public.branches
+  where org_id = v_org_id
+  order by created_at asc
+  limit 1;
+
+  if v_branch_id is null then
+    raise exception 'BRANCH_NOT_READY';
+  end if;
+
+  insert into public.booking_requests (
+    org_id, branch_id, customer_name, customer_phone, requested_service, preferred_staff, note, requested_start_at, requested_end_at, source
+  ) values (
+    v_org_id, v_branch_id, btrim(p_customer_name), btrim(p_customer_phone), nullif(btrim(coalesce(p_requested_service, '')), ''), nullif(btrim(coalesce(p_preferred_staff, '')), ''), nullif(btrim(coalesce(p_note, '')), ''), v_start, v_end, coalesce(nullif(btrim(coalesce(p_source, '')), ''), 'landing_page')
+  )
+  returning * into v_row;
+
+  return jsonb_build_object(
+    'id', v_row.id,
+    'status', v_row.status,
+    'requested_start_at', v_row.requested_start_at,
+    'requested_end_at', v_row.requested_end_at
+  );
+end;
+$$;
+
+grant execute on function public.create_booking_request_public(
+  text, text, text, text, text, timestamptz, timestamptz, text
+) to anon, authenticated;
+
+create or replace function public.convert_booking_request_to_appointment_secure(
+  p_booking_request_id uuid,
+  p_staff_user_id uuid default null,
+  p_resource_id uuid default null,
+  p_start_at timestamptz default null,
+  p_end_at timestamptz default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid;
+  v_org_id uuid;
+  v_branch_id uuid;
+  v_allowed boolean;
+  v_req public.booking_requests;
+  v_customer_id uuid;
+  v_start timestamptz;
+  v_end timestamptz;
+  v_appointment_id uuid;
+begin
+  v_uid := auth.uid();
+  if v_uid is null then
+    raise exception 'UNAUTHENTICATED';
+  end if;
+
+  select p.org_id, p.default_branch_id into v_org_id, v_branch_id
+  from public.profiles p
+  where p.user_id = v_uid
+  limit 1;
+
+  if v_org_id is null then
+    raise exception 'ORG_CONTEXT_REQUIRED';
+  end if;
+
+  select exists (
+    select 1
+    from public.user_roles ur
+    where ur.user_id = v_uid
+      and ur.org_id = v_org_id
+      and ur.role in ('OWNER','MANAGER','RECEPTION')
+  ) into v_allowed;
+
+  if not coalesce(v_allowed, false) then
+    raise exception 'FORBIDDEN';
+  end if;
+
+  select * into v_req
+  from public.booking_requests br
+  where br.id = p_booking_request_id
+    and br.org_id = v_org_id
+  limit 1;
+
+  if v_req.id is null then
+    raise exception 'BOOKING_REQUEST_NOT_FOUND';
+  end if;
+
+  if v_req.status in ('CANCELLED', 'CONVERTED') then
+    raise exception 'BOOKING_REQUEST_ALREADY_FINALIZED';
+  end if;
+
+  v_start := coalesce(p_start_at, v_req.requested_start_at);
+  v_end := coalesce(p_end_at, v_req.requested_end_at, v_start + interval '60 minutes');
+
+  if v_end <= v_start then
+    raise exception 'INVALID_TIME_RANGE';
+  end if;
+
+  select c.id into v_customer_id
+  from public.customers c
+  where c.org_id = v_org_id
+    and c.name = v_req.customer_name
+    and coalesce(c.phone, '') = coalesce(v_req.customer_phone, '')
+  order by c.created_at asc
+  limit 1;
+
+  if v_customer_id is null then
+    insert into public.customers (org_id, name, phone, notes)
+    values (
+      v_org_id,
+      v_req.customer_name,
+      v_req.customer_phone,
+      concat_ws(' | ',
+        case when v_req.requested_service is not null then 'DV: ' || v_req.requested_service else null end,
+        case when v_req.preferred_staff is not null then 'Thợ mong muốn: ' || v_req.preferred_staff else null end,
+        nullif(v_req.note, '')
+      )
+    )
+    returning id into v_customer_id;
+  else
+    update public.customers
+    set notes = concat_ws(' | ',
+      nullif(notes, ''),
+      case when v_req.requested_service is not null then 'DV: ' || v_req.requested_service else null end,
+      case when v_req.preferred_staff is not null then 'Thợ mong muốn: ' || v_req.preferred_staff else null end,
+      nullif(v_req.note, '')
+    )
+    where id = v_customer_id and org_id = v_org_id;
+  end if;
+
+  insert into public.appointments (
+    org_id, branch_id, customer_id, staff_user_id, resource_id, start_at, end_at, status
+  ) values (
+    v_org_id, coalesce(v_req.branch_id, v_branch_id), v_customer_id, p_staff_user_id, p_resource_id, v_start, v_end, 'BOOKED'
+  )
+  returning id into v_appointment_id;
+
+  update public.booking_requests
+  set status = 'CONVERTED',
+      appointment_id = v_appointment_id
+  where id = v_req.id;
+
+  return jsonb_build_object(
+    'booking_request_id', v_req.id,
+    'appointment_id', v_appointment_id,
+    'status', 'CONVERTED'
+  );
+end;
+$$;
+
+grant execute on function public.convert_booking_request_to_appointment_secure(
+  uuid, uuid, uuid, timestamptz, timestamptz
+) to authenticated;
+
+-- ===== END landing_booking.sql =====
+
+-- ===== BEGIN services_storage_setup.sql =====
+insert into storage.buckets (id, name, public)
+values ('service-images', 'service-images', true)
+on conflict (id) do update set public = true;
+
+create policy if not exists "service-images public read"
+on storage.objects for select
+using (bucket_id = 'service-images');
+
+create policy if not exists "service-images authenticated insert"
+on storage.objects for insert
+to authenticated
+with check (bucket_id = 'service-images');
+
+create policy if not exists "service-images authenticated update"
+on storage.objects for update
+to authenticated
+using (bucket_id = 'service-images')
+with check (bucket_id = 'service-images');
+
+create policy if not exists "service-images authenticated delete"
+on storage.objects for delete
+to authenticated
+using (bucket_id = 'service-images');
+
+-- ===== END services_storage_setup.sql =====
 
 -- ===== BEGIN idempotency.sql =====
 -- Idempotency support for checkout requests

@@ -147,7 +147,6 @@ export default function BookingRequestsPage() {
     void load();
   }, [load]);
 
-  const isDevPreview = role === "DEV";
   const rescheduleRows = useMemo(() => rows.filter((row) => row.status === "NEEDS_RESCHEDULE"), [rows]);
   const newRows = useMemo(() => rows.filter((row) => row.status === "NEW"), [rows]);
   const selectedRow = useMemo(() => rows.find((row) => row.id === selectedId) ?? null, [rows, selectedId]);
@@ -281,10 +280,6 @@ export default function BookingRequestsPage() {
 
         {error ? (
           <div className="manage-error-box">{error}</div>
-        ) : null}
-
-        {isDevPreview ? (
-          <div className="manage-warn-box">DEV đang ở chế độ xem trước. Có thể xem hàng chờ và luồng xử lý, nhưng không được hủy, cập nhật hay chuyển yêu cầu thành lịch hẹn.</div>
         ) : null}
 
         <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
@@ -424,19 +419,19 @@ export default function BookingRequestsPage() {
 
                 <div className="flex flex-wrap gap-2">
                   {selectedRow.status === "NEW" ? (
-                    <button type="button" className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50" disabled={submitting || isDevPreview} onClick={() => void onMarkNeedsReschedule(selectedRow.id)}>
+                    <button type="button" className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50" disabled={submitting} onClick={() => void onMarkNeedsReschedule(selectedRow.id)}>
                       Đánh dấu cần dời lịch
                     </button>
                   ) : null}
 
                   {selectedRow.status !== "CONVERTED" && selectedRow.status !== "CANCELLED" ? (
-                    <button type="button" className="rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting || !bookingAt || !capacityAllowed || isDevPreview} onClick={() => void onConvert()}>
+                    <button type="button" className="rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting || !bookingAt || !capacityAllowed} onClick={() => void onConvert()}>
                       {submitting ? "Đang convert..." : selectedRow.status === "NEEDS_RESCHEDULE" ? "Chốt giờ mới & convert" : "Convert thành appointment"}
                     </button>
                   ) : null}
 
                   {selectedRow.status !== "CANCELLED" && selectedRow.status !== "CONVERTED" ? (
-                    <button type="button" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting || isDevPreview} onClick={() => void onCancel(selectedRow.id)}>
+                    <button type="button" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting} onClick={() => void onCancel(selectedRow.id)}>
                       Hủy request
                     </button>
                   ) : null}

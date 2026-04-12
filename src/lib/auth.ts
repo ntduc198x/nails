@@ -1,7 +1,7 @@
 import { ensureOrgContext } from "@/lib/domain";
 import { supabase } from "@/lib/supabase";
 
-export type AppRole = "OWNER" | "MANAGER" | "RECEPTION" | "ACCOUNTANT" | "TECH" | "DEV";
+export type AppRole = "OWNER" | "MANAGER" | "RECEPTION" | "ACCOUNTANT" | "TECH";
 
 export async function getOrCreateRole(userId: string): Promise<AppRole> {
   if (!supabase) throw new Error("Supabase chưa cấu hình");
