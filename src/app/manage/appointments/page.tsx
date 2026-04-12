@@ -2,6 +2,7 @@
 
 import { AppShell } from "@/components/app-shell";
 import { ManageDateTimePicker, toDateTimeLocalValue } from "@/components/manage-datetime-picker";
+import { ManageQuickNav } from "@/components/manage-quick-nav";
 import { getCurrentSessionRole } from "@/lib/auth";
 import { createAppointment, listAppointments, listResources, listStaffMembers, updateAppointmentStatus } from "@/lib/domain";
 import { supabase } from "@/lib/supabase";
@@ -181,7 +182,7 @@ export default function AppointmentsPage() {
       setResourceOptions(resources as ResourceOption[]);
       if (!editingId && currentRole === "TECH" && userId) setStaffUserId(userId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Load appointments failed");
+      setError(e instanceof Error ? e.message : "Tải lịch hẹn thất bại");
     } finally {
       if (isInitial) setLoading(false);
       else setRefreshing(false);
@@ -226,6 +227,7 @@ export default function AppointmentsPage() {
     });
   }, [scopedRows, statusFilter, filterRange]);
 
+  const isDevPreview = role === "DEV";
   const pendingCheckoutRows = useMemo(() => scopedRows.filter((r) => r.status === "CHECKED_IN"), [scopedRows]);
   const activeBookedRows = useMemo(() => scopedRows.filter((r) => r.status === "BOOKED"), [scopedRows]);
 
@@ -304,7 +306,7 @@ export default function AppointmentsPage() {
       resetForm();
       await load({ force: true });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Create appointment failed");
+      setError(e instanceof Error ? e.message : "Tạo lịch hẹn thất bại");
     } finally {
       setSubmitting(false);
     }
@@ -317,7 +319,7 @@ export default function AppointmentsPage() {
       await updateAppointmentStatus(id, status);
       await load({ force: true });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Update appointment failed");
+      setError(e instanceof Error ? e.message : "Cập nhật lịch hẹn thất bại");
     } finally {
       setUpdatingId(null);
     }
@@ -328,21 +330,31 @@ export default function AppointmentsPage() {
       <div className="space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-extrabold tracking-tight text-neutral-900">Appointments</h2>
+            <h2 className="text-3xl font-extrabold tracking-tight text-neutral-900">Lịch hẹn</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-500">
               Quản lý lịch hẹn vận hành theo hướng tối giản: tạo nhanh, lọc nhanh, xử lý trạng thái ngay tại chỗ và giữ focus vào các lịch đang BOOKED / CHECKED_IN.
             </p>
           </div>
-          <div className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-500 shadow-sm">
+          <div className="manage-info-box">
             {refreshing ? "Đang làm mới..." : `${filteredRows.length} lịch trong bộ lọc hiện tại`}
           </div>
         </div>
 
         {error ? (
-          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-sm">{error}</div>
+          <div className="manage-error-box">{error}</div>
         ) : null}
 
-        <form onSubmit={onSubmit} className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm md:p-6">
+        {isDevPreview ? (
+          <div className="manage-warn-box">DEV đang ở chế độ xem trước. Có thể xem lịch hẹn nhưng không được tạo mới, đổi trạng thái hay điều phối nhân sự/tài nguyên.</div>
+        ) : null}
+
+        <ManageQuickNav items={[
+          { href: "/manage/technician", label: "Bảng kỹ thuật" },
+          { href: "/manage/checkout", label: "Thanh toán" },
+          { href: "/manage/shifts", label: "Ca làm" },
+        ]} />
+
+        <form onSubmit={onSubmit} className="manage-surface md:p-6">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-semibold text-neutral-900">Tạo / chỉnh lịch hẹn</h3>
@@ -372,7 +384,7 @@ export default function AppointmentsPage() {
 
               <div>
                 <FieldLabel>Thợ phụ trách</FieldLabel>
-                <SelectInput value={staffUserId} onChange={(e) => setStaffUserId(e.target.value)} disabled={submitting || role === "TECH"}>
+                <SelectInput value={staffUserId} onChange={(e) => setStaffUserId(e.target.value)} disabled={submitting || role === "TECH" || isDevPreview}>
                   <option value="">-- Chọn thợ --</option>
                   {staffOptions.map((s) => <option key={s.userId} value={s.userId}>{s.name}</option>)}
                 </SelectInput>
@@ -380,7 +392,7 @@ export default function AppointmentsPage() {
 
               <div>
                 <FieldLabel>Số ghế</FieldLabel>
-                <SelectInput value={resourceId} onChange={(e) => setResourceId(e.target.value)} disabled={submitting} required>
+                <SelectInput value={resourceId} onChange={(e) => setResourceId(e.target.value)} disabled={submitting || isDevPreview} required>
                   <option value="">-- Chọn số ghế --</option>
                   {resourceOptions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
                 </SelectInput>
@@ -401,7 +413,7 @@ export default function AppointmentsPage() {
               </div>
 
               <div className="flex gap-2">
-                <button className="flex-1 rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting || !staffUserId || !resourceId}>
+                <button className="flex-1 rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting || !staffUserId || !resourceId || isDevPreview}>
                   {submitting ? "Đang xử lý..." : editingId ? "Lưu lịch hẹn" : "Tạo lịch hẹn"}
                 </button>
                 {editingId && (
@@ -415,20 +427,20 @@ export default function AppointmentsPage() {
         </form>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          <div className="rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-400">Pending checkout</p>
+          <div className="manage-stat-card">
+            <p className="manage-stat-label">Chờ thanh toán</p>
             <p className="mt-3 text-2xl font-bold text-neutral-900">{pendingCheckoutRows.length}</p>
           </div>
-          <div className="rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-400">Đang booked</p>
+          <div className="manage-stat-card">
+            <p className="manage-stat-label">Đang booked</p>
             <p className="mt-3 text-2xl font-bold text-neutral-900">{activeBookedRows.length}</p>
           </div>
-          <div className="rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm md:col-span-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-400">Khoảng đang xem</p>
+          <div className="manage-stat-card md:col-span-2">
+            <p className="manage-stat-label">Khoảng đang xem</p>
             <p className="mt-3 text-base font-semibold text-neutral-900">{filterRange.from.toLocaleDateString("vi-VN")} → {filterRange.to.toLocaleDateString("vi-VN")}</p>
           </div>
-          <div className="rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-400">Lọc trạng thái</p>
+          <div className="manage-stat-card">
+            <p className="manage-stat-label">Lọc trạng thái</p>
             <SelectInput className="mt-3" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               <option value="ALL">Tất cả</option>
               <option value="BOOKED">BOOKED</option>
@@ -440,7 +452,7 @@ export default function AppointmentsPage() {
           </div>
         </div>
 
-        <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm md:p-6">
+        <div className="manage-surface md:p-6">
           <div className="mb-5 grid gap-4 lg:grid-cols-4">
             <div>
               <FieldLabel>Khoảng thời gian</FieldLabel>
@@ -465,7 +477,7 @@ export default function AppointmentsPage() {
           </div>
 
           {loading ? (
-            <p className="text-sm text-neutral-500">Đang tải appointments...</p>
+            <p className="text-sm text-neutral-500">Đang tải lịch hẹn...</p>
           ) : filteredRows.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-neutral-200 bg-neutral-50 px-4 py-8 text-center text-sm text-neutral-500">
               Chưa có lịch hẹn nào trong bộ lọc hiện tại.
@@ -478,7 +490,7 @@ export default function AppointmentsPage() {
                 const resourceName = resourceOptions.find((r) => r.id === a.resource_id)?.name ?? "-";
                 const onlineBooked = isOnlineBooked(a);
                 return (
-                  <div key={a.id} className="rounded-3xl border border-neutral-200 bg-neutral-50/70 p-4 shadow-sm">
+                  <div key={a.id} className="manage-surface-muted">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
@@ -536,7 +548,7 @@ export default function AppointmentsPage() {
                           "CHECKED_IN",
                         ].includes(a.status) ? (
                           <Link href={`/manage/checkout?customer=${encodeURIComponent(customer)}&appointmentId=${a.id}`} className="rounded-2xl bg-rose-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-600">
-                            Open ticket
+                            Mở phiếu thanh toán
                           </Link>
                         ) : null}
                       </div>
@@ -544,15 +556,15 @@ export default function AppointmentsPage() {
 
                     <div className="mt-4 grid gap-3 md:grid-cols-3">
                       <div className="rounded-2xl bg-white p-4 shadow-sm">
-                        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-400">Thợ</p>
+                        <p className="manage-stat-label">Thợ</p>
                         <p className="mt-2 text-base font-semibold text-neutral-900">{staffName}</p>
                       </div>
                       <div className="rounded-2xl bg-white p-4 shadow-sm">
-                        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-400">Ghế</p>
+                        <p className="manage-stat-label">Ghế</p>
                         <p className="mt-2 text-base font-semibold text-neutral-900">{resourceName}</p>
                       </div>
                       <div className="rounded-2xl bg-white p-4 shadow-sm">
-                        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-400">Thời gian</p>
+                        <p className="manage-stat-label">Thời gian</p>
                         <p className="mt-2 text-base font-semibold text-neutral-900">{new Date(a.start_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</p>
                       </div>
                     </div>

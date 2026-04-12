@@ -206,24 +206,24 @@ export default function ServicesPage() {
               Quản lý dịch vụ vận hành, VAT, mô tả hiển thị ngoài landing page và ảnh lookbook. Dữ liệu ở đây là nguồn chuẩn để đồng bộ dịch vụ nổi bật lên landing.
             </p>
           </div>
-          <div className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-500 shadow-sm">
+          <div className="manage-info-box">
             {refreshing ? "Đang làm mới dữ liệu..." : `${rows.length} dịch vụ trong hệ thống`}
           </div>
         </div>
 
-        {role === "ACCOUNTANT" || role === "TECH" ? (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
-            Role hiện tại chỉ xem danh sách dịch vụ, không thêm/sửa.
+        {role === "ACCOUNTANT" || role === "TECH" || role === "DEV" ? (
+          <div className="manage-warn-box">
+            Vai trò hiện tại chỉ xem danh sách dịch vụ, không thêm hoặc chỉnh sửa dữ liệu.
           </div>
         ) : null}
 
         {error ? (
-          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-sm">
+          <div className="manage-error-box">
             {error}
           </div>
         ) : null}
 
-        <form onSubmit={onSubmit} className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm md:p-6">
+        <form onSubmit={onSubmit} className="manage-surface md:p-6">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-semibold text-neutral-900">Thêm dịch vụ mới</h3>
@@ -300,14 +300,14 @@ export default function ServicesPage() {
                 Gợi ý: dùng ảnh tỉ lệ dọc hoặc ngang rõ sản phẩm. Với bản hoàn chỉnh này, ảnh thật nằm ở storage/CDN, còn DB chỉ lưu <b>image_url</b>.
               </div>
 
-              <button disabled={submitting || role === "ACCOUNTANT" || role === "TECH"} className="w-full rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60">
+              <button disabled={submitting || role === "ACCOUNTANT" || role === "TECH" || role === "DEV"} className="w-full rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60">
                 {submitting ? "Đang thêm dịch vụ..." : "Thêm dịch vụ"}
               </button>
             </div>
           </div>
         </form>
 
-        <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm md:p-6">
+        <div className="manage-surface md:p-6">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-semibold text-neutral-900">Danh sách dịch vụ</h3>
@@ -326,7 +326,7 @@ export default function ServicesPage() {
               {rows.map((s) => {
                 const isEditing = editingId === s.id;
                 return (
-                  <div key={s.id} className="rounded-3xl border border-neutral-200 bg-neutral-50/70 p-4 shadow-sm">
+                  <div key={s.id} className="manage-surface-muted">
                     <div className="grid gap-4 xl:grid-cols-[220px_1fr]">
                       <div className="space-y-3">
                         {isEditing ? (
@@ -372,7 +372,7 @@ export default function ServicesPage() {
                             <p className="mt-2 text-sm text-neutral-500">{isEditing ? "Chỉnh dịch vụ và dữ liệu hiển thị ngoài landing." : (s.short_description || "Chưa có mô tả ngắn cho landing.")}</p>
                           </div>
 
-                          {role === "ACCOUNTANT" || role === "TECH" ? null : isEditing ? (
+                          {role === "ACCOUNTANT" || role === "TECH" || role === "DEV" ? null : isEditing ? (
                             <div className="flex gap-2">
                               <button className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50" type="button" onClick={() => setEditingId(null)}>
                                 Huỷ
@@ -390,19 +390,19 @@ export default function ServicesPage() {
 
                         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                           <div className="rounded-2xl bg-white p-4 shadow-sm">
-                            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-400">Giá</p>
+                            <p className="manage-stat-label">Giá</p>
                             {isEditing ? <TextInput type="number" min={0} value={editPrice} onChange={(e) => setEditPrice(Number(e.target.value))} className="mt-3" /> : <p className="mt-3 text-lg font-semibold text-neutral-900">{formatVnd(Number(s.base_price))}</p>}
                           </div>
                           <div className="rounded-2xl bg-white p-4 shadow-sm">
-                            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-400">Thời lượng</p>
+                            <p className="manage-stat-label">Thời lượng</p>
                             {isEditing ? <TextInput type="number" min={5} value={editDuration} onChange={(e) => setEditDuration(Number(e.target.value))} className="mt-3" /> : <p className="mt-3 text-lg font-semibold text-neutral-900">{s.duration_min} phút</p>}
                           </div>
                           <div className="rounded-2xl bg-white p-4 shadow-sm">
-                            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-400">VAT</p>
+                            <p className="manage-stat-label">VAT</p>
                             {isEditing ? <TextInput type="number" min={0} step={0.5} value={editVat} onChange={(e) => setEditVat(Number(e.target.value))} className="mt-3" /> : <p className="mt-3 text-lg font-semibold text-neutral-900">{Number(s.vat_rate) * 100}%</p>}
                           </div>
                           <div className="rounded-2xl bg-white p-4 shadow-sm">
-                            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-400">Thứ tự</p>
+                            <p className="manage-stat-label">Thứ tự</p>
                             {isEditing ? <TextInput type="number" value={editDisplayOrder} onChange={(e) => setEditDisplayOrder(Number(e.target.value))} className="mt-3" /> : <p className="mt-3 text-lg font-semibold text-neutral-900">{s.display_order ?? 0}</p>}
                           </div>
                         </div>

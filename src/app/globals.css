@@ -134,11 +134,62 @@ img {
   color: #9f1239;
 }
 
+.manage-quick-link {
+  @apply rounded-full px-4 py-2 text-sm transition;
+  border: 1px solid #eadfce;
+  background: #f6efe6;
+}
+
+.manage-quick-link:hover {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.manage-quick-link-accent {
+  @apply rounded-full px-4 py-2 text-sm font-medium transition;
+  border: 1px solid #eadfce;
+  background: #fff1f3;
+  color: var(--color-primary);
+}
+
+.manage-quick-link-accent:hover {
+  background: var(--color-primary);
+  color: #fff;
+}
+
 .card {
   @apply rounded-3xl p-5;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.06);
+}
+
+.manage-surface {
+  @apply rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm;
+}
+
+.manage-surface-muted {
+  @apply rounded-3xl border border-neutral-200 bg-neutral-50/70 p-4 shadow-sm;
+}
+
+.manage-info-box {
+  @apply rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-500 shadow-sm;
+}
+
+.manage-error-box {
+  @apply rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-sm;
+}
+
+.manage-warn-box {
+  @apply rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm;
+}
+
+.manage-stat-card {
+  @apply rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm;
+}
+
+.manage-stat-label {
+  @apply text-xs font-semibold uppercase tracking-[0.12em] text-neutral-400;
 }
 
 .motion-ready .reveal-on-scroll {

@@ -1,6 +1,8 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
+import { ManageQuickNav } from "@/components/manage-quick-nav";
+import { ManageStatCard } from "@/components/manage-stat-card";
 import { countNewBookingRequests, listBookingRequests, type BookingRequestRow } from "@/lib/booking-requests";
 import { listAppointments, listStaffMembers } from "@/lib/domain";
 import { formatVnd } from "@/lib/mock-data";
@@ -141,10 +143,10 @@ export default function DashboardPage() {
   return (
     <AppShell>
       <div className="page-shell space-y-4">
-        <section className="card">
+        <section className="manage-surface">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h2 className="page-title">Dashboard</h2>
+              <h2 className="page-title">Tổng quan</h2>
               <p className="page-subtitle">Tổng quan vận hành trong ngày theo logic Techboard.</p>
             </div>
             <div className="text-right text-xs text-neutral-500">
@@ -152,22 +154,23 @@ export default function DashboardPage() {
             </div>
           </div>
           {error && <p className="mt-2 text-sm text-red-600">Lỗi: {error}</p>}
-          <div className="mt-4 flex flex-wrap gap-2">
-            <a href="/manage/booking-requests" className="rounded-full border border-[#eadfce] bg-[#fff1f3] px-4 py-2 text-sm font-medium text-[var(--color-primary)] transition hover:bg-[var(--color-primary)] hover:text-white">
-              Booking requests {newBookingCount > 0 ? `(${newBookingCount})` : ""}
-            </a>
-            <a href="/manage/technician" className="rounded-full border border-[#eadfce] bg-[#f6efe6] px-4 py-2 text-sm transition hover:bg-[var(--color-primary)] hover:text-white">Techboard</a>
-            <a href="/manage/appointments" className="rounded-full border border-[#eadfce] bg-[#f6efe6] px-4 py-2 text-sm transition hover:bg-[var(--color-primary)] hover:text-white">Appointments</a>
-            <a href="/manage/checkout" className="rounded-full border border-[#eadfce] bg-[#f6efe6] px-4 py-2 text-sm transition hover:bg-[var(--color-primary)] hover:text-white">Checkout</a>
-            <a href="/manage/shifts" className="rounded-full border border-[#eadfce] bg-[#f6efe6] px-4 py-2 text-sm transition hover:bg-[var(--color-primary)] hover:text-white">Ca làm</a>
-          </div>
+          <ManageQuickNav
+            className="mt-4"
+            items={[
+              { href: "/manage/booking-requests", label: `Yêu cầu đặt lịch${newBookingCount > 0 ? ` (${newBookingCount})` : ""}`, accent: true },
+              { href: "/manage/technician", label: "Bảng kỹ thuật" },
+              { href: "/manage/appointments", label: "Lịch hẹn" },
+              { href: "/manage/checkout", label: "Thanh toán" },
+              { href: "/manage/shifts", label: "Ca làm" },
+            ]}
+          />
         </section>
 
         <section className="page-grid md:grid-cols-4">
-          <div className="card"><p className="text-sm text-neutral-500">Lịch hôm nay</p><p className="mt-1 text-3xl font-bold">{loading ? "..." : data.appointmentsToday}</p></div>
-          <div className="card"><p className="text-sm text-neutral-500">Khách chờ</p><p className="mt-1 text-3xl font-bold">{loading ? "..." : data.waiting}</p></div>
-          <div className="card"><p className="text-sm text-neutral-500">Đang phục vụ</p><p className="mt-1 text-3xl font-bold">{loading ? "..." : data.active}</p></div>
-          <div className="card"><p className="text-sm text-neutral-500">Doanh thu hôm nay</p><p className="mt-1 text-3xl font-bold">{loading ? "..." : formatVnd(data.revenue)}</p></div>
+          <ManageStatCard label="Lịch hôm nay" value={loading ? "..." : data.appointmentsToday} className="text-3xl font-bold" />
+          <ManageStatCard label="Khách chờ" value={loading ? "..." : data.waiting} className="text-3xl font-bold" />
+          <ManageStatCard label="Đang phục vụ" value={loading ? "..." : data.active} className="text-3xl font-bold" />
+          <ManageStatCard label="Doanh thu hôm nay" value={loading ? "..." : formatVnd(data.revenue)} className="text-3xl font-bold" />
         </section>
 
         <section className="page-grid md:grid-cols-3">

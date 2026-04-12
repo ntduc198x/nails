@@ -187,107 +187,132 @@ export default function TaxBooksPage() {
 
   return (
     <AppShell>
-      <div className="page-shell">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="page-title">Sổ thuế HKD - Mẫu S1a</h2>
-          <div className="flex flex-wrap items-center gap-2">
-            <input className="btn btn-outline px-2 py-1 text-sm" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-            <input className="btn btn-outline px-2 py-1 text-sm" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
-            <button className="btn btn-outline" onClick={load}>Nạp dữ liệu</button>
-            <button
-              className="btn btn-outline disabled:cursor-not-allowed disabled:opacity-60"
-              onClick={() => void exportExcel()}
-              disabled={loading || exporting}
-            >
-              {exporting ? "Đang xuất..." : "Xuất Excel"}
-            </button>
-            <button
-              className="btn btn-outline disabled:cursor-not-allowed disabled:opacity-60"
-              onClick={() => void exportPdf()}
-              disabled={loading || exporting}
-            >
-              {exporting ? "Đang xuất..." : "Xuất PDF"}
-            </button>
+      <div className="space-y-5">
+        <section className="manage-surface">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div className="space-y-1">
+              <h2 className="page-title">Sổ thuế HKD - Mẫu S1a</h2>
+              <p className="page-subtitle">Nạp dữ liệu doanh thu, điền thông tin hộ kinh doanh và xuất file nộp thuế ngay trên cùng màn hình.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button className="btn btn-outline" onClick={load}>Nạp dữ liệu</button>
+              <button className="btn btn-outline disabled:cursor-not-allowed disabled:opacity-60" onClick={() => void exportExcel()} disabled={loading || exporting}>{exporting ? "Đang xuất..." : "Xuất Excel"}</button>
+              <button className="btn btn-outline disabled:cursor-not-allowed disabled:opacity-60" onClick={() => void exportPdf()} disabled={loading || exporting}>{exporting ? "Đang xuất..." : "Xuất PDF"}</button>
+            </div>
           </div>
-        </div>
+        </section>
 
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-          Trang này chỉ dùng cho mẫu S1a-HKD và xuất file để in/nộp thuế.
+          Trang này chỉ dùng cho mẫu S1a-HKD và xuất file để in hoặc nộp thuế.
         </div>
 
-        <div className="grid gap-2 card md:grid-cols-2">
-          <input className="btn btn-outline" placeholder="Hộ, cá nhân kinh doanh" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
-          <input className="btn btn-outline" placeholder="Mã số thuế" value={taxCode} onChange={(e) => setTaxCode(e.target.value)} />
-          <input className="btn btn-outline md:col-span-2" placeholder="Địa chỉ" value={address} onChange={(e) => setAddress(e.target.value)} />
-          <input className="btn btn-outline" placeholder="Địa điểm kinh doanh" value={businessLocation} onChange={(e) => setBusinessLocation(e.target.value)} />
-          <input className="btn btn-outline" placeholder="Đơn vị tính" value={unit} onChange={(e) => setUnit(e.target.value)} />
-        </div>
-
-        <div id="tax-book-export-root" ref={printRef} className="card">
-          <div className="mb-4 text-sm leading-6">
-            <div className="flex justify-between gap-4">
+        <div className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
+          <div className="space-y-5">
+            <div className="card space-y-4 xl:sticky xl:top-4 xl:self-start">
               <div>
-                <p><strong>HỘ, CÁ NHÂN KINH DOANH:</strong> {ownerName || "..............."}</p>
-                <p><strong>Địa chỉ:</strong> {address || "..............."}</p>
-                <p><strong>Mã số thuế:</strong> {taxCode || "..............."}</p>
+                <h3 className="font-semibold">Thông tin kỳ kê khai</h3>
+                <p className="text-sm text-neutral-500">Chọn khoảng thời gian và thông tin hộ kinh doanh để xuất đúng mẫu.</p>
               </div>
-              <div className="text-right">
-                <p><strong>Mẫu số {toBookLabel()}</strong></p>
-                <p>(Kèm theo Thông tư số 152/2025/TT-BTC)</p>
+
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1">
+                <label className="space-y-2 text-sm">
+                  <span className="font-medium">Từ ngày</span>
+                  <input className="input" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+                </label>
+                <label className="space-y-2 text-sm">
+                  <span className="font-medium">Đến ngày</span>
+                  <input className="input" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+                </label>
+                <label className="space-y-2 text-sm md:col-span-2 xl:col-span-1">
+                  <span className="font-medium">Hộ, cá nhân kinh doanh</span>
+                  <input className="input" placeholder="Tên hộ kinh doanh" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
+                </label>
+                <label className="space-y-2 text-sm">
+                  <span className="font-medium">Mã số thuế</span>
+                  <input className="input" placeholder="Mã số thuế" value={taxCode} onChange={(e) => setTaxCode(e.target.value)} />
+                </label>
+                <label className="space-y-2 text-sm">
+                  <span className="font-medium">Đơn vị tính</span>
+                  <input className="input" placeholder="đồng" value={unit} onChange={(e) => setUnit(e.target.value)} />
+                </label>
+                <label className="space-y-2 text-sm md:col-span-2 xl:col-span-1">
+                  <span className="font-medium">Địa chỉ</span>
+                  <input className="input" placeholder="Địa chỉ" value={address} onChange={(e) => setAddress(e.target.value)} />
+                </label>
+                <label className="space-y-2 text-sm md:col-span-2 xl:col-span-1">
+                  <span className="font-medium">Địa điểm kinh doanh</span>
+                  <input className="input" placeholder="Địa điểm kinh doanh" value={businessLocation} onChange={(e) => setBusinessLocation(e.target.value)} />
+                </label>
               </div>
             </div>
-            <p className="mt-3 text-center text-base font-semibold">SỔ DOANH THU BÁN HÀNG HÓA, DỊCH VỤ</p>
-            <p><strong>Địa điểm kinh doanh:</strong> {businessLocation || "..............."}</p>
-            <p><strong>Kỳ kê khai:</strong> {fromDate} đến {toDate}</p>
-            <p><strong>Đơn vị tính:</strong> {unit}</p>
           </div>
 
-          {error && <p className="mb-3 text-sm text-red-600">Lỗi: {error}</p>}
-          {loading ? (
-            <p className="text-sm text-neutral-500">Đang tải...</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="text-neutral-600">
-                  <tr>
-                    <th className="py-2">Ngày tháng</th>
-                    <th>Diễn giải</th>
-                    <th>Số tiền</th>
-                  </tr>
-                  <tr>
-                    <th className="py-1">A</th>
-                    <th>B</th>
-                    <th>1</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r, idx) => (
-                    <tr key={`${r.date}-${idx}`} className="border-t border-neutral-100">
-                      <td className="py-2">{new Date(r.date).toLocaleDateString("vi-VN")}</td>
-                      <td>{r.description}</td>
-                      <td className="amount">{formatVnd(r.amount)}</td>
-                    </tr>
-                  ))}
-                  {!rows.length && (
-                    <tr className="border-t border-neutral-100">
-                      <td className="py-2 text-neutral-500" colSpan={3}>Không có dữ liệu trong khoảng thời gian đã chọn.</td>
-                    </tr>
-                  )}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-neutral-200 font-semibold">
-                    <td className="py-2" colSpan={2}>Tổng</td>
-                    <td className="amount">{formatVnd(total)}</td>
-                  </tr>
-                </tfoot>
-              </table>
+          <div id="tax-book-export-root" ref={printRef} className="card">
+            <div className="mb-4 text-sm leading-6">
+              <div className="flex flex-col gap-4 md:flex-row md:justify-between">
+                <div>
+                  <p><strong>HỘ, CÁ NHÂN KINH DOANH:</strong> {ownerName || "..............."}</p>
+                  <p><strong>Địa chỉ:</strong> {address || "..............."}</p>
+                  <p><strong>Mã số thuế:</strong> {taxCode || "..............."}</p>
+                </div>
+                <div className="text-left md:text-right">
+                  <p><strong>Mẫu số {toBookLabel()}</strong></p>
+                  <p>(Kèm theo Thông tư số 152/2025/TT-BTC)</p>
+                </div>
+              </div>
+              <p className="mt-3 text-center text-base font-semibold">SỔ DOANH THU BÁN HÀNG HÓA, DỊCH VỤ</p>
+              <p><strong>Địa điểm kinh doanh:</strong> {businessLocation || "..............."}</p>
+              <p><strong>Kỳ kê khai:</strong> {fromDate} đến {toDate}</p>
+              <p><strong>Đơn vị tính:</strong> {unit}</p>
             </div>
-          )}
 
-          <div className="mt-12 text-right text-sm leading-6">
-            <p>Ngày ... tháng ... năm ...</p>
-            <p><strong>NGƯỜI ĐẠI DIỆN HỘ KINH DOANH/CÁ NHÂN KINH DOANH</strong></p>
-            <p>(Ký, ghi rõ họ tên, đóng dấu nếu có)</p>
+            {error && <p className="mb-3 text-sm text-red-600">Lỗi: {error}</p>}
+            {loading ? (
+              <p className="text-sm text-neutral-500">Đang tải...</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="text-neutral-600">
+                    <tr>
+                      <th className="py-2">Ngày tháng</th>
+                      <th>Diễn giải</th>
+                      <th>Số tiền</th>
+                    </tr>
+                    <tr>
+                      <th className="py-1">A</th>
+                      <th>B</th>
+                      <th>1</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r, idx) => (
+                      <tr key={`${r.date}-${idx}`} className="border-t border-neutral-100">
+                        <td className="py-2">{new Date(r.date).toLocaleDateString("vi-VN")}</td>
+                        <td>{r.description}</td>
+                        <td className="amount">{formatVnd(r.amount)}</td>
+                      </tr>
+                    ))}
+                    {!rows.length && (
+                      <tr className="border-t border-neutral-100">
+                        <td className="py-2 text-neutral-500" colSpan={3}>Không có dữ liệu trong khoảng thời gian đã chọn.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-neutral-200 font-semibold">
+                      <td className="py-2" colSpan={2}>Tổng</td>
+                      <td className="amount">{formatVnd(total)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+
+            <div className="mt-12 text-right text-sm leading-6">
+              <p>Ngày ... tháng ... năm ...</p>
+              <p><strong>NGƯỜI ĐẠI DIỆN HỘ KINH DOANH/CÁ NHÂN KINH DOANH</strong></p>
+              <p>(Ký, ghi rõ họ tên, đóng dấu nếu có)</p>
+            </div>
           </div>
         </div>
       </div>

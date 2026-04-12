@@ -1,6 +1,8 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
+import { ManageQuickNav } from "@/components/manage-quick-nav";
+import { ManageStatCard } from "@/components/manage-stat-card";
 import { getCurrentSessionRole, listUserRoles, type AppRole } from "@/lib/auth";
 import { ensureOrgContext } from "@/lib/domain";
 import { supabase } from "@/lib/supabase";
@@ -138,6 +140,7 @@ export default function ShiftsPage() {
   }
 
   const canUse = role === "OWNER" || role === "MANAGER" || role === "RECEPTION" || role === "TECH";
+  const isDevPreview = role === "DEV";
   const canManageView = canManageTeamView(role);
   const memberMap = useMemo(() => new Map(teamMembers.map((m) => [m.user_id, { name: (m.display_name || String(m.user_id).slice(0, 8)).trim(), role: m.role || "-" }])), [teamMembers]);
   const visibleEntries = useMemo(() => {
@@ -185,7 +188,8 @@ export default function ShiftsPage() {
   return (
     <AppShell>
       <div className="page-shell space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <section className="manage-surface">
+          <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="page-title">Ca làm / Chấm công</h2>
             {refreshing && <span className="text-xs text-neutral-500">Đang làm mới...</span>}
@@ -193,6 +197,16 @@ export default function ShiftsPage() {
           </div>
           <button type="button" className="btn btn-outline" onClick={exportCsv} disabled={loading || filteredEntries.length === 0}>Export CSV</button>
         </div>
+
+          <ManageQuickNav
+            className="mt-4"
+            items={[
+              { href: "/manage/technician", label: "Bảng kỹ thuật" },
+              { href: "/manage/appointments", label: "Lịch hẹn" },
+              { href: "/manage/checkout", label: "Thanh toán" },
+            ]}
+          />
+        </section>
 
         {canUse ? (
           <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
@@ -207,23 +221,24 @@ export default function ShiftsPage() {
                   <p className="font-medium text-neutral-900">Anh đang trong ca làm.</p>
                   <p className="mt-1">Bắt đầu: {new Date(activeEntry.clock_in).toLocaleString("vi-VN")}</p>
                   <p className="mt-1">Thời lượng hiện tại: {formatDuration(activeEntry.clock_in, null)}</p>
+                  <p className="mt-2 text-xs text-neutral-500">Khung giờ làm chuẩn là 09:00–21:00. Trường hợp ngày lễ hoặc phát sinh thực tế vẫn có thể clock out muộn hơn.</p>
                 </>
               ) : (
                 <>
                   <p className="font-medium text-neutral-900">Hiện chưa có ca mở.</p>
-                  <p className="mt-1">Clock in khi bắt đầu làm, clock out khi kết thúc ca để báo cáo giờ chuẩn hơn.</p>
+                  <p className="mt-1">Khung giờ làm chuẩn là 09:00–21:00. Ngày lễ hoặc ca phát sinh vẫn có thể clock in sớm hay clock out muộn khi cần.</p>
                 </>
               )}
             </div>
-            <button onClick={clockIn} disabled={role === "OWNER" || submitting || Boolean(activeEntry)} className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-60">{submitting ? "Đang xử lý..." : "Clock in"}</button>
-            <button onClick={clockOut} disabled={role === "OWNER" || submitting || !activeEntry} className="btn btn-outline disabled:cursor-not-allowed disabled:opacity-60">{submitting ? "Đang xử lý..." : "Clock out"}</button>
+            <button onClick={clockIn} disabled={role === "OWNER" || submitting || Boolean(activeEntry)} className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-60">{submitting ? "Đang xử lý..." : "Mở ca"}</button>
+            <button onClick={clockOut} disabled={role === "OWNER" || submitting || !activeEntry} className="btn btn-outline disabled:cursor-not-allowed disabled:opacity-60">{submitting ? "Đang xử lý..." : "Đóng ca"}</button>
           </div>
-        ) : <p className="text-sm text-amber-700">Role hiện tại không được chấm công.</p>}
+        ) : isDevPreview ? <div className="manage-warn-box">DEV chỉ xem trước màn chấm công và báo cáo ca làm, không được mở ca hoặc đóng ca.</div> : <p className="text-sm text-amber-700">Vai trò hiện tại không được chấm công.</p>}
 
         <div className="grid gap-3 md:grid-cols-3">
-          <div className="card"><p className="text-sm text-neutral-500">Tổng ca theo bộ lọc</p><p className="mt-1 text-2xl font-semibold">{filteredEntries.length}</p></div>
-          <div className="card"><p className="text-sm text-neutral-500">Tổng thời lượng</p><p className="mt-1 text-2xl font-semibold">{Math.floor(totalMinutes / 60)}h {String(totalMinutes % 60).padStart(2, "0")}m</p></div>
-          <div className="card"><p className="text-sm text-neutral-500">Nhân sự hiển thị</p><p className="mt-1 text-2xl font-semibold">{new Set(filteredEntries.map((e) => e.staff_user_id)).size}</p></div>
+          <ManageStatCard label="Tổng ca theo bộ lọc" value={filteredEntries.length} />
+          <ManageStatCard label="Tổng thời lượng" value={`${Math.floor(totalMinutes / 60)}h ${String(totalMinutes % 60).padStart(2, "0")}m`} />
+          <ManageStatCard label="Nhân sự hiển thị" value={new Set(filteredEntries.map((e) => e.staff_user_id)).size} />
         </div>
 
         {canManageView && (
@@ -250,7 +265,7 @@ export default function ShiftsPage() {
           {loading ? <p className="text-sm text-neutral-500">Đang tải...</p> : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="text-neutral-500"><tr><th className="py-2">Nhân sự</th><th>Vai trò</th><th>Clock in</th><th>Clock out</th><th>Thời lượng</th><th>Trạng thái</th></tr></thead>
+                <thead className="text-neutral-500"><tr><th className="py-2">Nhân sự</th><th>Vai trò</th><th>Mở ca</th><th>Đóng ca</th><th>Thời lượng</th><th>Trạng thái</th></tr></thead>
                 <tbody>
                   {filteredEntries.map((e) => {
                     const member = memberMap.get(e.staff_user_id);

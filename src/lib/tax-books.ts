@@ -1,4 +1,4 @@
-import { listTicketsInRange, listTimeEntriesInRange } from "@/lib/reporting";
+import { getTicketDetail, listTicketsInRange, listTimeEntriesInRange } from "@/lib/reporting";
 
 export type TaxBookType = "S1A_HKD" | "S2A_HKD" | "S3A_HKD";
 
@@ -8,27 +8,39 @@ export type TaxBookRow = {
   amount: number;
 };
 
-export async function buildTaxBook(type: TaxBookType, fromIso: string, toIso: string): Promise<TaxBookRow[]> {
-  if (type === "S1A_HKD") {
-    const tickets = await listTicketsInRange(fromIso, toIso);
-    return tickets
-      .filter((t) => t.status === "CLOSED")
-      .map((t) => ({
-        date: t.created_at,
-        description: `Doanh thu dịch vụ - Ticket ${t.id.slice(0, 8)}`,
-        amount: Number(t.totals_json?.grand_total ?? 0),
-      }));
-  }
+function buildServiceCustomerDescription(serviceNames: string[], customerName?: string | null) {
+  const serviceLabel = serviceNames.length > 0 ? serviceNames.join(" + ") : "Dịch vụ";
+  const customerLabel = customerName?.trim() ? customerName.trim() : "khách lẻ";
+  return `${serviceLabel} - ${customerLabel}`;
+}
 
-  if (type === "S2A_HKD") {
-    const tickets = await listTicketsInRange(fromIso, toIso);
-    return tickets
-      .filter((t) => t.status === "CLOSED")
-      .map((t) => ({
-        date: t.created_at,
-        description: `VAT đầu ra - Ticket ${t.id.slice(0, 8)}`,
-        amount: Number(t.totals_json?.vat_total ?? 0),
-      }));
+export async function buildTaxBook(type: TaxBookType, fromIso: string, toIso: string): Promise<TaxBookRow[]> {
+  if (type === "S1A_HKD" || type === "S2A_HKD") {
+    const tickets = (await listTicketsInRange(fromIso, toIso)).filter((t) => t.status === "CLOSED");
+    const details = await Promise.all(
+      tickets.map(async (t) => {
+        try {
+          const detail = await getTicketDetail(t.id);
+          const serviceNames = [...new Set((detail.items ?? []).map((item) => item.service_name).filter(Boolean))];
+          const description = buildServiceCustomerDescription(serviceNames, detail.customer?.name ?? null);
+          return {
+            ticket: t,
+            description,
+          };
+        } catch {
+          return {
+            ticket: t,
+            description: buildServiceCustomerDescription([], null),
+          };
+        }
+      }),
+    );
+
+    return details.map(({ ticket, description }) => ({
+      date: ticket.created_at,
+      description: type === "S1A_HKD" ? description : `VAT - ${description}`,
+      amount: Number(type === "S1A_HKD" ? ticket.totals_json?.grand_total ?? 0 : ticket.totals_json?.vat_total ?? 0),
+    }));
   }
 
   const entries = await listTimeEntriesInRange(fromIso, toIso);

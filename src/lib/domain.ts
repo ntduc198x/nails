@@ -491,6 +491,29 @@ type CheckoutInput = {
   idempotencyKey?: string;
 };
 
+export async function hasOpenShift(userId?: string) {
+  if (!supabase) throw new Error("Supabase chưa cấu hình");
+  const { orgId } = await ensureOrgContext();
+
+  let targetUserId = userId;
+  if (!targetUserId) {
+    const { data } = await supabase.auth.getSession();
+    targetUserId = data.session?.user?.id;
+  }
+  if (!targetUserId) throw new Error("Chưa đăng nhập");
+
+  const { count, error } = await supabase
+    .from("time_entries")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", orgId)
+    .eq("staff_user_id", targetUserId)
+    .is("clock_out", null)
+    .limit(1);
+
+  if (error) throw error;
+  return (count ?? 0) > 0;
+}
+
 export async function createCheckout(input: CheckoutInput) {
   if (!supabase) throw new Error("Supabase chưa cấu hình");
   if (!input.lines.length) throw new Error("Cần ít nhất 1 dịch vụ");

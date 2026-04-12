@@ -1,11 +1,13 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
+import { ManageQuickNav } from "@/components/manage-quick-nav";
 import { listUserRoles } from "@/lib/auth";
-import { getReportBreakdown, getStaffRevenueInRange, listTicketsInRange, listTimeEntriesInRange, type ReportTicketRow } from "@/lib/reporting";
 import { formatVnd } from "@/lib/mock-data";
+import { getReportBreakdown, getStaffRevenueInRange, listTicketsInRange, listTimeEntriesInRange, type ReportTicketRow } from "@/lib/reporting";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import * as XLSX from "xlsx";
 
 type RangeMode = "day" | "week" | "month" | "custom";
 
@@ -51,15 +53,13 @@ function endOfMonth(year: number, monthIndex: number) {
   return new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
 }
 
-function downloadCsv(filename: string, rows: string[][]) {
-  const csv = rows.map((r) => r.map((v) => `"${String(v).replaceAll('"', '""')}"`).join(",")).join("\n");
-  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+function downloadExcel(filename: string, sheets: Array<{ name: string; rows: Array<Array<string | number>> }>) {
+  const workbook = XLSX.utils.book_new();
+  for (const sheet of sheets) {
+    const worksheet = XLSX.utils.aoa_to_sheet(sheet.rows);
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheet.name.slice(0, 31));
+  }
+  XLSX.writeFile(workbook, filename);
 }
 
 export default function ReportsPage() {
@@ -197,64 +197,90 @@ export default function ReportsPage() {
     return rows.filter((row) => row.staff_user_id === staffFilter);
   }, [rows, staffFilter]);
 
-  function exportCsv() {
-    const rowsOut: string[][] = [];
-    rowsOut.push(["SUMMARY"]);
-    rowsOut.push(["count", String(summary.count)]);
-    rowsOut.push(["subtotal", String(summary.subtotal)]);
-    rowsOut.push(["vat", String(summary.vat)]);
-    rowsOut.push(["revenue", String(summary.revenue)]);
-    rowsOut.push([]);
-
-    rowsOut.push(["BY_SERVICE"]);
-    rowsOut.push(["service_name", "qty", "subtotal"]);
-    for (const s of breakdown?.by_service ?? []) rowsOut.push([s.service_name, String(s.qty), String(s.subtotal)]);
-    rowsOut.push([]);
-
-    rowsOut.push(["BY_PAYMENT"]);
-    rowsOut.push(["method", "count", "amount"]);
-    for (const p of breakdown?.by_payment ?? []) rowsOut.push([p.method, String(p.count), String(p.amount)]);
-    rowsOut.push([]);
-
-    rowsOut.push(["BY_STAFF_HOURS"]);
-    rowsOut.push(["staff", "entries", "minutes"]);
-    for (const s of staffHours) rowsOut.push([s.staff, String(s.entries), String(s.minutes)]);
-    rowsOut.push([]);
-
-    rowsOut.push(["BY_STAFF_REVENUE"]);
-    rowsOut.push(["staff_user_id", "staff_name", "tickets", "revenue"]);
-    for (const s of staffRevenue) rowsOut.push([s.staffUserId, s.staff, String(s.tickets), String(s.revenue)]);
-    rowsOut.push([]);
-
-    rowsOut.push(["TICKETS"]);
-    rowsOut.push(["ticket_id", "staff_user_id", "created_at", "status", "subtotal", "vat", "grand_total"]);
-    for (const r of filteredTicketRows) {
-      rowsOut.push([
-        r.id,
-        r.staff_user_id ?? "",
-        new Date(r.created_at).toISOString(),
-        r.status,
-        String(Number(r.totals_json?.subtotal ?? 0)),
-        String(Number(r.totals_json?.vat_total ?? 0)),
-        String(Number(r.totals_json?.grand_total ?? 0)),
-      ]);
-    }
-
-    downloadCsv(`nails-report-${rangeMode}.csv`, rowsOut);
+  function exportExcel() {
+    downloadExcel(`bao-cao-nails-${rangeMode}.xlsx`, [
+      {
+        name: "Tong_quan",
+        rows: [
+          ["Chỉ số", "Giá trị"],
+          ["Số bill CLOSED", summary.count],
+          ["Tạm tính", Number(summary.subtotal)],
+          ["VAT", Number(summary.vat)],
+          ["Doanh thu", Number(summary.revenue)],
+        ],
+      },
+      {
+        name: "Theo_dich_vu",
+        rows: [
+          ["Dịch vụ", "Số lượng", "Tạm tính"],
+          ...(breakdown?.by_service ?? []).map((s) => [s.service_name, Number(s.qty), Number(s.subtotal)]),
+        ],
+      },
+      {
+        name: "Theo_thanh_toan",
+        rows: [
+          ["Phương thức", "Số bill", "Số tiền"],
+          ...(breakdown?.by_payment ?? []).map((p) => [p.method, Number(p.count), Number(p.amount)]),
+        ],
+      },
+      {
+        name: "Gio_lam",
+        rows: [
+          ["Nhân viên", "Số ca", "Số phút"],
+          ...staffHours.map((s) => [s.staff, Number(s.entries), Number(s.minutes)]),
+        ],
+      },
+      {
+        name: "Doanh_thu_NV",
+        rows: [
+          ["Mã nhân viên", "Tên nhân viên", "Số bill", "Doanh thu"],
+          ...staffRevenue.map((s) => [s.staffUserId, s.staff, Number(s.tickets), Number(s.revenue)]),
+        ],
+      },
+      {
+        name: "Chi_tiet_bill",
+        rows: [
+          ["Mã bill", "Mã nhân viên", "Thời gian", "Trạng thái", "Tạm tính", "VAT", "Tổng tiền"],
+          ...filteredTicketRows.map((r) => [
+            r.id,
+            r.staff_user_id ?? "",
+            new Date(r.created_at).toLocaleString("vi-VN"),
+            r.status,
+            Number(r.totals_json?.subtotal ?? 0),
+            Number(r.totals_json?.vat_total ?? 0),
+            Number(r.totals_json?.grand_total ?? 0),
+          ]),
+        ],
+      },
+    ]);
   }
 
   return (
     <AppShell>
-      <div className="page-shell">
-        <div className="card">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="page-title">Báo cáo nhanh</h2>
-              <p className="page-subtitle">Tổng quan doanh thu, breakdown và hiệu quả theo từng nhân viên.</p>
+      <div className="space-y-5">
+        <section className="manage-surface">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <h2 className="page-title">Báo cáo</h2>
+                {refreshing && <span className="badge-soft">Đang làm mới...</span>}
+              </div>
+              <p className="page-subtitle">Tổng quan doanh thu, hiệu suất nhân sự và breakdown ticket trong cùng một màn hình.</p>
             </div>
-            {refreshing && <span className="badge-soft">Đang làm mới...</span>}
+            <button className="btn btn-primary" onClick={exportExcel}>Xuất Excel</button>
           </div>
-          <div className="mt-4 flex flex-wrap items-center gap-2">
+
+          <ManageQuickNav
+            className="mt-4"
+            items={[
+              { href: "/manage/technician", label: "Bảng kỹ thuật" },
+              { href: "/manage/appointments", label: "Lịch hẹn" },
+              { href: "/manage/checkout", label: "Thanh toán" },
+              { href: "/manage/shifts", label: "Ca làm" },
+            ]}
+          />
+
+          <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto_auto] lg:items-center">
             <select className="input" value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}>
               <option value="day">Hôm nay / theo ngày</option>
               <option value="week">Theo tuần</option>
@@ -262,107 +288,119 @@ export default function ReportsPage() {
               <option value="custom">Tùy chỉnh</option>
             </select>
 
-            {rangeMode === "day" && (
-              <input className="input" type="date" value={dayValue} onChange={(e) => setDayValue(e.target.value)} />
-            )}
-
-            {rangeMode === "week" && (
-              <input className="input" type="date" value={weekAnchor} onChange={(e) => setWeekAnchor(e.target.value)} />
-            )}
-
+            {rangeMode === "day" && <input className="input" type="date" value={dayValue} onChange={(e) => setDayValue(e.target.value)} />}
+            {rangeMode === "week" && <input className="input" type="date" value={weekAnchor} onChange={(e) => setWeekAnchor(e.target.value)} />}
             {rangeMode === "month" && (
               <>
                 <select className="input" value={monthValue} onChange={(e) => setMonthValue(e.target.value)}>
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                    <option key={m} value={String(m)}>{`Tháng ${m}`}</option>
-                  ))}
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={String(m)}>{`Tháng ${m}`}</option>)}
                 </select>
                 <input className="input w-[120px]" type="number" value={yearValue} onChange={(e) => setYearValue(e.target.value)} />
               </>
             )}
-
             {rangeMode === "custom" && (
               <>
                 <input className="input" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-                <span className="text-sm text-neutral-500">đến</span>
                 <input className="input" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
               </>
             )}
 
             <select className="input" value={staffFilter} onChange={(e) => setStaffFilter(e.target.value)}>
               <option value="ALL">Tất cả nhân viên</option>
-              {staffRevenue.map((row) => (
-                <option key={row.staffUserId} value={row.staffUserId}>{row.staff}</option>
-              ))}
+              {staffRevenue.map((row) => <option key={row.staffUserId} value={row.staffUserId}>{row.staff}</option>)}
             </select>
             <button className="btn btn-outline" onClick={() => void load()} disabled={refreshing}>{refreshing ? "Đang lọc..." : "Lọc"}</button>
-            <button className="btn btn-primary" onClick={exportCsv}>Export CSV</button>
           </div>
-        </div>
+        </section>
 
-        <div className="page-grid md:grid-cols-4">
-          <div className="card"><p className="text-sm text-neutral-500">Số bill CLOSED</p><p className="text-xl font-semibold">{summary.count}</p></div>
-          <div className="card"><p className="text-sm text-neutral-500">Subtotal</p><p className="text-xl font-semibold">{formatVnd(summary.subtotal)}</p></div>
-          <div className="card"><p className="text-sm text-neutral-500">VAT</p><p className="text-xl font-semibold">{formatVnd(summary.vat)}</p></div>
-          <div className="card"><p className="text-sm text-neutral-500">Doanh thu</p><p className="text-xl font-semibold">{formatVnd(summary.revenue)}</p></div>
-        </div>
+        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="manage-surface"><p className="text-sm text-neutral-500">Số bill CLOSED</p><p className="mt-2 text-3xl font-semibold text-neutral-900">{summary.count}</p></div>
+          <div className="manage-surface"><p className="text-sm text-neutral-500">Subtotal</p><p className="mt-2 text-3xl font-semibold text-neutral-900">{formatVnd(summary.subtotal)}</p></div>
+          <div className="manage-surface"><p className="text-sm text-neutral-500">VAT</p><p className="mt-2 text-3xl font-semibold text-neutral-900">{formatVnd(summary.vat)}</p></div>
+          <div className="rounded-3xl border border-neutral-200 bg-[var(--color-primary)] p-5 text-white shadow-sm"><p className="text-sm text-white/80">Doanh thu</p><p className="mt-2 text-3xl font-semibold">{formatVnd(summary.revenue)}</p></div>
+        </section>
 
-        {breakdownError && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Breakdown nâng cao đang lỗi: {breakdownError}. Vẫn hiển thị danh sách ticket cơ bản bình thường.</div>}
+        {breakdownError && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Phân tích nâng cao đang lỗi: {breakdownError}. Danh sách phiếu cơ bản vẫn hiển thị bình thường.</div>}
 
-        <div className="page-grid md:grid-cols-4">
-          <div className="card">
-            <h3 className="mb-2 font-semibold">Top dịch vụ</h3>
-            <div className="table-wrap"><table className="table"><thead className="text-neutral-500"><tr><th className="py-2">Dịch vụ</th><th>SL</th><th>Subtotal</th></tr></thead><tbody>{(breakdown?.by_service ?? []).map((s, idx) => <tr key={`${s.service_name}-${idx}`} className="border-t border-neutral-100"><td className="py-2">{s.service_name}</td><td>{s.qty}</td><td>{formatVnd(Number(s.subtotal ?? 0))}</td></tr>)}</tbody></table></div>
-          </div>
-
-          <div className="card">
-            <h3 className="mb-2 font-semibold">Theo phương thức thanh toán</h3>
-            <div className="table-wrap"><table className="table"><thead className="text-neutral-500"><tr><th className="py-2">Method</th><th>Số bill</th><th>Số tiền</th></tr></thead><tbody>{(breakdown?.by_payment ?? []).map((p, idx) => <tr key={`${p.method}-${idx}`} className="border-t border-neutral-100"><td className="py-2">{p.method}</td><td>{p.count}</td><td>{formatVnd(Number(p.amount ?? 0))}</td></tr>)}</tbody></table></div>
-          </div>
-
-          <div className="card">
-            <h3 className="mb-2 font-semibold">Theo nhân viên (giờ làm)</h3>
-            <div className="table-wrap"><table className="table"><thead className="text-neutral-500"><tr><th className="py-2">Nhân viên</th><th>Số ca</th><th>Phút</th></tr></thead><tbody>{staffHours.map((s, idx) => <tr key={`${s.staff}-${idx}`} className="border-t border-neutral-100"><td className="py-2">{s.staff}</td><td>{s.entries}</td><td>{s.minutes}</td></tr>)}</tbody></table></div>
-          </div>
-
-          <div className="card">
-            <div className="mb-2 flex items-center justify-between gap-2"><h3 className="font-semibold">Doanh thu theo nhân viên</h3><span className="text-xs text-neutral-500">{formatVnd(revenueByStaffTotal)}</span></div>
-            <div className="table-wrap"><table className="table"><thead className="text-neutral-500"><tr><th className="py-2">Nhân viên</th><th>Số bill</th><th>Doanh thu</th></tr></thead><tbody>{staffRevenue.map((s) => <tr key={s.staffUserId} className="border-t border-neutral-100"><td className="py-2">{s.staff}</td><td>{s.tickets}</td><td>{formatVnd(s.revenue)}</td></tr>)}</tbody></table></div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <div>
-              <h3 className="font-semibold">Bill chi tiết theo nhân viên</h3>
-              <p className="text-sm text-neutral-500">Lọc theo nhân viên để xem từng bill ai đã xử lý.</p>
+        <section className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_380px]">
+          <div className="space-y-5">
+            <div className="manage-surface">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold text-neutral-900">Phân tích doanh thu</h3>
+                  <p className="text-sm text-neutral-500">Nhìn nhanh dịch vụ kéo doanh thu và nhân viên đang tạo ra nhiều bill nhất.</p>
+                </div>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">Top dịch vụ</h4>
+                  {(breakdown?.by_service ?? []).length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">Chưa có dữ liệu dịch vụ trong kỳ này.</div> : (breakdown?.by_service ?? []).slice(0, 6).map((s, idx) => <div key={`${s.service_name}-${idx}`} className="flex items-center justify-between rounded-2xl border border-neutral-100 bg-neutral-50/70 px-4 py-3 text-sm"><div><div className="font-medium text-neutral-900">{s.service_name}</div><div className="text-neutral-500">SL: {s.qty}</div></div><div className="font-semibold text-neutral-900">{formatVnd(Number(s.subtotal ?? 0))}</div></div>)}
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2"><h4 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">Doanh thu theo nhân viên</h4><span className="text-xs text-neutral-500">{formatVnd(revenueByStaffTotal)}</span></div>
+                  {staffRevenue.length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">Chưa có dữ liệu doanh thu theo nhân viên.</div> : staffRevenue.slice(0, 6).map((s) => <div key={s.staffUserId} className="flex items-center justify-between rounded-2xl border border-neutral-100 bg-neutral-50/70 px-4 py-3 text-sm"><div><div className="font-medium text-neutral-900">{s.staff}</div><div className="text-neutral-500">{s.tickets} bill</div></div><div className="font-semibold text-neutral-900">{formatVnd(s.revenue)}</div></div>)}
+                </div>
+              </div>
             </div>
-            <span className="text-xs text-neutral-500">{filteredTicketRows.length} bill</span>
-          </div>
-          {error && <p className="mb-3 text-sm text-red-600">Lỗi: {error}</p>}
-          {loading ? (
-            <div className="space-y-2"><div className="skeleton h-10 rounded-xl" /><div className="skeleton h-10 rounded-xl" /><div className="skeleton h-10 rounded-xl" /></div>
-          ) : (
-            <div className="table-wrap">
-              <table className="table">
-                <thead className="text-neutral-500"><tr><th className="py-2">Thời gian</th><th>Nhân viên</th><th>Trạng thái</th><th>Subtotal</th><th>VAT</th><th>Tổng</th><th></th></tr></thead>
-                <tbody>
+
+            <div className="manage-surface">
+              <div className="mb-4 flex items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-lg font-semibold text-neutral-900">Chi tiết bill</h3>
+                  <p className="text-sm text-neutral-500">Phần này để soi chi tiết từng bill sau khi đã đọc summary ở trên.</p>
+                </div>
+                <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs text-neutral-700">{filteredTicketRows.length} bill</span>
+              </div>
+              {error && <p className="mb-3 text-sm text-red-600">Lỗi: {error}</p>}
+              {loading ? (
+                <div className="space-y-2"><div className="skeleton h-10 rounded-xl" /><div className="skeleton h-10 rounded-xl" /><div className="skeleton h-10 rounded-xl" /></div>
+              ) : filteredTicketRows.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-8 text-sm text-neutral-500">Không có bill nào khớp bộ lọc hiện tại.</div>
+              ) : (
+                <div className="space-y-3">
                   {filteredTicketRows.map((t) => (
-                    <tr key={t.id} className="border-t border-neutral-100">
-                      <td className="py-2">{new Date(t.created_at).toLocaleString("vi-VN")}</td>
-                      <td>{t.staff_user_id ? (staffNameMap.get(t.staff_user_id) ?? t.staff_user_id.slice(0, 8)) : "-"}</td>
-                      <td>{t.status}</td>
-                      <td>{formatVnd(Number(t.totals_json?.subtotal ?? 0))}</td>
-                      <td>{formatVnd(Number(t.totals_json?.vat_total ?? 0))}</td>
-                      <td>{formatVnd(Number(t.totals_json?.grand_total ?? 0))}</td>
-                      <td><Link className="underline" href={`/manage/reports/${t.id}`}>Chi tiết</Link></td>
-                    </tr>
+                    <div key={t.id} className="rounded-2xl border border-neutral-200 bg-neutral-50/50 p-4">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <div className="font-semibold text-neutral-900">{t.staff_user_id ? (staffNameMap.get(t.staff_user_id) ?? t.staff_user_id.slice(0, 8)) : "-"}</div>
+                          <div className="text-sm text-neutral-500">{new Date(t.created_at).toLocaleString("vi-VN")}</div>
+                        </div>
+                        <div className="text-left md:text-right">
+                          <div className="text-sm text-neutral-500">Tổng bill</div>
+                          <div className="text-lg font-semibold text-neutral-900">{formatVnd(Number(t.totals_json?.grand_total ?? 0))}</div>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2 text-sm text-neutral-600">
+                        <span className="rounded-full bg-white px-3 py-1">Trạng thái: <span className="font-medium text-neutral-900">{t.status}</span></span>
+                        <span className="rounded-full bg-white px-3 py-1">Subtotal: <span className="font-medium text-neutral-900">{formatVnd(Number(t.totals_json?.subtotal ?? 0))}</span></span>
+                        <span className="rounded-full bg-white px-3 py-1">VAT: <span className="font-medium text-neutral-900">{formatVnd(Number(t.totals_json?.vat_total ?? 0))}</span></span>
+                        <Link className="manage-quick-link" href={`/manage/reports/${t.id}`}>Xem chi tiết</Link>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+
+          <div className="space-y-5">
+            <div className="manage-surface">
+              <h3 className="font-semibold text-neutral-900">Theo phương thức thanh toán</h3>
+              <p className="mt-1 text-sm text-neutral-500">Kiểm tra tiền về đang dồn ở phương thức nào.</p>
+              <div className="mt-4 space-y-2">
+                {(breakdown?.by_payment ?? []).length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">Chưa có dữ liệu thanh toán.</div> : (breakdown?.by_payment ?? []).map((p, idx) => <div key={`${p.method}-${idx}`} className="flex items-center justify-between rounded-2xl border border-neutral-100 bg-neutral-50/70 px-4 py-3 text-sm"><div><div className="font-medium text-neutral-900">{p.method}</div><div className="text-neutral-500">{p.count} bill</div></div><div className="font-semibold text-neutral-900">{formatVnd(Number(p.amount ?? 0))}</div></div>)}
+              </div>
+            </div>
+
+            <div className="manage-surface">
+              <h3 className="font-semibold text-neutral-900">Theo nhân viên (giờ làm)</h3>
+              <p className="mt-1 text-sm text-neutral-500">So nhanh giữa thời lượng làm việc và hiệu suất doanh thu.</p>
+              <div className="mt-4 space-y-2">
+                {staffHours.length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">Chưa có dữ liệu giờ làm trong kỳ này.</div> : staffHours.map((s, idx) => <div key={`${s.staff}-${idx}`} className="flex items-center justify-between rounded-2xl border border-neutral-100 bg-neutral-50/70 px-4 py-3 text-sm"><div><div className="font-medium text-neutral-900">{s.staff}</div><div className="text-neutral-500">{s.entries} ca</div></div><div className="font-semibold text-neutral-900">{s.minutes} phút</div></div>)}
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     </AppShell>
   );

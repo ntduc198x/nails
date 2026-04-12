@@ -125,9 +125,9 @@ export default function TechnicianBoardPage() {
       setResources((resourcesRes.data ?? []) as ResourceRow[]);
       setStaffs(((staffRows ?? []) as Array<{ userId: string; name: string }>).map((s) => ({ user_id: s.userId, display_name: s.name })) as StaffRow[]);
       setOpenTickets((ticketsRes.data ?? []) as OpenTicketRow[]);
-      setSelectedStaffId((prev) => (currentRole === "TECH" ? prev || userId : prev));
+      setSelectedStaffId((prev) => prev);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Load technician board failed");
+      setError(e instanceof Error ? e.message : "Tải bảng kỹ thuật thất bại");
     } finally {
       if (!opts?.silent) setLoading(false);
     }
@@ -144,7 +144,7 @@ export default function TechnicianBoardPage() {
     return () => clearInterval(id);
   }, [rangeMode]);
 
-  const visibleStaffId = role === "TECH" ? myUserId ?? "" : selectedStaffId;
+  const visibleStaffId = selectedStaffId;
 
   const filteredRows = useMemo(() => {
     const byStaff = !visibleStaffId ? rows : rows.filter((r) => r.staff_user_id === visibleStaffId);
@@ -178,7 +178,7 @@ export default function TechnicianBoardPage() {
       }
       await load({ silent: true });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Update technician board failed");
+      setError(e instanceof Error ? e.message : "Cập nhật bảng kỹ thuật thất bại");
     } finally {
       setActingId(null);
     }
@@ -187,10 +187,10 @@ export default function TechnicianBoardPage() {
   return (
     <AppShell>
       <div className="page-shell">
-        <section className="card">
+        <section className="manage-surface">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="page-title">Techboard hôm nay</h2>
+              <h2 className="page-title">Bảng kỹ thuật hôm nay</h2>
               <p className="page-subtitle">Theo dõi khách đang chờ, đang làm và đã xong của từng thợ.</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -217,9 +217,9 @@ export default function TechnicianBoardPage() {
           </div>
           {error && <p className="mt-3 text-sm text-red-600">Lỗi: {error}</p>}
           <div className="mt-4 flex flex-wrap gap-2">
-            <a href="/manage/appointments" className="rounded-full border border-[#eadfce] bg-[#f6efe6] px-4 py-2 text-sm transition hover:bg-[var(--color-primary)] hover:text-white">Appointments</a>
-            <a href="/manage/checkout" className="rounded-full border border-[#eadfce] bg-[#f6efe6] px-4 py-2 text-sm transition hover:bg-[var(--color-primary)] hover:text-white">Checkout</a>
-            <a href="/manage/shifts" className="rounded-full border border-[#eadfce] bg-[#f6efe6] px-4 py-2 text-sm transition hover:bg-[var(--color-primary)] hover:text-white">Ca làm</a>
+            <a href="/manage/appointments" className="manage-quick-link">Lịch hẹn</a>
+            <a href="/manage/checkout" className="manage-quick-link">Thanh toán</a>
+            <a href="/manage/shifts" className="manage-quick-link">Ca làm</a>
           </div>
         </section>
 
@@ -242,7 +242,7 @@ export default function TechnicianBoardPage() {
                           </button>
                         )}
                         {row.status === "CHECKED_IN" && (
-                          <Link href={`/manage/checkout?appointmentId=${row.id}&customer=${encodeURIComponent(pickCustomerName(row.customers))}`} className="rounded-lg border border-[#eadfce] bg-[#f6efe6] px-3 py-1 text-xs font-medium transition hover:bg-[var(--color-primary)] hover:text-white">Checkout</Link>
+                          <Link href={`/manage/checkout?appointmentId=${row.id}&customer=${encodeURIComponent(pickCustomerName(row.customers))}`} className="rounded-lg border border-[#eadfce] bg-[#f6efe6] px-3 py-1 text-xs font-medium transition hover:bg-[var(--color-primary)] hover:text-white">Thanh toán</Link>
                         )}
                       </div>
                     </div>
@@ -253,7 +253,7 @@ export default function TechnicianBoardPage() {
           ))}
         </section>
 
-        <section className="card">
+        <section className="manage-surface">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-semibold">Timeline</h3>

@@ -1,5 +1,6 @@
 "use client";
 
+import { consumeInviteCode } from "@/lib/invite-codes";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -14,6 +15,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [loading, setLoading] = useState(false);
   const [resetting, setResetting] = useState(false);
@@ -21,7 +23,7 @@ export default function LoginPage() {
 
   const description = useMemo(() => {
     if (mode === "signup") {
-      return "Tạo tài khoản để bắt đầu quản lý lịch hẹn, checkout và báo cáo trong cùng một nơi.";
+      return "Tạo tài khoản bằng mã mời để bắt đầu quản lý lịch hẹn, checkout và vận hành trong cùng một nơi.";
     }
     return "Đăng nhập để tiếp tục vận hành tiệm, theo dõi lịch làm và xử lý khách nhanh gọn.";
   }, [mode]);
@@ -36,7 +38,10 @@ export default function LoginPage() {
 
       if (mode === "signup") {
         const displayName = name.trim();
-        const { error } = await supabase.auth.signUp({
+        const invite = inviteCode.trim().toUpperCase();
+        if (!invite) throw new Error("Vui lòng nhập mã mời hợp lệ.");
+
+        const { data: signUpData, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -46,15 +51,27 @@ export default function LoginPage() {
           },
         });
         if (error) throw error;
-        setMsg("Tạo tài khoản thành công. Nếu hệ thống bật xác nhận email, kiểm tra inbox rồi đăng nhập lại.");
+
+        const userId = signUpData.user?.id;
+        if (!userId) throw new Error("Không tạo được user mới.");
+
+        try {
+          await consumeInviteCode(invite, userId, displayName);
+        } catch (inviteError) {
+          await supabase.auth.signOut();
+          throw inviteError;
+        }
+
+        setMsg("Tạo tài khoản thành công bằng mã mời. Nếu hệ thống bật xác nhận email, kiểm tra inbox rồi đăng nhập lại.");
         setName("");
+        setInviteCode("");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         router.replace("/manage");
       }
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Auth failed");
+      setMsg(e instanceof Error ? e.message : "Xác thực thất bại");
     } finally {
       setLoading(false);
     }
@@ -73,7 +90,7 @@ export default function LoginPage() {
       if (error) throw error;
       setMsg("Đã gửi link đặt lại mật khẩu. Hãy kiểm tra email.");
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Reset password failed");
+      setMsg(e instanceof Error ? e.message : "Gửi yêu cầu đặt lại mật khẩu thất bại");
     } finally {
       setResetting(false);
     }
@@ -111,14 +128,24 @@ export default function LoginPage() {
         </div>
 
         {mode === "signup" && (
-          <input
-            className="w-full input"
-            type="text"
-            placeholder="Tên của bạn"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
+          <>
+            <input
+              className="w-full input"
+              type="text"
+              placeholder="Tên của bạn"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+            <input
+              className="w-full input uppercase"
+              type="text"
+              placeholder="Mã mời"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+              required
+            />
+          </>
         )}
 
         <input
@@ -159,8 +186,8 @@ export default function LoginPage() {
 
         <div className="rounded-lg bg-neutral-50 p-3 text-xs leading-5 text-neutral-500">
           {mode === "signup"
-            ? "Tài khoản tạo xong sẽ cần xác nhận trong email để đăng nhập."
-            : "Nếu bạn chưa có tài khoản, chuyển sang tab Tạo tài khoản để khởi tạo nhanh cho tiệm."}
+            ? "Đăng ký cần mã mời dùng 1 lần, hiệu lực 15 phút. Tài khoản mới mặc định sẽ là Kỹ thuật viên."
+            : "Nếu bạn chưa có tài khoản, hãy xin Chủ tiệm mã mời rồi chuyển sang tab Tạo tài khoản."}
         </div>
 
         {msg && <p className="rounded-lg bg-neutral-50 p-3 text-sm text-neutral-700">{msg}</p>}

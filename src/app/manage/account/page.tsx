@@ -147,17 +147,19 @@ export default function AccountPage() {
 
   return (
     <AppShell>
-      <div className="page-shell">
-        <div className="card">
-          <h2 className="page-title">Tài khoản</h2>
-          <p className="page-subtitle">Xem hồ sơ cá nhân, cập nhật thông tin cơ bản, avatar và đổi mật khẩu.</p>
-        </div>
+      <div className="space-y-5">
+        <section className="manage-surface">
+          <div className="space-y-1">
+            <h2 className="page-title">Tài khoản</h2>
+            <p className="page-subtitle">Quản lý hồ sơ cá nhân và bảo mật tài khoản trong một màn hình gọn hơn.</p>
+          </div>
+        </section>
 
         {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
         {message && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">{message}</div>}
 
-        <div className="page-grid md:grid-cols-[340px_minmax(0,1fr)]">
-          <aside className="card stack-tight">
+        <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
+          <aside className="card space-y-4 xl:sticky xl:top-4 xl:self-start">
             {loading ? (
               <div className="space-y-3">
                 <div className="skeleton h-5 w-40 rounded-full" />
@@ -167,16 +169,20 @@ export default function AccountPage() {
             ) : (
               <>
                 <div>
-                  <p className="text-xl font-semibold">{profileName}</p>
+                  <p className="text-xl font-semibold text-neutral-900">{profileName}</p>
                   <p className="text-sm text-neutral-500">{email || "No email"}</p>
                   <span className="badge-soft mt-2 inline-flex">{role}</span>
                 </div>
 
-                <div className="rounded-2xl border p-4 text-sm" style={{ borderColor: "var(--color-border)" }}>
+                <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-sm">
                   <div className="grid gap-3">
                     <div>
+                      <p className="text-xs uppercase tracking-wide text-neutral-500">Tên hiển thị</p>
+                      <p className="mt-1 font-medium text-neutral-900">{profileData.displayName || "Chưa cập nhật"}</p>
+                    </div>
+                    <div>
                       <p className="text-xs uppercase tracking-wide text-neutral-500">Điện thoại</p>
-                      <p className="mt-1 font-medium">{profileData.phone || "Chưa cập nhật"}</p>
+                      <p className="mt-1 font-medium text-neutral-900">{profileData.phone || "Chưa cập nhật"}</p>
                     </div>
                   </div>
                 </div>
@@ -184,26 +190,26 @@ export default function AccountPage() {
             )}
           </aside>
 
-          <div className="space-y-4">
-            <form className="card stack-tight" onSubmit={onSaveProfile}>
+          <div className="space-y-5">
+            <form className="card space-y-4" onSubmit={onSaveProfile}>
               <div>
                 <h3 className="text-lg font-semibold">Hồ sơ cá nhân</h3>
                 <p className="text-sm text-neutral-500">Cập nhật tên hiển thị và số điện thoại của tài khoản.</p>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
-                <label className="stack-tight text-sm">
+                <label className="space-y-2 text-sm">
                   <span className="font-medium">Tên hiển thị</span>
                   <input className="input w-full" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Ví dụ: Đức" />
                 </label>
 
-                <label className="stack-tight text-sm">
+                <label className="space-y-2 text-sm">
                   <span className="font-medium">Số điện thoại</span>
                   <input className="input w-full" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Ví dụ: 09xxxxxxxx" />
                 </label>
               </div>
 
-              <label className="stack-tight text-sm">
+              <label className="space-y-2 text-sm">
                 <span className="font-medium">Email</span>
                 <input className="input w-full bg-neutral-50" value={email} disabled readOnly />
                 <span className="text-xs text-neutral-500">Hiện tại email chỉ hiển thị, chưa cho đổi trực tiếp ở màn này.</span>
@@ -216,24 +222,24 @@ export default function AccountPage() {
               </div>
             </form>
 
-            <form className="card stack-tight" onSubmit={onChangePassword}>
+            <form className="card space-y-4" onSubmit={onChangePassword}>
               <div>
                 <h3 className="text-lg font-semibold">Đổi mật khẩu</h3>
                 <p className="text-sm text-neutral-500">Nhập mật khẩu hiện tại để xác nhận, sau đó đặt mật khẩu mới.</p>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
-                <label className="stack-tight text-sm md:col-span-2">
+                <label className="space-y-2 text-sm md:col-span-2">
                   <span className="font-medium">Mật khẩu hiện tại</span>
                   <input className="input w-full" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="Nhập mật khẩu hiện tại" />
                 </label>
 
-                <label className="stack-tight text-sm">
+                <label className="space-y-2 text-sm">
                   <span className="font-medium">Mật khẩu mới</span>
                   <input className="input w-full" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Ít nhất 8 ký tự" />
                 </label>
 
-                <label className="stack-tight text-sm">
+                <label className="space-y-2 text-sm">
                   <span className="font-medium">Nhập lại mật khẩu mới</span>
                   <input className="input w-full" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Nhập lại để xác nhận" />
                 </label>

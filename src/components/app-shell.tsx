@@ -9,17 +9,17 @@ import { useEffect, useMemo, useState } from "react";
 
 const navGroups = [
   {
-    label: "Dashboard",
+    label: "Tổng quan",
     href: "/manage",
-    items: [{ href: "/manage", label: "Dashboard", desc: "Tổng quan vận hành trong ngày" }],
+    items: [{ href: "/manage", label: "Tổng quan", desc: "Tổng quan vận hành trong ngày" }],
   },
   {
     label: "Vận hành",
     items: [
-      { href: "/manage/booking-requests", label: "Booking requests", desc: "Yêu cầu đặt lịch từ landing page" },
-      { href: "/manage/technician", label: "Techboard", desc: "Board công việc theo thợ" },
-      { href: "/manage/appointments", label: "Appointments", desc: "Lịch hẹn, check-in, phân thợ" },
-      { href: "/manage/checkout", label: "Checkout", desc: "Ticket, thanh toán, receipt" },
+      { href: "/manage/booking-requests", label: "Yêu cầu đặt lịch", desc: "Yêu cầu đặt lịch từ landing page" },
+      { href: "/manage/technician", label: "Bảng kỹ thuật", desc: "Bảng công việc theo thợ" },
+      { href: "/manage/appointments", label: "Lịch hẹn", desc: "Lịch hẹn, check-in, phân thợ" },
+      { href: "/manage/checkout", label: "Thanh toán", desc: "Ticket, thanh toán, hóa đơn" },
       { href: "/manage/shifts", label: "Ca làm", desc: "Chấm công và ca trong ngày" },
     ],
   },
@@ -34,7 +34,7 @@ const navGroups = [
   {
     label: "Báo cáo",
     items: [
-      { href: "/manage/reports", label: "Reports", desc: "Doanh thu và breakdown" },
+      { href: "/manage/reports", label: "Báo cáo", desc: "Doanh thu và phân tích" },
       { href: "/manage/tax-books", label: "Sổ thuế", desc: "Mẫu S1a xuất file" },
     ],
   },
@@ -43,6 +43,7 @@ const navGroups = [
 function canAccess(role: AppRole, href: string) {
   if (href === "/manage/account") return true;
   if (role === "OWNER") return true;
+  if (role === "DEV") return true;
   if (role === "MANAGER") return href !== "/manage/tax-books";
   if (role === "RECEPTION") return ["/manage", "/manage/booking-requests", "/manage/appointments", "/manage/resources", "/manage/checkout", "/manage/shifts", "/manage/technician"].includes(href);
   if (role === "TECH") return ["/manage/appointments", "/manage/checkout", "/manage/technician", "/manage/shifts"].includes(href);

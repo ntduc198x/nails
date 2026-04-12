@@ -2,6 +2,7 @@
 
 import { AppShell } from "@/components/app-shell";
 import { ManageDateTimePicker } from "@/components/manage-datetime-picker";
+import { getCurrentSessionRole, type AppRole } from "@/lib/auth";
 import {
   BookingRequestRow,
   BookingRequestStatus,
@@ -105,6 +106,7 @@ export default function BookingRequestsPage() {
   const [rows, setRows] = useState<BookingRequestRow[]>([]);
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
   const [resourceOptions, setResourceOptions] = useState<ResourceOption[]>([]);
+  const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -134,7 +136,7 @@ export default function BookingRequestsPage() {
       setStaffOptions(staffs as StaffOption[]);
       setResourceOptions(resources as ResourceOption[]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Load booking requests failed");
+      setError(e instanceof Error ? e.message : "Tải yêu cầu đặt lịch thất bại");
     } finally {
       if (opts?.silent) setRefreshing(false);
       else setLoading(false);
@@ -145,6 +147,7 @@ export default function BookingRequestsPage() {
     void load();
   }, [load]);
 
+  const isDevPreview = role === "DEV";
   const rescheduleRows = useMemo(() => rows.filter((row) => row.status === "NEEDS_RESCHEDULE"), [rows]);
   const newRows = useMemo(() => rows.filter((row) => row.status === "NEW"), [rows]);
   const selectedRow = useMemo(() => rows.find((row) => row.id === selectedId) ?? null, [rows, selectedId]);
@@ -183,7 +186,7 @@ export default function BookingRequestsPage() {
         setCapacityWarning(
           result.allowed
             ? null
-            : `Khung giờ này đã có ${result.overlapCount} khách trong appointments. Tối đa cho phép là ${result.maxSimultaneous}. Hãy chọn giờ khác trước khi convert.`,
+            : `Khung giờ này đã có ${result.overlapCount} khách trong lịch hẹn. Tối đa cho phép là ${result.maxSimultaneous}. Hãy chọn giờ khác trước khi chuyển lịch.` ,
         );
       } catch (e) {
         if (cancelled) return;
@@ -206,7 +209,7 @@ export default function BookingRequestsPage() {
       if (selectedId === id) setSelectedId(null);
       await load({ silent: true });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Cancel booking request failed");
+      setError(e instanceof Error ? e.message : "Hủy yêu cầu đặt lịch thất bại");
     } finally {
       setSubmitting(false);
     }
@@ -219,7 +222,7 @@ export default function BookingRequestsPage() {
       await updateBookingRequestStatus(id, "NEEDS_RESCHEDULE");
       await load({ silent: true });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Update booking request failed");
+      setError(e instanceof Error ? e.message : "Cập nhật yêu cầu đặt lịch thất bại");
     } finally {
       setSubmitting(false);
     }
@@ -255,7 +258,7 @@ export default function BookingRequestsPage() {
       setOverlaps([]);
       await load({ silent: true });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Convert booking request failed");
+      setError(e instanceof Error ? e.message : "Chuyển yêu cầu đặt lịch sang lịch hẹn thất bại");
     } finally {
       setSubmitting(false);
     }
@@ -266,18 +269,22 @@ export default function BookingRequestsPage() {
       <div className="space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-extrabold tracking-tight text-neutral-900">Booking requests</h2>
+            <h2 className="text-3xl font-extrabold tracking-tight text-neutral-900">Yêu cầu đặt lịch</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-500">
               Giao diện xử lý theo kiểu inbox vận hành: request mới và request cần dời lịch được gom thành hàng chờ, mở ra xử lý từng case một.
             </p>
           </div>
-          <div className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-500 shadow-sm">
+          <div className="manage-info-box">
             {refreshing ? "Đang làm mới..." : `${rows.length} request cần xử lý`}
           </div>
         </div>
 
         {error ? (
-          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-sm">{error}</div>
+          <div className="manage-error-box">{error}</div>
+        ) : null}
+
+        {isDevPreview ? (
+          <div className="manage-warn-box">DEV đang ở chế độ xem trước. Có thể xem hàng chờ và luồng xử lý, nhưng không được hủy, cập nhật hay chuyển yêu cầu thành lịch hẹn.</div>
         ) : null}
 
         <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
@@ -306,11 +313,11 @@ export default function BookingRequestsPage() {
               </div>
             </div>
 
-            <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
+            <div className="manage-surface">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-lg font-semibold text-neutral-900">Booking mới</h3>
-                  <p className="mt-1 text-sm text-neutral-500">Các booking mới chờ xác nhận và convert sang appointment.</p>
+                  <p className="mt-1 text-sm text-neutral-500">Các booking mới chờ xác nhận và chuyển sang lịch hẹn.</p>
                 </div>
                 <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-semibold text-neutral-700">{newRows.length}</span>
               </div>
@@ -331,7 +338,7 @@ export default function BookingRequestsPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm md:p-6">
+          <div className="manage-surface md:p-6">
             <div className="mb-5">
               <h3 className="text-lg font-semibold text-neutral-900">Bảng xử lý request</h3>
               <p className="mt-1 text-sm text-neutral-500">Xử lý từng booking như một inbox công việc: xem tình trạng, sửa giờ, gán thợ/ghế và convert.</p>
@@ -353,17 +360,17 @@ export default function BookingRequestsPage() {
                       <p className="mt-1 text-sm text-neutral-500">{selectedRow.customer_phone}</p>
                     </div>
                     <div className="text-sm text-neutral-500">
-                      <p>{selectedRow.source === "landing_page" ? "Booking online" : selectedRow.source ?? "-"}</p>
+                      <p>{selectedRow.source === "landing_page" ? "Đặt lịch online" : selectedRow.source ?? "-"}</p>
                     </div>
                   </div>
 
                   <div className="mt-4 grid gap-3 md:grid-cols-2">
                     <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
-                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-400">Giờ yêu cầu</p>
+                      <p className="manage-stat-label">Giờ yêu cầu</p>
                       <p className="mt-2 text-sm font-medium text-neutral-900">{new Date(selectedRow.requested_start_at).toLocaleString("vi-VN")}</p>
                     </div>
                     <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
-                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-400">Dịch vụ</p>
+                      <p className="manage-stat-label">Dịch vụ</p>
                       <p className="mt-2 text-sm font-medium text-neutral-900">{selectedRow.requested_service ?? "-"}</p>
                     </div>
                   </div>
@@ -407,7 +414,7 @@ export default function BookingRequestsPage() {
                         ))}
                       </div>
                     ) : null}
-                    <p className="mt-3 text-xs text-red-600">Rule hiện tại: tối đa {maxSimultaneous} khách trong appointments cùng đúng khung giờ.</p>
+                    <p className="mt-3 text-xs text-red-600">Quy tắc hiện tại: tối đa {maxSimultaneous} khách trong lịch hẹn ở cùng khung giờ.</p>
                   </div>
                 ) : bookingAt ? (
                   <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
@@ -417,19 +424,19 @@ export default function BookingRequestsPage() {
 
                 <div className="flex flex-wrap gap-2">
                   {selectedRow.status === "NEW" ? (
-                    <button type="button" className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50" disabled={submitting} onClick={() => void onMarkNeedsReschedule(selectedRow.id)}>
+                    <button type="button" className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50" disabled={submitting || isDevPreview} onClick={() => void onMarkNeedsReschedule(selectedRow.id)}>
                       Đánh dấu cần dời lịch
                     </button>
                   ) : null}
 
                   {selectedRow.status !== "CONVERTED" && selectedRow.status !== "CANCELLED" ? (
-                    <button type="button" className="rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting || !bookingAt || !capacityAllowed} onClick={() => void onConvert()}>
+                    <button type="button" className="rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting || !bookingAt || !capacityAllowed || isDevPreview} onClick={() => void onConvert()}>
                       {submitting ? "Đang convert..." : selectedRow.status === "NEEDS_RESCHEDULE" ? "Chốt giờ mới & convert" : "Convert thành appointment"}
                     </button>
                   ) : null}
 
                   {selectedRow.status !== "CANCELLED" && selectedRow.status !== "CONVERTED" ? (
-                    <button type="button" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting} onClick={() => void onCancel(selectedRow.id)}>
+                    <button type="button" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting || isDevPreview} onClick={() => void onCancel(selectedRow.id)}>
                       Hủy request
                     </button>
                   ) : null}

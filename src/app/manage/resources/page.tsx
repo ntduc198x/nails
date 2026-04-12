@@ -1,6 +1,7 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
+import { getCurrentSessionRole, type AppRole } from "@/lib/auth";
 import { createResource, listResources, updateResource } from "@/lib/domain";
 import { useEffect, useState } from "react";
 
@@ -33,6 +34,7 @@ export default function ResourcesPage() {
   const [name, setName] = useState("");
   const [type, setType] = useState<"CHAIR" | "TABLE" | "ROOM">("CHAIR");
   const [loading, setLoading] = useState(true);
+  const [role, setRole] = useState<AppRole | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
@@ -43,10 +45,11 @@ export default function ResourcesPage() {
   async function load() {
     try {
       setError(null);
+      setRole(await getCurrentSessionRole());
       const data = await listResources({ force: true, activeOnly: false });
       setRows(data as ResourceRow[]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Load resources failed");
+      setError(e instanceof Error ? e.message : "Tải danh sách tài nguyên thất bại");
     } finally {
       setLoading(false);
     }
@@ -55,6 +58,8 @@ export default function ResourcesPage() {
   useEffect(() => {
     void load();
   }, []);
+
+  const isDevPreview = role === "DEV";
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -68,7 +73,7 @@ export default function ResourcesPage() {
       setType("CHAIR");
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Create resource failed");
+      setError(e instanceof Error ? e.message : "Tạo tài nguyên thất bại");
     } finally {
       setSubmitting(false);
     }
@@ -91,7 +96,7 @@ export default function ResourcesPage() {
       setEditingId(null);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Update resource failed");
+      setError(e instanceof Error ? e.message : "Cập nhật tài nguyên thất bại");
     } finally {
       setSubmitting(false);
     }
@@ -101,76 +106,80 @@ export default function ResourcesPage() {
     <AppShell>
       <div className="space-y-6">
         <div>
-          <h2 className="text-3xl font-extrabold tracking-tight text-neutral-900">Resources / Ghế bàn</h2>
+          <h2 className="text-3xl font-extrabold tracking-tight text-neutral-900">Tài nguyên / Ghế bàn</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-500">
             Quản lý ghế, bàn và phòng phục vụ vận hành. Bật/tắt nhanh resource và chỉnh loại để hệ thống phân bổ lịch hẹn chính xác hơn.
           </p>
         </div>
 
         {error ? (
-          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-sm">{error}</div>
+          <div className="manage-error-box">{error}</div>
         ) : null}
 
-        <form onSubmit={onSubmit} className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm md:p-6">
+        {isDevPreview ? (
+          <div className="manage-warn-box">DEV chỉ xem trước dữ liệu tài nguyên. Các thao tác thêm, sửa hoặc bật tắt trạng thái đều bị khóa.</div>
+        ) : null}
+
+        <form onSubmit={onSubmit} className="manage-surface md:p-6">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
-              <h3 className="text-lg font-semibold text-neutral-900">Thêm resource mới</h3>
+              <h3 className="text-lg font-semibold text-neutral-900">Thêm tài nguyên mới</h3>
               <p className="mt-1 text-sm text-neutral-500">Tạo nhanh ghế, bàn hoặc phòng để dùng trong điều phối lịch.</p>
             </div>
-            <div className="rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-600">{rows.length} resource</div>
+            <div className="rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-600">{rows.length} tài nguyên</div>
           </div>
 
           <div className="grid gap-4 md:grid-cols-[1.3fr_0.9fr_auto] md:items-end">
             <div>
-              <FieldLabel>Tên resource</FieldLabel>
-              <TextInput placeholder="Ví dụ: Ghế 01" value={name} onChange={(e) => setName(e.target.value)} required />
+              <FieldLabel>Tên tài nguyên</FieldLabel>
+              <TextInput placeholder="Ví dụ: Ghế 01" value={name} onChange={(e) => setName(e.target.value)} required disabled={isDevPreview} />
             </div>
             <div>
               <FieldLabel>Loại</FieldLabel>
-              <SelectInput value={type} onChange={(e) => setType(e.target.value as "CHAIR" | "TABLE" | "ROOM") }>
+              <SelectInput value={type} onChange={(e) => setType(e.target.value as "CHAIR" | "TABLE" | "ROOM") } disabled={isDevPreview}>
                 <option value="CHAIR">CHAIR</option>
                 <option value="TABLE">TABLE</option>
                 <option value="ROOM">ROOM</option>
               </SelectInput>
             </div>
-            <button className="rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting}>
-              {submitting ? "Đang thêm..." : "Thêm resource"}
+            <button className="rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting || isDevPreview}>
+              {submitting ? "Đang thêm..." : "Thêm tài nguyên"}
             </button>
           </div>
         </form>
 
-        <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm md:p-6">
+        <div className="manage-surface md:p-6">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
-              <h3 className="text-lg font-semibold text-neutral-900">Danh sách resources</h3>
+              <h3 className="text-lg font-semibold text-neutral-900">Danh sách tài nguyên</h3>
               <p className="mt-1 text-sm text-neutral-500">Chỉnh sửa trực tiếp tên, loại và trạng thái hoạt động.</p>
             </div>
           </div>
 
           {loading ? (
-            <p className="text-sm text-neutral-500">Đang tải resources...</p>
+            <p className="text-sm text-neutral-500">Đang tải tài nguyên...</p>
           ) : rows.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-neutral-200 bg-neutral-50 px-4 py-8 text-center text-sm text-neutral-500">
-              Chưa có resource nào. Hãy tạo resource đầu tiên ở form phía trên.
+              Chưa có tài nguyên nào. Hãy tạo tài nguyên đầu tiên ở form phía trên.
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {rows.map((r) => {
                 const isEditing = editingId === r.id;
                 return (
-                  <div key={r.id} className="rounded-3xl border border-neutral-200 bg-neutral-50/70 p-4 shadow-sm">
+                  <div key={r.id} className="manage-surface-muted">
                     <div className="mb-4 flex items-start justify-between gap-3">
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
                           <h4 className="text-lg font-semibold text-neutral-900">{r.name}</h4>
                           <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${r.active ? "bg-emerald-100 text-emerald-700" : "bg-neutral-200 text-neutral-600"}`}>
-                            {r.active ? "ACTIVE" : "INACTIVE"}
+                            {r.active ? "ĐANG DÙNG" : "TẠM ẨN"}
                           </span>
                         </div>
                         <p className="mt-1 text-sm text-neutral-500">Loại: {r.type}</p>
                       </div>
                       {!isEditing ? (
-                        <button className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50" onClick={() => startEdit(r)} type="button">
+                        <button className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50" onClick={() => startEdit(r)} type="button" disabled={isDevPreview}>
                           Sửa
                         </button>
                       ) : null}
@@ -180,25 +189,25 @@ export default function ResourcesPage() {
                       <div className="space-y-4">
                         <div>
                           <FieldLabel>Tên</FieldLabel>
-                          <TextInput value={editName} onChange={(e) => setEditName(e.target.value)} />
+                          <TextInput value={editName} onChange={(e) => setEditName(e.target.value)} disabled={isDevPreview} />
                         </div>
                         <div>
                           <FieldLabel>Loại</FieldLabel>
-                          <SelectInput value={editType} onChange={(e) => setEditType(e.target.value as "CHAIR" | "TABLE" | "ROOM") }>
+                          <SelectInput value={editType} onChange={(e) => setEditType(e.target.value as "CHAIR" | "TABLE" | "ROOM") } disabled={isDevPreview}>
                             <option value="CHAIR">CHAIR</option>
                             <option value="TABLE">TABLE</option>
                             <option value="ROOM">ROOM</option>
                           </SelectInput>
                         </div>
                         <label className="flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-700">
-                          <input type="checkbox" className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-400" checked={editActive} onChange={(e) => setEditActive(e.target.checked)} />
-                          Resource đang hoạt động
+                          <input type="checkbox" className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-400" checked={editActive} onChange={(e) => setEditActive(e.target.checked)} disabled={isDevPreview} />
+                          Tài nguyên đang hoạt động
                         </label>
                         <div className="flex gap-2">
                           <button className="flex-1 rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50" onClick={() => setEditingId(null)} type="button">
                             Huỷ
                           </button>
-                          <button className="flex-1 rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60" onClick={() => void saveEdit()} type="button" disabled={submitting}>
+                          <button className="flex-1 rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60" onClick={() => void saveEdit()} type="button" disabled={submitting || isDevPreview}>
                             {submitting ? "Đang lưu..." : "Lưu"}
                           </button>
                         </div>
@@ -206,11 +215,11 @@ export default function ResourcesPage() {
                     ) : (
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div className="rounded-2xl bg-white p-4 shadow-sm">
-                          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-400">Loại</p>
+                          <p className="manage-stat-label">Loại</p>
                           <p className="mt-2 text-base font-semibold text-neutral-900">{r.type}</p>
                         </div>
                         <div className="rounded-2xl bg-white p-4 shadow-sm">
-                          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-400">Trạng thái</p>
+                          <p className="manage-stat-label">Trạng thái</p>
                           <p className="mt-2 text-base font-semibold text-neutral-900">{r.active ? "Đang dùng" : "Tạm ẩn"}</p>
                         </div>
                       </div>
