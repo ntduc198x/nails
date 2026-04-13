@@ -6,6 +6,24 @@ export type ManageQuickNavItem = {
   accent?: boolean;
 };
 
+export const operationsQuickNav = (activeHref: string): ManageQuickNavItem[] => [
+  { href: "/manage/appointments", label: "Điều phối - Tạo lịch", accent: activeHref === "/manage/appointments" },
+  { href: "/manage/booking-requests", label: "Lịch book online", accent: activeHref === "/manage/booking-requests" },
+  { href: "/manage/checkout", label: "Thanh toán", accent: activeHref === "/manage/checkout" },
+  { href: "/manage/shifts", label: "Ca làm", accent: activeHref === "/manage/shifts" },
+];
+
+export const setupQuickNav = (activeHref: string): ManageQuickNavItem[] => [
+  { href: "/manage/services", label: "Dịch vụ", accent: activeHref === "/manage/services" },
+  { href: "/manage/resources", label: "Ghế/Bàn", accent: activeHref === "/manage/resources" },
+  { href: "/manage/team", label: "Nhân sự", accent: activeHref === "/manage/team" },
+];
+
+export const reportsQuickNav = (activeHref: string): ManageQuickNavItem[] => [
+  { href: "/manage/reports", label: "Báo cáo", accent: activeHref === "/manage/reports" },
+  { href: "/manage/tax-books", label: "Sổ thuế", accent: activeHref === "/manage/tax-books" },
+];
+
 export function ManageQuickNav({ items, className = "" }: { items: ManageQuickNavItem[]; className?: string }) {
   return (
     <div className={`flex flex-wrap gap-2 ${className}`.trim()}>

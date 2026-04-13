@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const MONTHS_VI = ["Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6", "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12"];
 const WEEKDAYS_VI = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
@@ -28,7 +28,11 @@ function formatDate(date: Date) {
 }
 
 function getRelativeDay(date: Date, today: Date) {
-  const diff = Math.round((date.getTime() - today.getTime()) / 86400000);
+  const compareDate = new Date(date);
+  compareDate.setHours(0, 0, 0, 0);
+  const compareToday = new Date(today);
+  compareToday.setHours(0, 0, 0, 0);
+  const diff = Math.round((compareDate.getTime() - compareToday.getTime()) / 86400000);
   if (diff === 0) return "Hôm nay";
   if (diff === 1) return "Ngày mai";
   if (diff === 2) return "Mốt";
@@ -50,10 +54,12 @@ export function ManageDateTimePicker({
   label,
   value,
   onChange,
+  compact = false,
 }: {
   label: string;
   value?: string;
   onChange: (nextValue: string) => void;
+  compact?: boolean;
 }) {
   const todayDate = useMemo(() => {
     const now = new Date();
@@ -70,6 +76,16 @@ export function ManageDateTimePicker({
   const [viewYear, setViewYear] = useState(initial.getFullYear());
   const [dateOpen, setDateOpen] = useState(false);
   const [timeOpen, setTimeOpen] = useState(false);
+
+  useEffect(() => {
+    const next = parseDateTimeLocal(value);
+    setSelectedDate(next);
+    setSelectedTime(next ? `${String(next.getHours()).padStart(2, "0")}:${String(next.getMinutes()).padStart(2, "0")}` : null);
+    if (next) {
+      setViewMonth(next.getMonth());
+      setViewYear(next.getFullYear());
+    }
+  }, [value]);
 
   const calendarCells = useMemo(() => {
     const firstDay = new Date(viewYear, viewMonth, 1).getDay();
@@ -130,94 +146,157 @@ export function ManageDateTimePicker({
     setViewMonth((prev) => prev + 1);
   };
 
+  const compactLabelClass = "mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500";
+  const compactTriggerClass = "min-h-[56px] w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2";
+  const compactTimeTriggerClass = "min-h-[56px] w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2";
+
   return (
-    <div className="manage-picker-block">
+    <div className={`manage-picker-block ${compact ? "space-y-1.5" : ""}`}>
       {(dateOpen || timeOpen) && <div className="pk-overlay show" onClick={closeAll} />}
       <label className="block text-sm">
-        <span className="mb-1 block text-neutral-600">{label}</span>
+        <span className={`${compact ? compactLabelClass : "mb-1 block text-neutral-600"} block`}>
+          {label}
+        </span>
 
-        <div className="pk-group pk-date-group">
-          <button type="button" className={`pk-trigger manage-pk-trigger ${dateOpen ? "active" : ""}`} onClick={() => { setTimeOpen(false); setDateOpen((prev) => !prev); }}>
-            <div className="pk-trigger-left">
-              <span className="pk-trigger-icon">📅</span>
-              <div className="pk-trigger-text">
-                {!selectedDate ? (
-                  <span className="pk-placeholder">Chọn ngày...</span>
-                ) : (
-                  <span className="pk-value">
-                    {formatDate(selectedDate)}
-                    <span className="pk-tag">{getRelativeDay(selectedDate, todayDate)}</span>
-                  </span>
-                )}
+        <div className={compact ? "grid grid-cols-1 gap-2 items-stretch" : "space-y-0"}>
+          <div className="pk-group pk-date-group min-w-0">
+            <button
+              type="button"
+              className={`${compact ? compactTriggerClass : "pk-trigger manage-pk-trigger"} ${dateOpen ? "active" : ""}`}
+              onClick={() => {
+                setTimeOpen(false);
+                setDateOpen((prev) => !prev);
+              }}
+            >
+              {compact ? (
+                <div className="flex min-h-[40px] items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="text-sm leading-none">📅</span>
+                    <div className="min-w-0">
+                      {!selectedDate ? (
+                        <span className="block text-sm text-neutral-400">Chọn ngày...</span>
+                      ) : (
+                        <div className="flex min-h-[24px] items-center gap-1.5">
+                          <span className="truncate text-sm font-medium leading-none text-neutral-900">{formatDate(selectedDate)}</span>
+                          <span className="inline-flex h-5 items-center rounded-full bg-neutral-100 px-1.5 text-[10px] font-medium leading-none text-neutral-600">{getRelativeDay(selectedDate, todayDate)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-xs text-neutral-500">⌄</span>
+                </div>
+              ) : (
+                <>
+                  <div className="pk-trigger-left">
+                    <span className="pk-trigger-icon">📅</span>
+                    <div className="pk-trigger-text">
+                      {!selectedDate ? (
+                        <span className="pk-placeholder">Chọn ngày...</span>
+                      ) : (
+                        <span className="pk-value">
+                          {formatDate(selectedDate)}
+                          <span className="pk-tag">{getRelativeDay(selectedDate, todayDate)}</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <span className="pk-arrow">⌄</span>
+                </>
+              )}
+            </button>
+            <div className={`pk-dropdown ${dateOpen ? "open" : ""}`} onClick={(e) => e.stopPropagation()}>
+              <div className="pk-cal-header">
+                <button type="button" className="pk-cal-nav" onClick={goPrevMonth}>‹</button>
+                <span className="pk-cal-title">{MONTHS_VI[viewMonth]} {viewYear}</span>
+                <div className="pk-cal-navs">
+                  <button type="button" className="pk-cal-nav pk-cal-today-btn" onClick={() => pickDate(new Date(todayDate))}>Hôm nay</button>
+                  <button type="button" className="pk-cal-nav" onClick={goNextMonth}>›</button>
+                </div>
               </div>
-            </div>
-            <span className="pk-arrow">⌄</span>
-          </button>
-          <div className={`pk-dropdown ${dateOpen ? "open" : ""}`} onClick={(e) => e.stopPropagation()}>
-            <div className="pk-cal-header">
-              <button type="button" className="pk-cal-nav" onClick={goPrevMonth}>‹</button>
-              <span className="pk-cal-title">{MONTHS_VI[viewMonth]} {viewYear}</span>
-              <div className="pk-cal-navs">
-                <button type="button" className="pk-cal-nav pk-cal-today-btn" onClick={() => pickDate(new Date(todayDate))}>Hôm nay</button>
-                <button type="button" className="pk-cal-nav" onClick={goNextMonth}>›</button>
+              <div className="pk-cal-weekdays">
+                {WEEKDAYS_VI.map((day) => <span key={day}>{day}</span>)}
               </div>
-            </div>
-            <div className="pk-cal-weekdays">
-              {WEEKDAYS_VI.map((day) => <span key={day}>{day}</span>)}
-            </div>
-            <div className="pk-cal-days">
-              {calendarCells.map((cell, index) => {
-                const isToday = sameDay(cell.date ?? null, todayDate);
-                const isSelected = sameDay(cell.date ?? null, selectedDate);
-                return (
-                  <button
-                    key={`${cell.label}-${index}`}
-                    type="button"
-                    className={`pk-cal-day ${!cell.current ? "other" : ""} ${isToday ? "today" : ""} ${isSelected ? "selected" : ""}`.trim()}
-                    disabled={!cell.current}
-                    onClick={() => cell.date && pickDate(cell.date)}
-                  >
-                    {cell.label}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="pk-quick-dates">
-              {QUICK_DATES.map((item) => {
-                const quickDate = new Date(todayDate);
-                quickDate.setDate(todayDate.getDate() + item.offset);
-                return (
-                  <button
-                    key={item.label}
-                    type="button"
-                    className={`pk-qd-btn ${sameDay(selectedDate, quickDate) ? "active" : ""}`}
-                    onClick={() => pickDate(quickDate)}
-                  >
-                    {item.label}
-                  </button>
-                );
-              })}
+              <div className="pk-cal-days">
+                {calendarCells.map((cell, index) => {
+                  const isToday = sameDay(cell.date ?? null, todayDate);
+                  const isSelected = sameDay(cell.date ?? null, selectedDate);
+                  return (
+                    <button
+                      key={`${cell.label}-${index}`}
+                      type="button"
+                      className={`pk-cal-day ${!cell.current ? "other" : ""} ${isToday ? "today" : ""} ${isSelected ? "selected" : ""}`.trim()}
+                      disabled={!cell.current}
+                      onClick={() => cell.date && pickDate(cell.date)}
+                    >
+                      {cell.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="pk-quick-dates">
+                {QUICK_DATES.map((item) => {
+                  const quickDate = new Date(todayDate);
+                  quickDate.setDate(todayDate.getDate() + item.offset);
+                  return (
+                    <button
+                      key={item.label}
+                      type="button"
+                      className={`pk-qd-btn ${sameDay(selectedDate, quickDate) ? "active" : ""}`}
+                      onClick={() => pickDate(quickDate)}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="pk-group pk-time-group manage-pk-time-group">
-          <button type="button" className={`pk-trigger manage-pk-trigger ${timeOpen ? "active" : ""}`} onClick={() => { setDateOpen(false); setTimeOpen((prev) => !prev); }}>
-            <div className="pk-trigger-left">
-              <span className="pk-trigger-icon">🕘</span>
-              <div className="pk-trigger-text">
-                {!selectedTime ? <span className="pk-placeholder">Chọn giờ...</span> : <span className="pk-value">{selectedTime}</span>}
+          <div className="pk-group pk-time-group manage-pk-time-group min-w-0">
+            <button
+              type="button"
+              className={`${compact ? compactTimeTriggerClass : "pk-trigger manage-pk-trigger"} ${timeOpen ? "active" : ""}`}
+              onClick={() => {
+                setDateOpen(false);
+                setTimeOpen((prev) => !prev);
+              }}
+            >
+              {compact ? (
+                <div className="flex min-h-[40px] items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="text-sm leading-none">🕘</span>
+                    <div className="min-w-0">
+                      {!selectedTime ? (
+                        <span className="block text-sm text-neutral-400">Chọn giờ...</span>
+                      ) : (
+                        <div className="flex min-h-[24px] items-center">
+                          <span className="truncate text-sm font-medium leading-none text-neutral-900">{selectedTime}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-xs text-neutral-500">⌄</span>
+                </div>
+              ) : (
+                <>
+                  <div className="pk-trigger-left">
+                    <span className="pk-trigger-icon">🕘</span>
+                    <div className="pk-trigger-text">
+                      {!selectedTime ? <span className="pk-placeholder">Chọn giờ...</span> : <span className="pk-value">{selectedTime}</span>}
+                    </div>
+                  </div>
+                  <span className="pk-arrow">⌄</span>
+                </>
+              )}
+            </button>
+            <div className={`pk-dropdown ${timeOpen ? "open" : ""}`} onClick={(e) => e.stopPropagation()}>
+              <div className="pk-time-grid">
+                {TIME_SLOTS.map((slot) => (
+                  <button key={slot} type="button" className={`pk-time-slot ${selectedTime === slot ? "selected" : ""}`} onClick={() => pickTime(slot)}>
+                    {slot}
+                  </button>
+                ))}
               </div>
-            </div>
-            <span className="pk-arrow">⌄</span>
-          </button>
-          <div className={`pk-dropdown ${timeOpen ? "open" : ""}`} onClick={(e) => e.stopPropagation()}>
-            <div className="pk-time-grid">
-              {TIME_SLOTS.map((slot) => (
-                <button key={slot} type="button" className={`pk-time-slot ${selectedTime === slot ? "selected" : ""}`} onClick={() => pickTime(slot)}>
-                  {slot}
-                </button>
-              ))}
             </div>
           </div>
         </div>

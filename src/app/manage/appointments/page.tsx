@@ -3,11 +3,10 @@
 import { AppShell } from "@/components/app-shell";
 import { ManageAlert } from "@/components/manage-alert";
 import { ManageDateTimePicker, toDateTimeLocalValue } from "@/components/manage-datetime-picker";
-import { MobileCollapsible, MobileInfoGrid, MobileSectionHeader, MobileStickyActions } from "@/components/manage-mobile";
-import { ManageQuickNav } from "@/components/manage-quick-nav";
-import { ManageStatCard } from "@/components/manage-stat-card";
+import { MobileSectionHeader, MobileStickyActions } from "@/components/manage-mobile";
+import { ManageQuickNav, operationsQuickNav } from "@/components/manage-quick-nav";
 import { getCurrentSessionRole } from "@/lib/auth";
-import { createAppointment, listAppointments, listResources, listStaffMembers, updateAppointmentStatus } from "@/lib/domain";
+import { createAppointment, ensureOrgContext, listAppointments, listResources, listStaffMembers, updateAppointmentStatus } from "@/lib/domain";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -26,6 +25,10 @@ type AppointmentRow = {
 type StaffOption = { userId: string; name: string };
 type ResourceOption = { id: string; name: string; type: string };
 type RangeMode = "day" | "week" | "month" | "custom";
+
+const OVERDUE_GRACE_MINUTES = 20;
+const STALE_CHECKED_IN_MINUTES = 90;
+const CRITICAL_CHECKED_IN_MINUTES = 150;
 
 function toInputValue(date: Date) {
   return toDateTimeLocalValue(date);
@@ -115,15 +118,33 @@ function rankStatus(status: string) {
   return 5;
 }
 
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">{children}</label>;
+function isOverdueBooked(row: AppointmentRow) {
+  if (row.status !== "BOOKED") return false;
+  const threshold = Date.now() - OVERDUE_GRACE_MINUTES * 60 * 1000;
+  return new Date(row.start_at).getTime() < threshold;
+}
+
+function isStaleCheckedIn(row: AppointmentRow) {
+  if (row.status !== "CHECKED_IN") return false;
+  const threshold = Date.now() - STALE_CHECKED_IN_MINUTES * 60 * 1000;
+  return new Date(row.start_at).getTime() < threshold;
+}
+
+function isCriticalCheckedIn(row: AppointmentRow) {
+  if (row.status !== "CHECKED_IN") return false;
+  const threshold = Date.now() - CRITICAL_CHECKED_IN_MINUTES * 60 * 1000;
+  return new Date(row.start_at).getTime() < threshold;
+}
+
+function FieldLabel({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <label className={`block text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500 ${className}`}>{children}</label>;
 }
 
 function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-rose-300 focus:ring-4 focus:ring-rose-100 ${props.className ?? ""}`}
+      className={`w-full rounded-2xl border border-neutral-200 bg-white px-4 py-2.5 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-rose-300 focus:ring-4 focus:ring-rose-100 ${props.className ?? ""}`}
     />
   );
 }
@@ -132,38 +153,48 @@ function SelectInput(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       {...props}
-      className={`w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-rose-300 focus:ring-4 focus:ring-rose-100 ${props.className ?? ""}`}
+      className={`w-full rounded-2xl border border-neutral-200 bg-white px-4 py-2.5 text-sm text-neutral-900 outline-none transition focus:border-rose-300 focus:ring-4 focus:ring-rose-100 ${props.className ?? ""}`}
     />
   );
 }
 
-function AppointmentCard({
-  row,
-  staffName,
-  resourceName,
-  onlineBooked,
-  updatingId,
-  onEdit,
-  onQuickStatus,
-}: {
+function ResourceChip({ active, disabled, label, onClick }: { active: boolean; disabled?: boolean; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`rounded-xl border px-3 py-2 text-sm font-medium transition ${active ? "border-rose-300 bg-rose-50 text-rose-700" : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"} ${disabled ? "cursor-not-allowed opacity-40" : ""}`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function AppointmentCard({ row, staffName, resourceName, onlineBooked, overdue, staleCheckedIn, criticalCheckedIn, updatingId, onEdit, onQuickStatus }: {
   row: AppointmentRow;
   staffName: string;
   resourceName: string;
   onlineBooked: boolean;
+  overdue: boolean;
+  staleCheckedIn: boolean;
+  criticalCheckedIn: boolean;
   updatingId: string | null;
   onEdit: () => void;
-  onQuickStatus: (id: string, status: "CHECKED_IN" | "CANCELLED") => Promise<void>;
+  onQuickStatus: (id: string, status: "CHECKED_IN" | "CANCELLED" | "NO_SHOW") => Promise<void>;
 }) {
   const customer = pickCustomerName(row.customers);
 
   return (
-    <div className="rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm">
+    <div className={`rounded-2xl border bg-white p-3 shadow-sm ${overdue ? "border-amber-300 bg-amber-50/40" : criticalCheckedIn ? "border-fuchsia-300 bg-fuchsia-50/40" : staleCheckedIn ? "border-violet-300 bg-violet-50/40" : "border-neutral-200"}`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h4 className="text-sm font-semibold text-neutral-900">{customer}</h4>
             <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${statusBadge(row.status)}`}>{row.status}</span>
             {onlineBooked ? <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-700">ONLINE</span> : null}
+            {overdue ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">QUÁ GIỜ</span> : null}
+            {criticalCheckedIn ? <span className="rounded-full bg-fuchsia-100 px-2 py-0.5 text-[11px] font-medium text-fuchsia-700">CHECK-IN RẤT LÂU</span> : staleCheckedIn ? <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-700">CHECK-IN LÂU</span> : null}
           </div>
           <p className="mt-1 text-xs text-neutral-500">{new Date(row.start_at).toLocaleString("vi-VN")} · {staffName} · {resourceName}</p>
         </div>
@@ -171,46 +202,22 @@ function AppointmentCard({
         <div className="flex flex-wrap gap-2">
           {row.status === "BOOKED" && (
             <>
-              <button
-                type="button"
-                className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
-                onClick={onEdit}
-              >
-                Sửa
-              </button>
-              <button
-                onClick={() => void onQuickStatus(row.id, "CHECKED_IN")}
-                className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={!!updatingId}
-              >
-                {updatingId === row.id ? "Đang xử lý..." : "Check-in"}
-              </button>
-              <button
-                onClick={() => void onQuickStatus(row.id, "CANCELLED")}
-                className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={!!updatingId}
-              >
-                {updatingId === row.id ? "Đang xử lý..." : "Hủy"}
-              </button>
+              <button type="button" className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50" onClick={onEdit}>Sửa</button>
+              <button onClick={() => void onQuickStatus(row.id, "CHECKED_IN")} className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60" disabled={!!updatingId}>{updatingId === row.id ? "Đang xử lý..." : "Check-in"}</button>
+              {overdue ? <button onClick={() => void onQuickStatus(row.id, "NO_SHOW")} className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60" disabled={!!updatingId}>{updatingId === row.id ? "Đang xử lý..." : "No-show"}</button> : null}
+              <button onClick={() => void onQuickStatus(row.id, "CANCELLED")} className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60" disabled={!!updatingId}>{updatingId === row.id ? "Đang xử lý..." : "Hủy"}</button>
             </>
           )}
           {row.status === "CHECKED_IN" && (
-            <button
-              onClick={() => void onQuickStatus(row.id, "CANCELLED")}
-              className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={!!updatingId}
-            >
-              {updatingId === row.id ? "Đang xử lý..." : "Cancel"}
-            </button>
+            <>
+              <button onClick={() => void onQuickStatus(row.id, "CANCELLED")} className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60" disabled={!!updatingId}>{updatingId === row.id ? "Đang xử lý..." : "Cancel"}</button>
+              {criticalCheckedIn ? <button type="button" className="rounded-xl border border-fuchsia-300 bg-fuchsia-100 px-3 py-2 text-sm font-semibold text-fuchsia-800 transition hover:bg-fuchsia-200 disabled:cursor-not-allowed disabled:opacity-60" disabled={!!updatingId}>Đóng bill ngay</button> : null}
+            </>
           )}
           {row.status === "CHECKED_IN" ? (
-            <Link href={`/manage/checkout?customer=${encodeURIComponent(customer)}&appointmentId=${row.id}`} className="rounded-xl bg-rose-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-rose-600">
-              Mở phiếu
-            </Link>
+            <Link href={`/manage/checkout?customer=${encodeURIComponent(customer)}&appointmentId=${row.id}`} className={`rounded-xl px-3 py-2 text-sm font-semibold text-white transition ${criticalCheckedIn ? "bg-fuchsia-600 hover:bg-fuchsia-700" : "bg-rose-500 hover:bg-rose-600"}`}>{criticalCheckedIn ? "Mở phiếu ngay" : "Mở phiếu"}</Link>
           ) : row.status === "BOOKED" ? (
-            <span className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700">
-              Cần check-in
-            </span>
+            <span className={`rounded-xl px-3 py-2 text-sm font-medium ${overdue ? "border border-amber-300 bg-amber-100 text-amber-800" : "border border-amber-200 bg-amber-50 text-amber-700"}`}>{overdue ? "Cần xử lý ngay" : "Cần check-in"}</span>
           ) : null}
         </div>
       </div>
@@ -218,7 +225,7 @@ function AppointmentCard({
   );
 }
 
-export default function AppointmentsPage() {
+export default function OperationsPage() {
   const now = roundToNextSlot(new Date());
   const [customerName, setCustomerName] = useState("");
   const [autoTime, setAutoTime] = useState(true);
@@ -226,7 +233,6 @@ export default function AppointmentsPage() {
   const [staffUserId, setStaffUserId] = useState("");
   const [resourceId, setResourceId] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
-
   const [rows, setRows] = useState<AppointmentRow[]>([]);
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
   const [resourceOptions, setResourceOptions] = useState<ResourceOption[]>([]);
@@ -237,13 +243,15 @@ export default function AppointmentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [rangeMode, setRangeMode] = useState<RangeMode>("day");
+  const [showRangeFilters, setShowRangeFilters] = useState(false);
   const [fromDate, setFromDate] = useState(toDateInputValue(now));
   const [toDate, setToDate] = useState(toDateInputValue(now));
   const [submitting, setSubmitting] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const formRef = useRef<HTMLElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
 
-  const load = useCallback(async (opts?: { force?: boolean }) => {
+  const load = useCallback(async (opts?: { force?: boolean; silent?: boolean }) => {
     const isInitial = rows.length === 0;
     try {
       if (isInitial) setLoading(true);
@@ -253,6 +261,7 @@ export default function AppointmentsPage() {
       const sessionRes = await supabase?.auth.getSession();
       const userId = sessionRes?.data.session?.user?.id ?? "";
       const currentRole = userId ? await getCurrentSessionRole() : null;
+      await ensureOrgContext();
 
       const [data, staffs, resources] = await Promise.all([
         listAppointments({ force: opts?.force }),
@@ -267,7 +276,7 @@ export default function AppointmentsPage() {
       setResourceOptions(resources as ResourceOption[]);
       if (!editingId && currentRole === "TECH" && userId) setStaffUserId(userId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Tải lịch hẹn thất bại");
+      setError(e instanceof Error ? e.message : "Tải dữ liệu vận hành thất bại");
     } finally {
       if (isInitial) setLoading(false);
       else setRefreshing(false);
@@ -279,8 +288,8 @@ export default function AppointmentsPage() {
   }, [load]);
 
   const scopedRows = useMemo(() => {
-    if (role === "TECH") return rows.filter((r) => r.staff_user_id === myUserId);
-    return rows;
+    if (role !== "TECH") return rows;
+    return rows.filter((r) => r.status === "BOOKED" || r.staff_user_id === myUserId);
   }, [rows, role, myUserId]);
 
   const filterRange = useMemo(() => {
@@ -291,47 +300,55 @@ export default function AppointmentsPage() {
     return { from: startOfDay(new Date(fromDate)), to: endOfDay(new Date(toDate)) };
   }, [rangeMode, fromDate, toDate]);
 
+  const pendingCheckoutRows = useMemo(() => scopedRows.filter((r) => r.status === "CHECKED_IN"), [scopedRows]);
+  const staleCheckedInRows = useMemo(() => pendingCheckoutRows.filter(isStaleCheckedIn), [pendingCheckoutRows]);
+  const criticalCheckedInRows = useMemo(() => pendingCheckoutRows.filter(isCriticalCheckedIn), [pendingCheckoutRows]);
+  const activeBookedRows = useMemo(() => scopedRows.filter((r) => r.status === "BOOKED"), [scopedRows]);
+  const overdueBookedRows = useMemo(() => activeBookedRows.filter(isOverdueBooked), [activeBookedRows]);
+  const bookingDate = useMemo(() => autoTime ? roundToNextSlot(new Date()) : roundToNextSlot(new Date(bookingAt)), [autoTime, bookingAt]);
+  const slotEndDate = useMemo(() => addMinutes(bookingDate, 60), [bookingDate]);
+  const targetStaffUserId = role === "TECH" ? myUserId : staffUserId;
+
   const filteredRows = useMemo(() => {
     const bookedRows = scopedRows.filter((r) => r.status === "BOOKED");
+    const overdueRows = bookedRows.filter(isOverdueBooked);
+    const normalBookedRows = bookedRows.filter((r) => !isOverdueBooked(r));
     const rangedNonBookedRows = scopedRows.filter((r) => {
       if (r.status === "BOOKED" || r.status === "CHECKED_IN") return false;
       const d = new Date(r.start_at).getTime();
       return d >= filterRange.from.getTime() && d <= filterRange.to.getTime();
     });
-
     const checkedInRows = scopedRows.filter((r) => r.status === "CHECKED_IN");
+    const criticalRows = checkedInRows.filter(isCriticalCheckedIn);
+    const staleRows = checkedInRows.filter((r) => isStaleCheckedIn(r) && !isCriticalCheckedIn(r));
+    const freshCheckedInRows = checkedInRows.filter((r) => !isStaleCheckedIn(r));
 
     const merged = statusFilter === "ALL"
-      ? [...bookedRows, ...checkedInRows, ...rangedNonBookedRows]
+      ? [...overdueRows, ...normalBookedRows, ...criticalRows, ...staleRows, ...freshCheckedInRows, ...rangedNonBookedRows]
       : statusFilter === "BOOKED"
-        ? bookedRows
+        ? [...overdueRows, ...normalBookedRows]
         : statusFilter === "CHECKED_IN"
           ? checkedInRows
           : rangedNonBookedRows.filter((r) => r.status === statusFilter);
 
     return [...merged].sort((a, b) => {
+      const overdueRank = Number(isOverdueBooked(b)) - Number(isOverdueBooked(a));
+      if (overdueRank !== 0) return overdueRank;
+      const criticalRank = Number(isCriticalCheckedIn(b)) - Number(isCriticalCheckedIn(a));
+      if (criticalRank !== 0) return criticalRank;
+      const staleRank = Number(isStaleCheckedIn(b)) - Number(isStaleCheckedIn(a));
+      if (staleRank !== 0) return staleRank;
       const byRank = rankStatus(a.status) - rankStatus(b.status);
       if (byRank !== 0) return byRank;
       return new Date(a.start_at).getTime() - new Date(b.start_at).getTime();
     });
   }, [scopedRows, statusFilter, filterRange]);
 
-  const pendingCheckoutRows = useMemo(() => scopedRows.filter((r) => r.status === "CHECKED_IN"), [scopedRows]);
-  const activeBookedRows = useMemo(() => scopedRows.filter((r) => r.status === "BOOKED"), [scopedRows]);
-
-  const bookingDate = useMemo(() => {
-    if (autoTime) return roundToNextSlot(new Date());
-    return roundToNextSlot(new Date(bookingAt));
-  }, [autoTime, bookingAt]);
-
-  const slotEndDate = useMemo(() => addMinutes(bookingDate, 60), [bookingDate]);
-  const targetStaffUserId = role === "TECH" ? myUserId : staffUserId;
-
   function isConflict(row: AppointmentRow, slotStart: Date, slotEnd: Date, targetStaffId: string | null, targetResourceId: string | null) {
     const overlaps = new Date(row.start_at).getTime() < slotEnd.getTime() && new Date(row.end_at).getTime() > slotStart.getTime();
     if (!overlaps) return false;
     const sameStaff = !!targetStaffId && row.staff_user_id === targetStaffId;
-    const sameResource = !!targetResourceId && row.resource_id === targetResourceId;
+    const sameResource = !!targetResourceId && (row.resource_id ?? null) === targetResourceId;
     return sameStaff || sameResource;
   }
 
@@ -366,9 +383,22 @@ export default function AppointmentsPage() {
     setEditingId(null);
   }
 
+  function rebaseDateTimeToToday(dateValue: string) {
+    const source = new Date(dateValue);
+    if (Number.isNaN(source.getTime())) return toInputValue(roundToNextSlot(new Date()));
+    const today = new Date();
+    const next = new Date(today.getFullYear(), today.getMonth(), today.getDate(), source.getHours(), source.getMinutes(), 0, 0);
+    return toInputValue(next);
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (submitting) return;
+    const normalizedCustomerName = customerName.trim();
+    if (!normalizedCustomerName) {
+      setError("Tên khách là bắt buộc.");
+      return;
+    }
     if (!resourceId) {
       setError("Số ghế là bắt buộc.");
       return;
@@ -383,21 +413,12 @@ export default function AppointmentsPage() {
     try {
       setSubmitting(true);
       setError(null);
-      await createAppointment({
-        appointmentId: editingId,
-        customerName,
-        startAt: resolved.start.toISOString(),
-        endAt: resolved.end.toISOString(),
-        staffUserId: targetStaffUserId || null,
-        resourceId: resolved.resourceId,
-      });
+      await createAppointment({ appointmentId: editingId, customerName: normalizedCustomerName, startAt: resolved.start.toISOString(), endAt: resolved.end.toISOString(), staffUserId: targetStaffUserId || null, resourceId: resolved.resourceId });
       setStatusFilter("ALL");
       setRangeMode("day");
       resetForm();
       await load({ force: true });
-      requestAnimationFrame(() => {
-        listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
+      requestAnimationFrame(() => listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Tạo lịch hẹn thất bại");
     } finally {
@@ -405,7 +426,7 @@ export default function AppointmentsPage() {
     }
   }
 
-  async function onQuickStatus(id: string, status: "CHECKED_IN" | "CANCELLED") {
+  async function onQuickStatus(id: string, status: "CHECKED_IN" | "CANCELLED" | "NO_SHOW") {
     try {
       setUpdatingId(id);
       setError(null);
@@ -418,298 +439,148 @@ export default function AppointmentsPage() {
     }
   }
 
-  const nextActionLabel = activeBookedRows.length > 0
-    ? `Có ${activeBookedRows.length} lịch đang chờ check-in`
-    : pendingCheckoutRows.length > 0
-      ? `Có ${pendingCheckoutRows.length} lịch sẵn sàng mở phiếu`
-      : "Không có lịch cần xử lý gấp";
+  const nextActionLabel = overdueBookedRows.length > 0
+    ? `Có ${overdueBookedRows.length} lịch quá giờ cần xử lý`
+    : criticalCheckedInRows.length > 0
+      ? `Có ${criticalCheckedInRows.length} lịch check-in rất lâu cần xử lý`
+      : staleCheckedInRows.length > 0
+        ? `Có ${staleCheckedInRows.length} lịch check-in lâu chưa đóng bill`
+      : activeBookedRows.length > 0
+        ? `Có ${activeBookedRows.length} lịch đang chờ check-in`
+        : pendingCheckoutRows.length > 0
+          ? `Có ${pendingCheckoutRows.length} lịch sẵn sàng mở phiếu`
+          : "Không có lịch cần xử lý gấp";
 
   return (
     <AppShell>
       <div className="space-y-6 pb-24 md:pb-0">
-        <ManageQuickNav items={[
-          { href: "/manage/technician", label: "Bảng kỹ thuật", accent: true },
-          { href: "/manage/checkout", label: "Thanh toán" },
-          { href: "/manage/shifts", label: "Ca làm" },
-        ]} />
+        <ManageQuickNav items={operationsQuickNav("/manage/appointments")} />
 
-        <MobileSectionHeader
-          title="Lịch hẹn"
-          meta={<div className="manage-info-box">{refreshing ? "Đang làm mới..." : nextActionLabel}</div>}
-        />
+        <MobileSectionHeader title="Điều phối" meta={<div className="manage-info-box">{refreshing ? "Đang làm mới..." : nextActionLabel}</div>} />
 
         {error ? <ManageAlert tone="error">{error}</ManageAlert> : null}
 
-        <section className="manage-surface">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h3 className="text-base font-semibold text-neutral-900 md:text-lg">Ưu tiên thao tác</h3>
-              <p className="mt-1 text-xs text-neutral-500 md:text-sm">TECH nên ưu tiên lịch đang chờ check-in, chỉ vào đây khi cần tạo mới hoặc chỉnh lịch.</p>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setStatusFilter("BOOKED");
-                  requestAnimationFrame(() => listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
-                }}
-                className="cursor-pointer rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-left text-sm font-medium text-amber-800 transition hover:bg-amber-100 active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-amber-300 focus:ring-offset-2"
-              >
-                Chờ check-in: <b>{activeBookedRows.length}</b>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setStatusFilter("CHECKED_IN");
-                  requestAnimationFrame(() => listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
-                }}
-                className="cursor-pointer rounded-2xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-left text-sm font-medium text-blue-800 transition hover:bg-blue-100 active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2"
-              >
-                Chờ thanh toán: <b>{pendingCheckoutRows.length}</b>
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <MobileCollapsible
-          summary={editingId ? <span className="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-800">Đang sửa lịch, mở form</span> : <span className="inline-flex items-center rounded-full bg-[var(--color-primary)] px-3 py-1 text-sm font-semibold text-white shadow-sm">Tạo lịch nhanh</span>}
-          defaultOpen={Boolean(editingId)}
-        >
-          <div className="space-y-3">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <h3 className="text-base font-semibold text-neutral-900">Tạo / chỉnh lịch hẹn</h3>
-              {currentConflict ? (
-                <span className="w-fit rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">Có xung đột</span>
-              ) : (
-                <span className="w-fit rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">Khung giờ hợp lệ</span>
-              )}
-            </div>
-
-            <form onSubmit={onSubmit} className="grid gap-3">
+        <>
+          <section ref={formRef} className="manage-surface space-y-3 md:space-y-4">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
-                <FieldLabel>Tên khách</FieldLabel>
-                <TextInput placeholder="Ví dụ: Nguyễn Thị A" value={customerName} onChange={(e) => setCustomerName(e.target.value)} required />
+                <h3 className="text-base font-semibold text-neutral-900 md:text-lg">Hành động nhanh</h3>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <FieldLabel>Giờ</FieldLabel>
-                  <SelectInput value={autoTime ? "auto" : "custom"} onChange={(e) => setAutoTime(e.target.value === "auto")}>
-                    <option value="auto">Tự động</option>
-                    <option value="custom">Tùy chỉnh</option>
-                  </SelectInput>
+              {currentConflict ? <span className="w-fit rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">Có xung đột</span> : null}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+              <button type="button" onClick={() => { setStatusFilter("BOOKED"); requestAnimationFrame(() => listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }} className="cursor-pointer rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left transition hover:bg-amber-100">
+                <p className="text-[10px] font-medium uppercase tracking-[0.06em] text-amber-700">Chờ check-in</p>
+                <p className="mt-0.5 text-xl font-semibold leading-none text-amber-900">{activeBookedRows.length}</p>
+              </button>
+              <button type="button" onClick={() => { setStatusFilter("BOOKED"); requestAnimationFrame(() => listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }} className="cursor-pointer rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-left transition hover:bg-red-100">
+                <p className="text-[10px] font-medium uppercase tracking-[0.06em] text-red-700">Quá giờ</p>
+                <p className="mt-0.5 text-xl font-semibold leading-none text-red-900">{overdueBookedRows.length}</p>
+              </button>
+              <button type="button" onClick={() => { setStatusFilter("CHECKED_IN"); requestAnimationFrame(() => listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }} className="cursor-pointer rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-left transition hover:bg-violet-100">
+                <p className="text-[10px] font-medium uppercase tracking-[0.06em] text-violet-700">Check-in lâu</p>
+                <p className="mt-0.5 text-xl font-semibold leading-none text-violet-900">{staleCheckedInRows.length}</p>
+              </button>
+              <button type="button" onClick={() => { setStatusFilter("CHECKED_IN"); requestAnimationFrame(() => listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }} className="cursor-pointer rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-left transition hover:bg-blue-100">
+                <p className="text-[10px] font-medium uppercase tracking-[0.06em] text-blue-700">Chờ thanh toán</p>
+                <p className="mt-0.5 text-xl font-semibold leading-none text-blue-900">{pendingCheckoutRows.length}</p>
+              </button>
+            </div>
+
+            <form onSubmit={onSubmit} className="grid gap-3 lg:grid-cols-[1.3fr_0.7fr]">
+              <div className="grid gap-2.5">
+                <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-3">
+                  <FieldLabel className="mb-0">Tên khách</FieldLabel>
+                  <TextInput placeholder="Ví dụ: Nguyễn Thị A" value={customerName} onChange={(e) => setCustomerName(e.target.value)} required />
                 </div>
-                <div>
-                  <FieldLabel>Ghế</FieldLabel>
-                  <SelectInput value={resourceId} onChange={(e) => setResourceId(e.target.value)} disabled={submitting} required>
-                    <option value="">-- Chọn ghế --</option>
-                    {resourceOptions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                  </SelectInput>
+                <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-3">
+                  <FieldLabel className="mb-0">Chế độ giờ</FieldLabel>
+                  <SelectInput value={autoTime ? "auto" : "custom"} onChange={(e) => setAutoTime(e.target.value === "auto")}><option value="auto">Giờ tự động</option><option value="custom">Tùy chỉnh giờ</option></SelectInput>
                 </div>
+                <div className="grid grid-cols-[72px_minmax(0,1fr)] items-start gap-3">
+                  <FieldLabel className="mb-0 pt-2">Số ghế</FieldLabel>
+                  <div className="flex flex-wrap gap-2">
+                    {resourceOptions.map((r) => <ResourceChip key={r.id} active={resourceId === r.id} label={r.name} onClick={() => setResourceId(r.id)} />)}
+                  </div>
+                </div>
+                <div className="grid grid-cols-[72px_minmax(0,1fr)] items-start gap-3">
+                  <FieldLabel className="mb-0 pt-2">Thợ</FieldLabel>
+                  <div className="flex flex-wrap gap-2">
+                    {staffOptions.map((s) => (
+                      <ResourceChip key={s.userId} active={staffUserId === s.userId} label={s.name} onClick={() => setStaffUserId(s.userId)} />
+                    ))}
+                  </div>
+                </div>
+                {!autoTime ? <div className="pt-1"><ManageDateTimePicker label="Thời gian lịch hẹn" value={bookingAt} onChange={setBookingAt} /></div> : null}
               </div>
-              {!autoTime ? <ManageDateTimePicker label="Thời gian lịch hẹn" value={bookingAt} onChange={setBookingAt} /> : null}
+              <div className="space-y-2 rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
+                {editingId ? <div className="flex items-center justify-end"><button type="button" className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50" onClick={resetForm}>Hủy</button></div> : null}
+                <button className="w-full rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting || !staffUserId || !resourceId}>{submitting ? "Đang xử lý..." : editingId ? "Lưu lịch hẹn" : "Tạo lịch hẹn"}</button>
+              </div>
             </form>
-          </div>
-        </MobileCollapsible>
+          </section>
 
-        <section className="manage-surface md:p-6 hidden md:block">
-          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-neutral-900">Tạo / chỉnh lịch hẹn</h3>
-            </div>
-            {currentConflict ? (
-              <span className="w-fit rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">Có xung đột, sẽ dời giờ</span>
-            ) : (
-              <span className="w-fit rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">Khung giờ hợp lệ</span>
-            )}
-          </div>
-
-          <form onSubmit={onSubmit} className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-            <div className="grid gap-4 md:grid-cols-2">
+          <section ref={listRef} className="manage-surface md:p-6 space-y-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div>
-                <FieldLabel>Tên khách</FieldLabel>
-                <TextInput placeholder="Ví dụ: Nguyễn Thị A" value={customerName} onChange={(e) => setCustomerName(e.target.value)} required />
+                <h3 className="text-base font-semibold text-neutral-900 md:text-lg">Danh sách lịch</h3>
               </div>
-
-              <div>
-                <FieldLabel>Chế độ thời gian</FieldLabel>
-                <SelectInput value={autoTime ? "auto" : "custom"} onChange={(e) => setAutoTime(e.target.value === "auto")}>
-                  <option value="auto">Giờ tự động</option>
-                  <option value="custom">Tùy chỉnh giờ</option>
-                </SelectInput>
-              </div>
-
-              <div>
-                <FieldLabel>Thợ phụ trách</FieldLabel>
-                <SelectInput value={staffUserId} onChange={(e) => setStaffUserId(e.target.value)} disabled={submitting || role === "TECH"}>
-                  <option value="">-- Chọn thợ --</option>
-                  {staffOptions.map((s) => <option key={s.userId} value={s.userId}>{s.name}</option>)}
-                </SelectInput>
-              </div>
-
-              <div>
-                <FieldLabel>Số ghế</FieldLabel>
-                <SelectInput value={resourceId} onChange={(e) => setResourceId(e.target.value)} disabled={submitting} required>
-                  <option value="">-- Chọn số ghế --</option>
-                  {resourceOptions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                </SelectInput>
+              <div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap">
+                <button type="button" onClick={() => setStatusFilter("ALL")} className={`rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "ALL" ? "bg-neutral-900 text-white" : "border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"}`}>Tất cả</button>
+                <button type="button" onClick={() => setStatusFilter("BOOKED")} className={`rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "BOOKED" ? "bg-amber-500 text-white" : "border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"}`}>Check-in</button>
+                <button type="button" onClick={() => setStatusFilter("CHECKED_IN")} className={`rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "CHECKED_IN" ? "bg-blue-600 text-white" : "border border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100"}`}>Thanh toán</button>
+                <button type="button" onClick={() => setStatusFilter("DONE")} className={`rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "DONE" ? "bg-emerald-600 text-white" : "border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"}`}>Đã xong</button>
               </div>
             </div>
 
-            <div className="space-y-4 rounded-3xl border border-neutral-200 bg-neutral-50 p-4">
-              {!autoTime ? (
-                <ManageDateTimePicker label="Thời gian lịch hẹn" value={bookingAt} onChange={setBookingAt} />
-              ) : (
-                <div className="rounded-2xl border border-dashed border-neutral-200 bg-white px-4 py-4 text-sm text-neutral-500">
-                  Tự lấy khung giờ gần nhất phù hợp.
-                </div>
-              )}
-
-              <div className="rounded-2xl border border-neutral-200 bg-white px-4 py-4 text-sm text-neutral-600">
-                Nếu trùng ghế hoặc trùng thợ, app sẽ tự dời sang giờ kế tiếp.
-              </div>
-
-              <div className="hidden gap-2 md:flex">
-                <button className="flex-1 rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting || !staffUserId || !resourceId}>
-                  {submitting ? "Đang xử lý..." : editingId ? "Lưu lịch hẹn" : "Tạo lịch hẹn"}
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <button type="button" onClick={() => setShowRangeFilters((v) => !v)} className="w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-left text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 sm:w-auto">
+                  {showRangeFilters ? "Ẩn khoảng thời gian" : "Hiện khoảng thời gian"}
                 </button>
-                {editingId && (
-                  <button type="button" className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50" onClick={resetForm}>
-                    Hủy sửa
-                  </button>
-                )}
+                <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-500">{`${filterRange.from.toLocaleDateString("vi-VN")} → ${filterRange.to.toLocaleDateString("vi-VN")}`}</div>
               </div>
-            </div>
-          </form>
-        </section>
 
-        <MobileInfoGrid>
-          <ManageStatCard label="Chờ thanh toán" value={pendingCheckoutRows.length} />
-          <ManageStatCard label="Đang booked" value={activeBookedRows.length} />
-          <div className="manage-stat-card hidden md:block sm:col-span-2 lg:col-span-1">
-            <p className="manage-stat-label">Trạng thái</p>
-            <SelectInput className="mt-3" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="ALL">Tất cả</option>
-              <option value="BOOKED">BOOKED</option>
-              <option value="CHECKED_IN">CHECKED_IN</option>
-              <option value="DONE">DONE</option>
-              <option value="CANCELLED">CANCELLED</option>
-              <option value="NO_SHOW">NO_SHOW</option>
-            </SelectInput>
-          </div>
-        </MobileInfoGrid>
+              {showRangeFilters ? (
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div>
+                    <FieldLabel>Khoảng thời gian</FieldLabel>
+                    <SelectInput value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}><option value="day">Trong ngày</option><option value="week">Trong tuần</option><option value="month">Trong tháng</option><option value="custom">Tùy chỉnh</option></SelectInput>
+                  </div>
+                  <div>
+                    <FieldLabel>Từ ngày</FieldLabel>
+                    <TextInput type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} disabled={rangeMode !== "custom"} />
+                  </div>
+                  <div>
+                    <FieldLabel>Đến ngày</FieldLabel>
+                    <TextInput type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} disabled={rangeMode !== "custom"} />
+                  </div>
+                </div>
+              ) : null}
+            </div>
 
-        <MobileCollapsible summary="Mở bộ lọc lịch" defaultOpen={false}>
-          <div className="grid gap-3">
-            <div>
-              <FieldLabel>Trạng thái</FieldLabel>
-              <SelectInput value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                <option value="ALL">Tất cả</option>
-                <option value="BOOKED">BOOKED</option>
-                <option value="CHECKED_IN">CHECKED_IN</option>
-                <option value="DONE">DONE</option>
-                <option value="CANCELLED">CANCELLED</option>
-                <option value="NO_SHOW">NO_SHOW</option>
-              </SelectInput>
-            </div>
-            <div>
-              <FieldLabel>Khoảng thời gian</FieldLabel>
-              <SelectInput value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}>
-                <option value="day">Trong ngày</option>
-                <option value="week">Trong tuần</option>
-                <option value="month">Trong tháng</option>
-                <option value="custom">Tùy chỉnh</option>
-              </SelectInput>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <TextInput type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} disabled={rangeMode !== "custom"} />
-              <TextInput type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} disabled={rangeMode !== "custom"} />
-            </div>
-          </div>
-        </MobileCollapsible>
+            {loading ? <p className="text-sm text-neutral-500">Đang tải lịch hẹn...</p> : filteredRows.length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 bg-neutral-50 px-4 py-8 text-center text-sm text-neutral-500">Chưa có lịch hẹn nào trong bộ lọc hiện tại.</div> : (
+              <div className="space-y-4">
+                {filteredRows.map((a) => {
+                  const customer = pickCustomerName(a.customers);
+                  const staff = staffOptions.find((s) => s.userId === a.staff_user_id)?.name ?? "-";
+                  const resource = resourceOptions.find((r) => r.id === (a.resource_id ?? ""))?.name ?? "-";
+                  const overdue = isOverdueBooked(a);
+                  const staleCheckedIn = isStaleCheckedIn(a);
+                  const criticalCheckedIn = isCriticalCheckedIn(a);
+                  return <AppointmentCard key={a.id} row={a} staffName={staff} resourceName={resource} onlineBooked={isOnlineBooked(a)} overdue={overdue} staleCheckedIn={staleCheckedIn} criticalCheckedIn={criticalCheckedIn} updatingId={updatingId} onEdit={() => { setEditingId(a.id); setCustomerName(customer); setAutoTime(false); setBookingAt(rebaseDateTimeToToday(a.start_at)); setStaffUserId(a.staff_user_id ?? ""); setResourceId(a.resource_id ?? ""); requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }} onQuickStatus={onQuickStatus} />;
+                })}
+              </div>
+            )}
+          </section>
 
-        <section ref={listRef} className="manage-surface md:p-6">
-          <div className="mb-5 hidden gap-4 lg:grid-cols-4 md:grid">
-            <div>
-              <FieldLabel>Khoảng thời gian</FieldLabel>
-              <SelectInput value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}>
-                <option value="day">Trong ngày</option>
-                <option value="week">Trong tuần</option>
-                <option value="month">Trong tháng</option>
-                <option value="custom">Tùy chỉnh</option>
-              </SelectInput>
-            </div>
-            <div>
-              <FieldLabel>Từ ngày</FieldLabel>
-              <TextInput type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} disabled={rangeMode !== "custom"} />
-            </div>
-            <div>
-              <FieldLabel>Đến ngày</FieldLabel>
-              <TextInput type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} disabled={rangeMode !== "custom"} />
-            </div>
-            <div className="hidden md:flex items-end">
-              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-500">{`${filterRange.from.toLocaleDateString("vi-VN")} → ${filterRange.to.toLocaleDateString("vi-VN")}`}</div>
-            </div>
-          </div>
-
-          {loading ? (
-            <p className="text-sm text-neutral-500">Đang tải lịch hẹn...</p>
-          ) : filteredRows.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-neutral-200 bg-neutral-50 px-4 py-8 text-center text-sm text-neutral-500">
-              Chưa có lịch hẹn nào trong bộ lọc hiện tại.
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {filteredRows.map((a) => {
-                const customer = pickCustomerName(a.customers);
-                const staffName = staffOptions.find((s) => s.userId === a.staff_user_id)?.name ?? "-";
-                const resourceName = resourceOptions.find((r) => r.id === a.resource_id)?.name ?? "-";
-                const onlineBooked = isOnlineBooked(a);
-                return (
-                  <AppointmentCard
-                    key={a.id}
-                    row={a}
-                    staffName={staffName}
-                    resourceName={resourceName}
-                    onlineBooked={onlineBooked}
-                    updatingId={updatingId}
-                    onEdit={() => {
-                      setEditingId(a.id);
-                      setCustomerName(customer);
-                      setAutoTime(false);
-                      setBookingAt(toInputValue(new Date(a.start_at)));
-                      setStaffUserId(a.staff_user_id ?? "");
-                      setResourceId(a.resource_id ?? "");
-                    }}
-                    onQuickStatus={onQuickStatus}
-                  />
-                );
-              })}
-            </div>
-          )}
-        </section>
-
-        <MobileStickyActions>
-          <button
-            type="button"
-            onClick={() => {
-              const form = document.querySelector("form");
-              if (form instanceof HTMLFormElement) form.requestSubmit();
-            }}
-            className="flex-1 rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={submitting || !staffUserId || !resourceId}
-          >
-            {submitting ? "Đang xử lý..." : editingId ? "Lưu lịch hẹn" : "Tạo lịch hẹn"}
-          </button>
-          {editingId ? (
-            <button
-              type="button"
-              className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
-              onClick={resetForm}
-            >
-              Hủy
+          <MobileStickyActions>
+            <button type="button" onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })} className="flex-1 rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-800 shadow-sm transition hover:bg-neutral-50">
+              Đi tới form tạo lịch
             </button>
-          ) : null}
-        </MobileStickyActions>
+          </MobileStickyActions>
+        </>
       </div>
     </AppShell>
   );

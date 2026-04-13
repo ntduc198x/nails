@@ -1,6 +1,8 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
+import { MobileSectionHeader } from "@/components/manage-mobile";
+import { ManageQuickNav, setupQuickNav } from "@/components/manage-quick-nav";
 import { getOrCreateRole, listUserRoles, type AppRole, updateUserDisplayName, updateUserRoleByRowId } from "@/lib/auth";
 import { generateInviteCode, listInviteCodes, revokeInviteCode, type InviteCodeRow } from "@/lib/invite-codes";
 import { supabase } from "@/lib/supabase";
@@ -130,15 +132,10 @@ export default function TeamPage() {
 
   return (
     <AppShell>
-      <div className="space-y-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 className="text-3xl font-extrabold tracking-tight text-neutral-900">Nhân sự & Role</h2>
-          </div>
-          <div className="manage-info-box">
-            Role hiện tại: <b className="text-neutral-900">{myRole}</b>
-          </div>
-        </div>
+      <div className="space-y-5 pb-24 md:pb-0">
+        <ManageQuickNav items={setupQuickNav("/manage/team")} />
+
+        <MobileSectionHeader title="Nhân sự" meta={<div className="manage-info-box">Role: <b className="text-neutral-900">{myRole}</b></div>} />
 
         {error ? (
           <div className="manage-error-box">{error}</div>

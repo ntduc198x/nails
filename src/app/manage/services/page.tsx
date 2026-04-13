@@ -1,6 +1,8 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
+import { MobileSectionHeader } from "@/components/manage-mobile";
+import { ManageQuickNav, setupQuickNav } from "@/components/manage-quick-nav";
 import { getCurrentSessionRole, type AppRole } from "@/lib/auth";
 import { createService, listServices, updateService } from "@/lib/domain";
 import { formatVnd } from "@/lib/mock-data";
@@ -198,15 +200,10 @@ export default function ServicesPage() {
 
   return (
     <AppShell>
-      <div className="space-y-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 className="text-3xl font-extrabold tracking-tight text-neutral-900">Dịch vụ & Lookbook</h2>
-          </div>
-          <div className="manage-info-box">
-            {refreshing ? "Đang làm mới dữ liệu..." : `${rows.length} dịch vụ trong hệ thống`}
-          </div>
-        </div>
+      <div className="space-y-5 pb-24 md:pb-0">
+        <ManageQuickNav items={setupQuickNav("/manage/services")} />
+
+        <MobileSectionHeader title="Dịch vụ" meta={<div className="manage-info-box">{refreshing ? "Đang làm mới..." : `${rows.length} dịch vụ`}</div>} />
 
         {role === "ACCOUNTANT" || role === "TECH" ? (
           <div className="manage-warn-box">
@@ -220,15 +217,15 @@ export default function ServicesPage() {
           </div>
         ) : null}
 
-        <form onSubmit={onSubmit} className="manage-surface md:p-6">
-          <div className="mb-5 flex items-center justify-between gap-3">
+        <form onSubmit={onSubmit} className="manage-surface space-y-4 p-4 md:p-5">
+          <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-semibold text-neutral-900">Thêm dịch vụ mới</h3>
             </div>
             <div className="rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-600">VAT mặc định 0%</div>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
             <div className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div>

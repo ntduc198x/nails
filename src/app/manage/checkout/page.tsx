@@ -3,7 +3,7 @@
 import { AppShell } from "@/components/app-shell";
 import { ManageAlert } from "@/components/manage-alert";
 import { MobileCollapsible, MobileInfoGrid, MobileSectionHeader, MobileStickyActions } from "@/components/manage-mobile";
-import { ManageQuickNav } from "@/components/manage-quick-nav";
+import { ManageQuickNav, operationsQuickNav } from "@/components/manage-quick-nav";
 import { ManageStatCard } from "@/components/manage-stat-card";
 import { getCurrentSessionRole, type AppRole } from "@/lib/auth";
 import { createCheckout, hasOpenShift, listCheckedInAppointments, listRecentTickets, listServices } from "@/lib/domain";
@@ -204,13 +204,7 @@ export default function CheckoutPage() {
   return (
     <AppShell>
       <div className="space-y-5 pb-24 md:pb-0">
-        <ManageQuickNav
-          items={[
-            { href: "/manage/technician", label: "Bảng kỹ thuật", accent: true },
-            { href: "/manage/appointments", label: "Lịch hẹn" },
-            { href: "/manage/shifts", label: "Ca làm" },
-          ]}
-        />
+        <ManageQuickNav items={operationsQuickNav("/manage/checkout")} />
 
         <MobileSectionHeader title="Thanh toán" meta={<div className="manage-info-box">{statusMeta}</div>} />
 
@@ -223,7 +217,7 @@ export default function CheckoutPage() {
           </ManageAlert>
         ) : null}
 
-        <section className="manage-surface space-y-3 p-4 md:p-5">
+        <section className="manage-surface space-y-3 p-4">
           <div className="flex items-center justify-between gap-3">
             <h3 className="text-base font-semibold text-neutral-900">Ưu tiên thao tác</h3>
             <button
@@ -251,9 +245,9 @@ export default function CheckoutPage() {
           </div>
         </section>
 
-        <form onSubmit={onSubmit} className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_380px]">
-          <div className="space-y-5">
-            <div ref={customerSectionRef} className="card space-y-3 p-4 md:p-5">
+        <form onSubmit={onSubmit} className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_380px]">
+          <div className="space-y-4">
+            <div ref={customerSectionRef} className="card space-y-3 p-4">
               <h3 className="text-base font-semibold text-neutral-900">Chọn khách</h3>
 
               {checkedInAppointments.length > 0 ? (
@@ -299,7 +293,7 @@ export default function CheckoutPage() {
 
             </div>
 
-            <div ref={serviceSectionRef} className="card space-y-3 p-4 md:p-5">
+            <div ref={serviceSectionRef} className="card space-y-3 p-4">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-base font-semibold text-neutral-900">Dịch vụ</h3>
                 <button type="button" onClick={addLine} className="rounded-lg border px-3 py-2 text-xs md:text-sm">+ Thêm dòng</button>
@@ -311,7 +305,7 @@ export default function CheckoutPage() {
                     <div className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-400">Dịch vụ nhanh</div>
                     <div className="text-xs text-neutral-500">{customerName ? "Đã ưu tiên theo bill hiện tại" : "Đang ưu tiên các dịch vụ phổ biến"}</div>
                   </div>
-                  <div className="flex flex-wrap gap-1.5 md:gap-2">
+                  <div className="flex flex-wrap gap-1.5">
                     {quickServices.map((service) => (
                       <button
                         key={service.id}
@@ -330,7 +324,7 @@ export default function CheckoutPage() {
                 {lines.map((line, idx) => {
                   const selectedService = services.find((service) => service.id === line.serviceId);
                   return (
-                    <div key={idx} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                    <div key={idx} className="rounded-xl border border-neutral-200 bg-neutral-50 p-2.5">
                       <div className="space-y-3">
                         <div>
                           <select className="input bg-white py-2.5 text-sm" aria-label={`Dịch vụ ${idx + 1}`} value={line.serviceId} onChange={(e) => updateLine(idx, { serviceId: e.target.value })}>
@@ -338,7 +332,7 @@ export default function CheckoutPage() {
                             {services.map((s) => <option key={s.id} value={s.id}>{s.name} · {formatVnd(Number(s.base_price))}</option>)}
                           </select>
                         </div>
-                        <div className="flex items-center justify-between gap-2 rounded-xl border border-white/70 bg-white px-3 py-2.5">
+                        <div className="flex items-center justify-between gap-2 rounded-xl border border-white/70 bg-white px-3 py-2">
                           <div className="min-w-0 flex-1 text-sm text-neutral-500">
                             {selectedService ? (
                               <>
@@ -483,7 +477,7 @@ export default function CheckoutPage() {
                   const customer = Array.isArray(t.customers) ? t.customers[0]?.name : t.customers?.name;
                   const token = t.receipts?.[0]?.public_token ?? "-";
                   return (
-                    <div key={`mobile-${t.id}`} className="rounded-2xl border border-neutral-200 p-4">
+                    <div key={`mobile-${t.id}`} className="rounded-2xl border border-neutral-200 p-3.5">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="text-sm font-semibold text-neutral-900">{customer ?? "Khách lẻ"}</div>
@@ -511,7 +505,7 @@ export default function CheckoutPage() {
             </MobileCollapsible>
           </div>
 
-          <div className="space-y-5 hidden xl:block">
+          <div className="space-y-4 hidden xl:block">
             <div className="card sticky top-4 space-y-3 xl:self-start">
               <h3 className="font-semibold text-neutral-900">Tóm tắt bill</h3>
 

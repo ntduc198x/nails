@@ -1,7 +1,7 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
-import { ManageQuickNav } from "@/components/manage-quick-nav";
+import { ManageQuickNav, reportsQuickNav } from "@/components/manage-quick-nav";
 import { listUserRoles } from "@/lib/auth";
 import { formatVnd } from "@/lib/mock-data";
 import { getReportBreakdown, getStaffRevenueInRange, listTicketsInRange, listTimeEntriesInRange, type ReportTicketRow } from "@/lib/reporting";
@@ -257,7 +257,7 @@ export default function ReportsPage() {
 
   return (
     <AppShell>
-      <div className="space-y-5">
+      <div className="space-y-5 pb-24 md:pb-0">
         <section className="manage-surface">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-1">
@@ -269,17 +269,9 @@ export default function ReportsPage() {
             <button className="btn btn-primary" onClick={exportExcel}>Xuất Excel</button>
           </div>
 
-          <ManageQuickNav
-            className="mt-4"
-            items={[
-              { href: "/manage/technician", label: "Bảng kỹ thuật" },
-              { href: "/manage/appointments", label: "Lịch hẹn" },
-              { href: "/manage/checkout", label: "Thanh toán" },
-              { href: "/manage/shifts", label: "Ca làm" },
-            ]}
-          />
+          <ManageQuickNav className="mt-3" items={reportsQuickNav("/manage/reports")} />
 
-          <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto_auto] lg:items-center">
+          <div className="mt-4 grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto_auto] lg:items-center">
             <select className="input" value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}>
               <option value="day">Hôm nay / theo ngày</option>
               <option value="week">Theo tuần</option>
@@ -312,7 +304,7 @@ export default function ReportsPage() {
           </div>
         </section>
 
-        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
           <div className="manage-surface"><p className="text-sm text-neutral-500">Số bill CLOSED</p><p className="mt-2 text-3xl font-semibold text-neutral-900">{summary.count}</p></div>
           <div className="manage-surface"><p className="text-sm text-neutral-500">Subtotal</p><p className="mt-2 text-3xl font-semibold text-neutral-900">{formatVnd(summary.subtotal)}</p></div>
           <div className="manage-surface"><p className="text-sm text-neutral-500">VAT</p><p className="mt-2 text-3xl font-semibold text-neutral-900">{formatVnd(summary.vat)}</p></div>
@@ -321,16 +313,16 @@ export default function ReportsPage() {
 
         {breakdownError && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Phân tích nâng cao đang lỗi: {breakdownError}. Danh sách phiếu cơ bản vẫn hiển thị bình thường.</div>}
 
-        <section className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_380px]">
-          <div className="space-y-5">
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_380px]">
+          <div className="space-y-4">
             <div className="manage-surface">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-lg font-semibold text-neutral-900">Phân tích doanh thu</h3>
-                  <p className="text-sm text-neutral-500">Nhìn nhanh dịch vụ kéo doanh thu và nhân viên đang tạo ra nhiều bill nhất.</p>
+                  <p className="text-sm text-neutral-500">Nhìn nhanh dịch vụ và nhân sự đang kéo doanh thu chính.</p>
                 </div>
               </div>
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-3">
                   <h4 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">Top dịch vụ</h4>
                   {(breakdown?.by_service ?? []).length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">Chưa có dữ liệu dịch vụ trong kỳ này.</div> : (breakdown?.by_service ?? []).slice(0, 6).map((s, idx) => <div key={`${s.service_name}-${idx}`} className="flex items-center justify-between rounded-2xl border border-neutral-100 bg-neutral-50/70 px-4 py-3 text-sm"><div><div className="font-medium text-neutral-900">{s.service_name}</div><div className="text-neutral-500">SL: {s.qty}</div></div><div className="font-semibold text-neutral-900">{formatVnd(Number(s.subtotal ?? 0))}</div></div>)}
@@ -346,7 +338,7 @@ export default function ReportsPage() {
               <div className="mb-4 flex items-center justify-between gap-2">
                 <div>
                   <h3 className="text-lg font-semibold text-neutral-900">Chi tiết bill</h3>
-                  <p className="text-sm text-neutral-500">Phần này để soi chi tiết từng bill sau khi đã đọc summary ở trên.</p>
+                  <p className="text-sm text-neutral-500">Xem từng bill sau khi đọc phần tổng quan.</p>
                 </div>
                 <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs text-neutral-700">{filteredTicketRows.length} bill</span>
               </div>
@@ -382,10 +374,10 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          <div className="space-y-5">
+          <div className="space-y-4">
             <div className="manage-surface">
               <h3 className="font-semibold text-neutral-900">Theo phương thức thanh toán</h3>
-              <p className="mt-1 text-sm text-neutral-500">Kiểm tra tiền về đang dồn ở phương thức nào.</p>
+              <p className="mt-1 text-sm text-neutral-500">Xem tiền đang dồn ở phương thức nào.</p>
               <div className="mt-4 space-y-2">
                 {(breakdown?.by_payment ?? []).length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">Chưa có dữ liệu thanh toán.</div> : (breakdown?.by_payment ?? []).map((p, idx) => <div key={`${p.method}-${idx}`} className="flex items-center justify-between rounded-2xl border border-neutral-100 bg-neutral-50/70 px-4 py-3 text-sm"><div><div className="font-medium text-neutral-900">{p.method}</div><div className="text-neutral-500">{p.count} bill</div></div><div className="font-semibold text-neutral-900">{formatVnd(Number(p.amount ?? 0))}</div></div>)}
               </div>
@@ -393,7 +385,7 @@ export default function ReportsPage() {
 
             <div className="manage-surface">
               <h3 className="font-semibold text-neutral-900">Theo nhân viên (giờ làm)</h3>
-              <p className="mt-1 text-sm text-neutral-500">So nhanh giữa thời lượng làm việc và hiệu suất doanh thu.</p>
+              <p className="mt-1 text-sm text-neutral-500">So nhanh giờ làm và hiệu suất doanh thu.</p>
               <div className="mt-4 space-y-2">
                 {staffHours.length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">Chưa có dữ liệu giờ làm trong kỳ này.</div> : staffHours.map((s, idx) => <div key={`${s.staff}-${idx}`} className="flex items-center justify-between rounded-2xl border border-neutral-100 bg-neutral-50/70 px-4 py-3 text-sm"><div><div className="font-medium text-neutral-900">{s.staff}</div><div className="text-neutral-500">{s.entries} ca</div></div><div className="font-semibold text-neutral-900">{s.minutes} phút</div></div>)}
               </div>

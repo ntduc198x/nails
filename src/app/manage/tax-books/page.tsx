@@ -1,6 +1,8 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
+import { MobileSectionHeader } from "@/components/manage-mobile";
+import { ManageQuickNav, reportsQuickNav } from "@/components/manage-quick-nav";
 import { buildTaxBook, type TaxBookRow } from "@/lib/tax-books";
 import { formatVnd } from "@/lib/mock-data";
 import { useEffect, useRef, useState } from "react";
@@ -187,17 +189,16 @@ export default function TaxBooksPage() {
 
   return (
     <AppShell>
-      <div className="space-y-5">
+      <div className="space-y-5 pb-24 md:pb-0">
+        <ManageQuickNav items={reportsQuickNav("/manage/tax-books")} />
+
+        <MobileSectionHeader title="Sổ thuế" meta={<div className="manage-info-box">Mẫu S1a-HKD</div>} />
+
         <section className="manage-surface">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div className="space-y-1">
-              <h2 className="page-title">Sổ thuế HKD - Mẫu S1a</h2>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button className="btn btn-outline" onClick={load}>Nạp dữ liệu</button>
-              <button className="btn btn-outline disabled:cursor-not-allowed disabled:opacity-60" onClick={() => void exportExcel()} disabled={loading || exporting}>{exporting ? "Đang xuất..." : "Xuất Excel"}</button>
-              <button className="btn btn-outline disabled:cursor-not-allowed disabled:opacity-60" onClick={() => void exportPdf()} disabled={loading || exporting}>{exporting ? "Đang xuất..." : "Xuất PDF"}</button>
-            </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button className="btn btn-outline" onClick={load}>Nạp dữ liệu</button>
+            <button className="btn btn-outline disabled:cursor-not-allowed disabled:opacity-60" onClick={() => void exportExcel()} disabled={loading || exporting}>{exporting ? "Đang xuất..." : "Xuất Excel"}</button>
+            <button className="btn btn-outline disabled:cursor-not-allowed disabled:opacity-60" onClick={() => void exportPdf()} disabled={loading || exporting}>{exporting ? "Đang xuất..." : "Xuất PDF"}</button>
           </div>
         </section>
 

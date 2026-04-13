@@ -3,7 +3,7 @@
 import { AppShell } from "@/components/app-shell";
 import { ManageAlert } from "@/components/manage-alert";
 import { MobileSectionHeader } from "@/components/manage-mobile";
-import { ManageQuickNav } from "@/components/manage-quick-nav";
+import { ManageQuickNav, setupQuickNav } from "@/components/manage-quick-nav";
 import { getCurrentSessionRole, type AppRole } from "@/lib/auth";
 import { createResource, listResources, updateResource } from "@/lib/domain";
 import { useEffect, useState } from "react";
@@ -106,13 +106,8 @@ export default function ResourcesPage() {
 
   return (
     <AppShell>
-      <div className="space-y-6">
-        <ManageQuickNav items={[
-          { href: "/manage/technician", label: "Bảng kỹ thuật", accent: true },
-          { href: "/manage/appointments", label: "Lịch hẹn" },
-          { href: "/manage/checkout", label: "Thanh toán" },
-          { href: "/manage/shifts", label: "Ca làm" },
-        ]} />
+      <div className="space-y-5 pb-24 md:pb-0">
+        <ManageQuickNav items={setupQuickNav("/manage/resources")} />
 
         <MobileSectionHeader title="Tài nguyên / Ghế bàn" meta={<div className="manage-info-box">{rows.length} tài nguyên</div>} />
 
@@ -120,7 +115,7 @@ export default function ResourcesPage() {
           <ManageAlert tone="error">{error}</ManageAlert>
         ) : null}
 
-        <form onSubmit={onSubmit} className="manage-surface md:p-6">
+        <form onSubmit={onSubmit} className="manage-surface p-4 md:p-5">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-semibold text-neutral-900">Thêm tài nguyên mới</h3>
@@ -147,7 +142,7 @@ export default function ResourcesPage() {
           </div>
         </form>
 
-        <div className="manage-surface md:p-6">
+        <div className="manage-surface p-4 md:p-5">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-semibold text-neutral-900">Danh sách tài nguyên</h3>

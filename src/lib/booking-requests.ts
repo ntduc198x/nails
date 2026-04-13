@@ -22,9 +22,11 @@ export async function listBookingRequests(status?: BookingRequestStatus) {
   if (!supabase) return [];
   const { orgId } = await ensureOrgContext();
 
+  const selectFields = "id,customer_name,customer_phone,requested_service,preferred_staff,note,requested_start_at,requested_end_at,status,appointment_id,source,created_at";
+
   let query = supabase
     .from("booking_requests")
-    .select("id,customer_name,customer_phone,requested_service,preferred_staff,note,requested_start_at,requested_end_at,status,appointment_id,source,created_at")
+    .select(selectFields)
     .eq("org_id", orgId)
     .order("created_at", { ascending: true })
     .limit(200);
@@ -32,9 +34,16 @@ export async function listBookingRequests(status?: BookingRequestStatus) {
   if (status) query = query.eq("status", status);
 
   const { data, error } = await query;
+  if (!error) return (data ?? []) as BookingRequestRow[];
 
-  if (error) throw error;
-  return (data ?? []) as BookingRequestRow[];
+  const rpc = await supabase.rpc("list_booking_requests_secure", {
+    p_status: status ?? null,
+  });
+  if (!rpc.error && rpc.data) {
+    return (rpc.data ?? []) as BookingRequestRow[];
+  }
+
+  throw error;
 }
 
 export async function countNewBookingRequests() {

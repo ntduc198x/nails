@@ -9,22 +9,18 @@ import { useEffect, useMemo, useState } from "react";
 
 const navGroups = [
   {
-    label: "Tổng quan",
-    href: "/manage",
-    items: [{ href: "/manage", label: "Tổng quan", desc: "Tổng quan vận hành trong ngày" }],
-  },
-  {
     label: "Vận hành",
+    href: "/manage/appointments",
     items: [
-      { href: "/manage/booking-requests", label: "Yêu cầu đặt lịch", desc: "Yêu cầu đặt lịch từ landing page" },
-      { href: "/manage/technician", label: "Bảng kỹ thuật", desc: "Bảng công việc theo thợ" },
-      { href: "/manage/appointments", label: "Lịch hẹn", desc: "Lịch hẹn, check-in, phân thợ" },
+      { href: "/manage/booking-requests", label: "Lịch book online", desc: "Booking online từ landing page" },
+      { href: "/manage/appointments", label: "Điều phối - Tạo lịch", desc: "Lịch hẹn, check-in, mở phiếu, vận hành" },
       { href: "/manage/checkout", label: "Thanh toán", desc: "Ticket, thanh toán, hóa đơn" },
       { href: "/manage/shifts", label: "Ca làm", desc: "Chấm công và ca trong ngày" },
     ],
   },
   {
     label: "Thiết lập",
+    href: "/manage/services",
     items: [
       { href: "/manage/services", label: "Dịch vụ", desc: "Menu dịch vụ và VAT" },
       { href: "/manage/resources", label: "Ghế/Bàn", desc: "Quản lý chair, table, room" },
@@ -33,6 +29,7 @@ const navGroups = [
   },
   {
     label: "Báo cáo",
+    href: "/manage/reports",
     items: [
       { href: "/manage/reports", label: "Báo cáo", desc: "Doanh thu và phân tích" },
       { href: "/manage/tax-books", label: "Sổ thuế", desc: "Mẫu S1a xuất file" },
@@ -44,8 +41,8 @@ function canAccess(role: AppRole, href: string) {
   if (href === "/manage/account") return true;
   if (role === "OWNER") return true;
   if (role === "MANAGER") return href !== "/manage/tax-books";
-  if (role === "RECEPTION") return ["/manage", "/manage/booking-requests", "/manage/appointments", "/manage/resources", "/manage/checkout", "/manage/shifts", "/manage/technician"].includes(href);
-  if (role === "TECH") return ["/manage/appointments", "/manage/checkout", "/manage/technician", "/manage/shifts"].includes(href);
+  if (role === "RECEPTION") return ["/manage", "/manage/booking-requests", "/manage/appointments", "/manage/resources", "/manage/checkout", "/manage/shifts"].includes(href);
+  if (role === "TECH") return ["/manage", "/manage/booking-requests", "/manage/appointments", "/manage/checkout", "/manage/shifts"].includes(href);
   if (role === "ACCOUNTANT") return ["/manage", "/manage/checkout", "/manage/reports", "/manage/tax-books"].includes(href);
   return false;
 }
@@ -256,10 +253,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
               return (
                 <div key={group.label} className="nav-group group relative" onMouseEnter={() => setHoveredGroup(group.label)} onMouseLeave={() => setHoveredGroup((current) => (current === group.label ? null : current))}>
-                  <button type="button" className="nav-group-trigger inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm transition" style={active || hovered ? { background: "var(--color-primary)", color: "#fff" } : { color: "var(--color-text-secondary)" }}>
+                  <Link href={directHref} className="nav-group-trigger inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm transition" style={active || hovered ? { background: "var(--color-primary)", color: "#fff" } : { color: "var(--color-text-secondary)" }}>
                     <span>{group.label}</span>
                     <span className="text-xs opacity-80">▾</span>
-                  </button>
+                  </Link>
                   <div className="pointer-events-none absolute left-0 top-full z-30 pt-3 opacity-0 transition duration-150 group-hover:pointer-events-auto group-hover:opacity-100">
                     <div className="w-[380px] rounded-[28px] border bg-white p-3 shadow-xl" style={{ borderColor: "var(--color-border)" }}>
                       <div className="grid gap-2">
