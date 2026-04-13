@@ -1,6 +1,7 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
+import { MobileCollapsible, MobileSectionHeader } from "@/components/manage-mobile";
 import { ManageQuickNav, reportsQuickNav } from "@/components/manage-quick-nav";
 import { listUserRoles } from "@/lib/auth";
 import { formatVnd } from "@/lib/mock-data";
@@ -86,6 +87,7 @@ export default function ReportsPage() {
   const [staffHours, setStaffHours] = useState<Array<{ staff: string; minutes: number; entries: number }>>([]);
   const [staffRevenue, setStaffRevenue] = useState<Array<{ staffUserId: string; staff: string; revenue: number; tickets: number }>>([]);
   const hasLoadedRef = useRef(false);
+  const ticketsSectionRef = useRef<HTMLDivElement | null>(null);
 
   const range = useMemo(() => {
     if (rangeMode === "day") {
@@ -134,9 +136,7 @@ export default function ReportsPage() {
 
         const team = (teamRows ?? []) as Array<{ user_id: string; display_name?: string; role?: string }>;
         const eligibleStaffIds = new Set(team.filter((r) => r.role !== "OWNER").map((r) => r.user_id));
-        const nameMap = new Map(
-          team.map((r) => [r.user_id, r.display_name || String(r.user_id).slice(0, 8)]),
-        );
+        const nameMap = new Map(team.map((r) => [r.user_id, r.display_name || String(r.user_id).slice(0, 8)]));
 
         const map = new Map<string, { minutes: number; entries: number }>();
         for (const r of timeRows as Array<{ staff_user_id: string; clock_in: string; clock_out: string | null }>) {
@@ -211,161 +211,142 @@ export default function ReportsPage() {
       },
       {
         name: "Theo_dich_vu",
-        rows: [
-          ["Dịch vụ", "Số lượng", "Tạm tính"],
-          ...(breakdown?.by_service ?? []).map((s) => [s.service_name, Number(s.qty), Number(s.subtotal)]),
-        ],
+        rows: [["Dịch vụ", "Số lượng", "Tạm tính"], ...(breakdown?.by_service ?? []).map((s) => [s.service_name, Number(s.qty), Number(s.subtotal)])],
       },
       {
         name: "Theo_thanh_toan",
-        rows: [
-          ["Phương thức", "Số bill", "Số tiền"],
-          ...(breakdown?.by_payment ?? []).map((p) => [p.method, Number(p.count), Number(p.amount)]),
-        ],
+        rows: [["Phương thức", "Số bill", "Số tiền"], ...(breakdown?.by_payment ?? []).map((p) => [p.method, Number(p.count), Number(p.amount)])],
       },
       {
         name: "Gio_lam",
-        rows: [
-          ["Nhân viên", "Số ca", "Số phút"],
-          ...staffHours.map((s) => [s.staff, Number(s.entries), Number(s.minutes)]),
-        ],
+        rows: [["Nhân viên", "Số ca", "Số phút"], ...staffHours.map((s) => [s.staff, Number(s.entries), Number(s.minutes)])],
       },
       {
         name: "Doanh_thu_NV",
-        rows: [
-          ["Mã nhân viên", "Tên nhân viên", "Số bill", "Doanh thu"],
-          ...staffRevenue.map((s) => [s.staffUserId, s.staff, Number(s.tickets), Number(s.revenue)]),
-        ],
+        rows: [["Mã nhân viên", "Tên nhân viên", "Số bill", "Doanh thu"], ...staffRevenue.map((s) => [s.staffUserId, s.staff, Number(s.tickets), Number(s.revenue)])],
       },
       {
         name: "Chi_tiet_bill",
-        rows: [
-          ["Mã bill", "Mã nhân viên", "Thời gian", "Trạng thái", "Tạm tính", "VAT", "Tổng tiền"],
-          ...filteredTicketRows.map((r) => [
-            r.id,
-            r.staff_user_id ?? "",
-            new Date(r.created_at).toLocaleString("vi-VN"),
-            r.status,
-            Number(r.totals_json?.subtotal ?? 0),
-            Number(r.totals_json?.vat_total ?? 0),
-            Number(r.totals_json?.grand_total ?? 0),
-          ]),
-        ],
+        rows: [["Mã bill", "Mã nhân viên", "Thời gian", "Trạng thái", "Tạm tính", "VAT", "Tổng tiền"], ...filteredTicketRows.map((r) => [r.id, r.staff_user_id ?? "", new Date(r.created_at).toLocaleString("vi-VN"), r.status, Number(r.totals_json?.subtotal ?? 0), Number(r.totals_json?.vat_total ?? 0), Number(r.totals_json?.grand_total ?? 0)])],
       },
     ]);
   }
 
   return (
     <AppShell>
-      <div className="space-y-5 pb-24 md:pb-0">
-        <section className="manage-surface">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <h2 className="page-title">Báo cáo</h2>
-                {refreshing && <span className="badge-soft">Đang làm mới...</span>}
-              </div>
-            </div>
-            <button className="btn btn-primary" onClick={exportExcel}>Xuất Excel</button>
+      <div className="space-y-4 pb-24 md:pb-0">
+        <ManageQuickNav items={reportsQuickNav("/manage/reports")} />
+
+        <MobileSectionHeader title="Báo cáo" meta={<div className="manage-info-box">{refreshing ? "Đang làm mới..." : `${filteredTicketRows.length} bill`}</div>} />
+
+        <section className="manage-surface space-y-3 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-neutral-900">Điều hướng nhanh</h3>
+            <button className="cursor-pointer rounded-full border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700" onClick={exportExcel}>Xuất Excel</button>
           </div>
 
-          <ManageQuickNav className="mt-3" items={reportsQuickNav("/manage/reports")} />
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
+              <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500">Bill</div>
+              <div className="mt-1 text-sm font-semibold text-neutral-900">{summary.count}</div>
+            </div>
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
+              <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500">Subtotal</div>
+              <div className="mt-1 text-sm font-semibold text-neutral-900">{formatVnd(summary.subtotal)}</div>
+            </div>
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
+              <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500">VAT</div>
+              <div className="mt-1 text-sm font-semibold text-neutral-900">{formatVnd(summary.vat)}</div>
+            </div>
+            <div className="rounded-2xl bg-[var(--color-primary)] px-3 py-2.5 text-white">
+              <div className="text-[10px] uppercase tracking-[0.08em] text-white/80">Doanh thu</div>
+              <div className="mt-1 text-sm font-semibold">{formatVnd(summary.revenue)}</div>
+            </div>
+          </div>
 
-          <div className="mt-4 grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto_auto] lg:items-center">
-            <select className="input" value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}>
-              <option value="day">Hôm nay / theo ngày</option>
+          <div className="grid gap-2 md:grid-cols-[180px_repeat(5,minmax(0,1fr))]">
+            <select className="input py-2.5 text-sm" value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}>
+              <option value="day">Theo ngày</option>
               <option value="week">Theo tuần</option>
               <option value="month">Theo tháng</option>
               <option value="custom">Tùy chỉnh</option>
             </select>
 
-            {rangeMode === "day" && <input className="input" type="date" value={dayValue} onChange={(e) => setDayValue(e.target.value)} />}
-            {rangeMode === "week" && <input className="input" type="date" value={weekAnchor} onChange={(e) => setWeekAnchor(e.target.value)} />}
+            {rangeMode === "day" && <input className="input py-2.5 text-sm" type="date" value={dayValue} onChange={(e) => setDayValue(e.target.value)} />}
+            {rangeMode === "week" && <input className="input py-2.5 text-sm" type="date" value={weekAnchor} onChange={(e) => setWeekAnchor(e.target.value)} />}
             {rangeMode === "month" && (
               <>
-                <select className="input" value={monthValue} onChange={(e) => setMonthValue(e.target.value)}>
+                <select className="input py-2.5 text-sm" value={monthValue} onChange={(e) => setMonthValue(e.target.value)}>
                   {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={String(m)}>{`Tháng ${m}`}</option>)}
                 </select>
-                <input className="input w-[120px]" type="number" value={yearValue} onChange={(e) => setYearValue(e.target.value)} />
+                <input className="input py-2.5 text-sm" type="number" value={yearValue} onChange={(e) => setYearValue(e.target.value)} />
               </>
             )}
             {rangeMode === "custom" && (
               <>
-                <input className="input" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-                <input className="input" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+                <input className="input py-2.5 text-sm" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+                <input className="input py-2.5 text-sm" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
               </>
             )}
 
-            <select className="input" value={staffFilter} onChange={(e) => setStaffFilter(e.target.value)}>
+            <select className="input py-2.5 text-sm" value={staffFilter} onChange={(e) => setStaffFilter(e.target.value)}>
               <option value="ALL">Tất cả nhân viên</option>
               {staffRevenue.map((row) => <option key={row.staffUserId} value={row.staffUserId}>{row.staff}</option>)}
             </select>
-            <button className="btn btn-outline" onClick={() => void load()} disabled={refreshing}>{refreshing ? "Đang lọc..." : "Lọc"}</button>
+            <button className="cursor-pointer rounded-2xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-medium text-neutral-700" onClick={() => void load()} disabled={refreshing}>{refreshing ? "Đang lọc..." : "Lọc"}</button>
           </div>
         </section>
 
-        <section className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-          <div className="manage-surface"><p className="text-sm text-neutral-500">Số bill CLOSED</p><p className="mt-2 text-3xl font-semibold text-neutral-900">{summary.count}</p></div>
-          <div className="manage-surface"><p className="text-sm text-neutral-500">Subtotal</p><p className="mt-2 text-3xl font-semibold text-neutral-900">{formatVnd(summary.subtotal)}</p></div>
-          <div className="manage-surface"><p className="text-sm text-neutral-500">VAT</p><p className="mt-2 text-3xl font-semibold text-neutral-900">{formatVnd(summary.vat)}</p></div>
-          <div className="rounded-3xl border border-neutral-200 bg-[var(--color-primary)] p-5 text-white shadow-sm"><p className="text-sm text-white/80">Doanh thu</p><p className="mt-2 text-3xl font-semibold">{formatVnd(summary.revenue)}</p></div>
-        </section>
+        {breakdownError ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Phân tích nâng cao đang lỗi: {breakdownError}. Danh sách phiếu cơ bản vẫn hiển thị bình thường.</div> : null}
+        {error ? <div className="manage-error-box">{error}</div> : null}
 
-        {breakdownError && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Phân tích nâng cao đang lỗi: {breakdownError}. Danh sách phiếu cơ bản vẫn hiển thị bình thường.</div>}
-
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_380px]">
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_360px]">
           <div className="space-y-4">
-            <div className="manage-surface">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-lg font-semibold text-neutral-900">Phân tích doanh thu</h3>
-                  <p className="text-sm text-neutral-500">Nhìn nhanh dịch vụ và nhân sự đang kéo doanh thu chính.</p>
-                </div>
+            <div className="manage-surface space-y-2.5 p-3 md:p-4">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-neutral-900">Phân tích doanh thu</h3>
               </div>
+
               <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-3">
-                  <h4 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">Top dịch vụ</h4>
-                  {(breakdown?.by_service ?? []).length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">Chưa có dữ liệu dịch vụ trong kỳ này.</div> : (breakdown?.by_service ?? []).slice(0, 6).map((s, idx) => <div key={`${s.service_name}-${idx}`} className="flex items-center justify-between rounded-2xl border border-neutral-100 bg-neutral-50/70 px-4 py-3 text-sm"><div><div className="font-medium text-neutral-900">{s.service_name}</div><div className="text-neutral-500">SL: {s.qty}</div></div><div className="font-semibold text-neutral-900">{formatVnd(Number(s.subtotal ?? 0))}</div></div>)}
+                <div className="space-y-2">
+                  <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500">Top dịch vụ</div>
+                  {(breakdown?.by_service ?? []).length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">Chưa có dữ liệu dịch vụ trong kỳ này.</div> : (breakdown?.by_service ?? []).slice(0, 6).map((s, idx) => <div key={`${s.service_name}-${idx}`} className="rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"><div className="flex items-center justify-between gap-2"><div className="min-w-0"><div className="line-clamp-1 font-medium text-neutral-900">{s.service_name}</div><div className="text-[11px] text-neutral-500">SL {s.qty}</div></div><div className="font-semibold text-neutral-900">{formatVnd(Number(s.subtotal ?? 0))}</div></div></div>)}
                 </div>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between gap-2"><h4 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">Doanh thu theo nhân viên</h4><span className="text-xs text-neutral-500">{formatVnd(revenueByStaffTotal)}</span></div>
-                  {staffRevenue.length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">Chưa có dữ liệu doanh thu theo nhân viên.</div> : staffRevenue.slice(0, 6).map((s) => <div key={s.staffUserId} className="flex items-center justify-between rounded-2xl border border-neutral-100 bg-neutral-50/70 px-4 py-3 text-sm"><div><div className="font-medium text-neutral-900">{s.staff}</div><div className="text-neutral-500">{s.tickets} bill</div></div><div className="font-semibold text-neutral-900">{formatVnd(s.revenue)}</div></div>)}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2"><div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500">Theo nhân viên</div><div className="text-xs text-neutral-500">{formatVnd(revenueByStaffTotal)}</div></div>
+                  {staffRevenue.length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">Chưa có dữ liệu doanh thu theo nhân viên.</div> : staffRevenue.slice(0, 6).map((s) => <div key={s.staffUserId} className="rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"><div className="flex items-center justify-between gap-2"><div className="min-w-0"><div className="line-clamp-1 font-medium text-neutral-900">{s.staff}</div><div className="text-[11px] text-neutral-500">{s.tickets} bill</div></div><div className="font-semibold text-neutral-900">{formatVnd(s.revenue)}</div></div></div>)}
                 </div>
               </div>
             </div>
 
-            <div className="manage-surface">
-              <div className="mb-4 flex items-center justify-between gap-2">
+            <div ref={ticketsSectionRef} className="manage-surface space-y-2.5 p-3 md:p-4">
+              <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-lg font-semibold text-neutral-900">Chi tiết bill</h3>
-                  <p className="text-sm text-neutral-500">Xem từng bill sau khi đọc phần tổng quan.</p>
+                  <h3 className="text-sm font-semibold text-neutral-900">Chi tiết bill</h3>
                 </div>
-                <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs text-neutral-700">{filteredTicketRows.length} bill</span>
+                <div className="rounded-full bg-neutral-100 px-3 py-1 text-[11px] font-medium text-neutral-700">{filteredTicketRows.length} bill</div>
               </div>
-              {error && <p className="mb-3 text-sm text-red-600">Lỗi: {error}</p>}
+
               {loading ? (
                 <div className="space-y-2"><div className="skeleton h-10 rounded-xl" /><div className="skeleton h-10 rounded-xl" /><div className="skeleton h-10 rounded-xl" /></div>
               ) : filteredTicketRows.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-8 text-sm text-neutral-500">Không có bill nào khớp bộ lọc hiện tại.</div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {filteredTicketRows.map((t) => (
-                    <div key={t.id} className="rounded-2xl border border-neutral-200 bg-neutral-50/50 p-4">
-                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                        <div>
-                          <div className="font-semibold text-neutral-900">{t.staff_user_id ? (staffNameMap.get(t.staff_user_id) ?? t.staff_user_id.slice(0, 8)) : "-"}</div>
-                          <div className="text-sm text-neutral-500">{new Date(t.created_at).toLocaleString("vi-VN")}</div>
+                    <div key={t.id} className="rounded-xl border border-neutral-200 bg-white p-2 md:rounded-2xl md:p-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="line-clamp-1 text-sm font-medium text-neutral-900">{t.staff_user_id ? (staffNameMap.get(t.staff_user_id) ?? t.staff_user_id.slice(0, 8)) : "-"}</div>
+                          <div className="mt-0.5 text-[10px] text-neutral-500">{new Date(t.created_at).toLocaleString("vi-VN")}</div>
                         </div>
-                        <div className="text-left md:text-right">
-                          <div className="text-sm text-neutral-500">Tổng bill</div>
-                          <div className="text-lg font-semibold text-neutral-900">{formatVnd(Number(t.totals_json?.grand_total ?? 0))}</div>
-                        </div>
+                        <div className="text-right text-sm font-semibold text-neutral-900">{formatVnd(Number(t.totals_json?.grand_total ?? 0))}</div>
                       </div>
-                      <div className="mt-3 flex flex-wrap gap-2 text-sm text-neutral-600">
-                        <span className="rounded-full bg-white px-3 py-1">Trạng thái: <span className="font-medium text-neutral-900">{t.status}</span></span>
-                        <span className="rounded-full bg-white px-3 py-1">Subtotal: <span className="font-medium text-neutral-900">{formatVnd(Number(t.totals_json?.subtotal ?? 0))}</span></span>
-                        <span className="rounded-full bg-white px-3 py-1">VAT: <span className="font-medium text-neutral-900">{formatVnd(Number(t.totals_json?.vat_total ?? 0))}</span></span>
-                        <Link className="manage-quick-link" href={`/manage/reports/${t.id}`}>Xem chi tiết</Link>
+                      <div className="mt-1.5 flex flex-wrap gap-1 text-[10px] text-neutral-700 md:text-[11px]">
+                        <span className="rounded-full bg-neutral-100 px-2 py-0.5">{t.status}</span>
+                        <span className="rounded-full bg-neutral-100 px-2 py-0.5">Sub {formatVnd(Number(t.totals_json?.subtotal ?? 0))}</span>
+                        <span className="rounded-full bg-neutral-100 px-2 py-0.5">VAT {formatVnd(Number(t.totals_json?.vat_total ?? 0))}</span>
+                        <Link className="rounded-full border border-neutral-200 bg-white px-2 py-0.5 font-medium text-neutral-800" href={`/manage/reports/${t.id}`}>Chi tiết</Link>
                       </div>
                     </div>
                   ))}
@@ -375,21 +356,17 @@ export default function ReportsPage() {
           </div>
 
           <div className="space-y-4">
-            <div className="manage-surface">
-              <h3 className="font-semibold text-neutral-900">Theo phương thức thanh toán</h3>
-              <p className="mt-1 text-sm text-neutral-500">Xem tiền đang dồn ở phương thức nào.</p>
-              <div className="mt-4 space-y-2">
-                {(breakdown?.by_payment ?? []).length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">Chưa có dữ liệu thanh toán.</div> : (breakdown?.by_payment ?? []).map((p, idx) => <div key={`${p.method}-${idx}`} className="flex items-center justify-between rounded-2xl border border-neutral-100 bg-neutral-50/70 px-4 py-3 text-sm"><div><div className="font-medium text-neutral-900">{p.method}</div><div className="text-neutral-500">{p.count} bill</div></div><div className="font-semibold text-neutral-900">{formatVnd(Number(p.amount ?? 0))}</div></div>)}
+            <MobileCollapsible summary="Theo phương thức thanh toán" defaultOpen={false}>
+              <div className="space-y-2">
+                {(breakdown?.by_payment ?? []).length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">Chưa có dữ liệu thanh toán.</div> : (breakdown?.by_payment ?? []).map((p, idx) => <div key={`${p.method}-${idx}`} className="rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"><div className="flex items-center justify-between gap-2"><div><div className="font-medium text-neutral-900">{p.method}</div><div className="text-[11px] text-neutral-500">{p.count} bill</div></div><div className="font-semibold text-neutral-900">{formatVnd(Number(p.amount ?? 0))}</div></div></div>)}
               </div>
-            </div>
+            </MobileCollapsible>
 
-            <div className="manage-surface">
-              <h3 className="font-semibold text-neutral-900">Theo nhân viên (giờ làm)</h3>
-              <p className="mt-1 text-sm text-neutral-500">So nhanh giờ làm và hiệu suất doanh thu.</p>
-              <div className="mt-4 space-y-2">
-                {staffHours.length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">Chưa có dữ liệu giờ làm trong kỳ này.</div> : staffHours.map((s, idx) => <div key={`${s.staff}-${idx}`} className="flex items-center justify-between rounded-2xl border border-neutral-100 bg-neutral-50/70 px-4 py-3 text-sm"><div><div className="font-medium text-neutral-900">{s.staff}</div><div className="text-neutral-500">{s.entries} ca</div></div><div className="font-semibold text-neutral-900">{s.minutes} phút</div></div>)}
+            <MobileCollapsible summary="Theo nhân viên (giờ làm)" defaultOpen={false}>
+              <div className="space-y-2">
+                {staffHours.length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">Chưa có dữ liệu giờ làm trong kỳ này.</div> : staffHours.map((s, idx) => <div key={`${s.staff}-${idx}`} className="rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"><div className="flex items-center justify-between gap-2"><div><div className="line-clamp-1 font-medium text-neutral-900">{s.staff}</div><div className="text-[11px] text-neutral-500">{s.entries} ca</div></div><div className="font-semibold text-neutral-900">{s.minutes} phút</div></div></div>)}
               </div>
-            </div>
+            </MobileCollapsible>
           </div>
         </section>
       </div>

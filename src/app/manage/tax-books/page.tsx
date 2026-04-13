@@ -1,11 +1,11 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
-import { MobileSectionHeader } from "@/components/manage-mobile";
+import { MobileCollapsible, MobileSectionHeader } from "@/components/manage-mobile";
 import { ManageQuickNav, reportsQuickNav } from "@/components/manage-quick-nav";
 import { buildTaxBook, type TaxBookRow } from "@/lib/tax-books";
 import { formatVnd } from "@/lib/mock-data";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 function toDateInput(d: Date) {
   const y = d.getFullYear();
@@ -16,6 +16,19 @@ function toDateInput(d: Date) {
 
 function toBookLabel() {
   return "S1a-HKD";
+}
+
+function FieldLabel({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <label className={`text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-500 ${className}`}>{children}</label>;
+}
+
+function InlineField({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
+      <FieldLabel className="mb-0">{label}</FieldLabel>
+      <div className="min-w-0">{children}</div>
+    </div>
+  );
 }
 
 export default function TaxBooksPage() {
@@ -29,13 +42,15 @@ export default function TaxBooksPage() {
   const [businessLocation, setBusinessLocation] = useState("");
   const [unit, setUnit] = useState("đồng");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const printRef = useRef<HTMLDivElement | null>(null);
 
   async function load() {
     try {
-      setLoading(true);
+      if (rows.length) setRefreshing(true);
+      else setLoading(true);
       setError(null);
       const fromIso = new Date(`${fromDate}T00:00:00`).toISOString();
       const toIso = new Date(`${toDate}T00:00:00`).toISOString();
@@ -45,6 +60,7 @@ export default function TaxBooksPage() {
       setError(e instanceof Error ? e.message : "Load tax book failed");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }
 
@@ -53,7 +69,7 @@ export default function TaxBooksPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const total = rows.reduce((acc, r) => acc + r.amount, 0);
+  const total = useMemo(() => rows.reduce((acc, r) => acc + r.amount, 0), [rows]);
 
   async function exportExcel() {
     try {
@@ -72,11 +88,7 @@ export default function TaxBooksPage() {
         ["Ngày tháng", "Diễn giải", "Số tiền"],
         ["A", "B", "1"],
       ];
-      const body = rows.map((r) => [
-        new Date(r.date).toLocaleDateString("vi-VN"),
-        r.description,
-        r.amount,
-      ]);
+      const body = rows.map((r) => [new Date(r.date).toLocaleDateString("vi-VN"), r.description, r.amount]);
       while (body.length < 18) body.push(["", "", ""]);
       const footer = [[], ["", "Tổng cộng", total], [], ["", "Ngày ... tháng ... năm ...", ""], ["", "Người đại diện HKD/CNKD", ""]];
 
@@ -95,11 +107,7 @@ export default function TaxBooksPage() {
       setExporting(true);
       if (!printRef.current) return;
 
-      const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
-        import("jspdf"),
-        import("html2canvas"),
-      ]);
-
+      const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([import("jspdf"), import("html2canvas")]);
       const bookLabel = toBookLabel();
 
       try {
@@ -108,9 +116,7 @@ export default function TaxBooksPage() {
           useCORS: true,
           backgroundColor: "#ffffff",
           onclone: (clonedDoc) => {
-            // Remove Tailwind styles using oklch/lab to avoid parser crash in html2canvas
             clonedDoc.querySelectorAll('style, link[rel="stylesheet"]').forEach((el) => el.remove());
-
             const style = clonedDoc.createElement("style");
             style.textContent = `
               #tax-book-export-root { font-family: Arial, Helvetica, sans-serif; color: #111; background: #fff; padding: 16px; }
@@ -119,8 +125,6 @@ export default function TaxBooksPage() {
               #tax-book-export-root thead th { background: #f3f4f6; font-weight: 700; }
               #tax-book-export-root tfoot td { font-weight: 700; }
               #tax-book-export-root .amount { text-align: right; white-space: nowrap; }
-              #tax-book-export-root .right { text-align: right; }
-              #tax-book-export-root .center { text-align: center; }
             `;
             clonedDoc.head.appendChild(style);
           },
@@ -130,13 +134,11 @@ export default function TaxBooksPage() {
         const pdf = new jsPDF({ orientation: "p", unit: "pt", format: "a4" });
         const pageWidth = pdf.internal.pageSize.getWidth();
         const pageHeight = pdf.internal.pageSize.getHeight();
-
         const imgWidth = pageWidth - 40;
         const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
         let heightLeft = imgHeight;
         let position = 20;
-
         pdf.addImage(imgData, "PNG", 20, position, imgWidth, imgHeight);
         heightLeft -= pageHeight - 40;
 
@@ -150,7 +152,6 @@ export default function TaxBooksPage() {
         pdf.save(`${bookLabel}_${fromDate}_to_${toDate}.pdf`);
         return;
       } catch {
-        // Fallback when browser/css has unsupported color functions (e.g. lab/oklch)
         const autoTableModule = await import("jspdf-autotable");
         const autoTable = autoTableModule.default;
         const pdf = new jsPDF({ orientation: "p", unit: "pt", format: "a4" });
@@ -166,18 +167,10 @@ export default function TaxBooksPage() {
         autoTable(pdf, {
           startY: 120,
           head: [["Ngày tháng", "Diễn giải", "Số tiền"], ["A", "B", "1"]],
-          body: rows.map((r) => [
-            new Date(r.date).toLocaleDateString("vi-VN"),
-            r.description,
-            formatVnd(r.amount),
-          ]),
+          body: rows.map((r) => [new Date(r.date).toLocaleDateString("vi-VN"), r.description, formatVnd(r.amount)]),
           foot: [["", "Tổng cộng", formatVnd(total)]],
           styles: { fontSize: 9 },
-          columnStyles: {
-            0: { cellWidth: 95 },
-            1: { cellWidth: 280 },
-            2: { cellWidth: 120, halign: "right" },
-          },
+          columnStyles: { 0: { cellWidth: 95 }, 1: { cellWidth: 280 }, 2: { cellWidth: 120, halign: "right" } },
         });
 
         pdf.save(`${bookLabel}_${fromDate}_to_${toDate}.pdf`);
@@ -189,16 +182,40 @@ export default function TaxBooksPage() {
 
   return (
     <AppShell>
-      <div className="space-y-5 pb-24 md:pb-0">
+      <div className="space-y-4 pb-24 md:pb-0">
         <ManageQuickNav items={reportsQuickNav("/manage/tax-books")} />
 
-        <MobileSectionHeader title="Sổ thuế" meta={<div className="manage-info-box">Mẫu S1a-HKD</div>} />
+        <MobileSectionHeader title="Sổ thuế" meta={<div className="manage-info-box">{refreshing ? "Đang làm mới..." : "Mẫu S1a-HKD"}</div>} />
 
-        <section className="manage-surface">
-          <div className="flex flex-wrap items-center gap-2">
-            <button className="btn btn-outline" onClick={load}>Nạp dữ liệu</button>
-            <button className="btn btn-outline disabled:cursor-not-allowed disabled:opacity-60" onClick={() => void exportExcel()} disabled={loading || exporting}>{exporting ? "Đang xuất..." : "Xuất Excel"}</button>
-            <button className="btn btn-outline disabled:cursor-not-allowed disabled:opacity-60" onClick={() => void exportPdf()} disabled={loading || exporting}>{exporting ? "Đang xuất..." : "Xuất PDF"}</button>
+        <section className="manage-surface space-y-3 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-neutral-900">Điều hướng nhanh</h3>
+            <div className="rounded-full bg-neutral-100 px-3 py-1 text-[11px] font-medium text-neutral-600">{rows.length} dòng</div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
+              <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500">Mẫu</div>
+              <div className="mt-1 text-sm font-semibold text-neutral-900">{toBookLabel()}</div>
+            </div>
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
+              <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500">Từ ngày</div>
+              <div className="mt-1 text-sm font-semibold text-neutral-900">{fromDate}</div>
+            </div>
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
+              <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500">Đến ngày</div>
+              <div className="mt-1 text-sm font-semibold text-neutral-900">{toDate}</div>
+            </div>
+            <div className="rounded-2xl bg-[var(--color-primary)] px-3 py-2.5 text-white">
+              <div className="text-[10px] uppercase tracking-[0.08em] text-white/80">Tổng</div>
+              <div className="mt-1 text-sm font-semibold">{formatVnd(total)}</div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button className="cursor-pointer rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700" onClick={load}>Nạp dữ liệu</button>
+            <button className="cursor-pointer rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 disabled:cursor-not-allowed disabled:opacity-60" onClick={() => void exportExcel()} disabled={loading || exporting}>{exporting ? "Đang xuất..." : "Xuất Excel"}</button>
+            <button className="cursor-pointer rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 disabled:cursor-not-allowed disabled:opacity-60" onClick={() => void exportPdf()} disabled={loading || exporting}>{exporting ? "Đang xuất..." : "Xuất PDF"}</button>
           </div>
         </section>
 
@@ -206,50 +223,43 @@ export default function TaxBooksPage() {
           Trang này chỉ dùng cho mẫu S1a-HKD và xuất file để in hoặc nộp thuế.
         </div>
 
-        <div className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
-          <div className="space-y-5">
-            <div className="card space-y-4 xl:sticky xl:top-4 xl:self-start">
+        <div className="space-y-4 xl:grid xl:grid-cols-[360px_minmax(0,1fr)] xl:gap-4 xl:space-y-0">
+          <div className="space-y-4">
+            <div className="hidden xl:block card space-y-3 xl:sticky xl:top-4 xl:self-start">
               <div>
-                <h3 className="font-semibold">Thông tin kỳ kê khai</h3>
-                <p className="text-sm text-neutral-500">Chọn khoảng thời gian và thông tin hộ kinh doanh để xuất đúng mẫu.</p>
+                <h3 className="text-sm font-semibold text-neutral-900">Thông tin kỳ kê khai</h3>
+                <p className="text-xs text-neutral-500">Điền gọn để xuất đúng mẫu.</p>
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1">
-                <label className="space-y-2 text-sm">
-                  <span className="font-medium">Từ ngày</span>
-                  <input className="input" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-                </label>
-                <label className="space-y-2 text-sm">
-                  <span className="font-medium">Đến ngày</span>
-                  <input className="input" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
-                </label>
-                <label className="space-y-2 text-sm md:col-span-2 xl:col-span-1">
-                  <span className="font-medium">Hộ, cá nhân kinh doanh</span>
-                  <input className="input" placeholder="Tên hộ kinh doanh" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
-                </label>
-                <label className="space-y-2 text-sm">
-                  <span className="font-medium">Mã số thuế</span>
-                  <input className="input" placeholder="Mã số thuế" value={taxCode} onChange={(e) => setTaxCode(e.target.value)} />
-                </label>
-                <label className="space-y-2 text-sm">
-                  <span className="font-medium">Đơn vị tính</span>
-                  <input className="input" placeholder="đồng" value={unit} onChange={(e) => setUnit(e.target.value)} />
-                </label>
-                <label className="space-y-2 text-sm md:col-span-2 xl:col-span-1">
-                  <span className="font-medium">Địa chỉ</span>
-                  <input className="input" placeholder="Địa chỉ" value={address} onChange={(e) => setAddress(e.target.value)} />
-                </label>
-                <label className="space-y-2 text-sm md:col-span-2 xl:col-span-1">
-                  <span className="font-medium">Địa điểm kinh doanh</span>
-                  <input className="input" placeholder="Địa điểm kinh doanh" value={businessLocation} onChange={(e) => setBusinessLocation(e.target.value)} />
-                </label>
+              <div className="space-y-2">
+                <InlineField label="Từ ngày"><input className="input py-2.5 text-sm" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} /></InlineField>
+                <InlineField label="Đến ngày"><input className="input py-2.5 text-sm" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} /></InlineField>
+                <InlineField label="Hộ KD"><input className="input py-2.5 text-sm" placeholder="Tên hộ kinh doanh" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} /></InlineField>
+                <InlineField label="MST"><input className="input py-2.5 text-sm" placeholder="Mã số thuế" value={taxCode} onChange={(e) => setTaxCode(e.target.value)} /></InlineField>
+                <InlineField label="Đơn vị"><input className="input py-2.5 text-sm" placeholder="đồng" value={unit} onChange={(e) => setUnit(e.target.value)} /></InlineField>
+                <InlineField label="Địa chỉ"><input className="input py-2.5 text-sm" placeholder="Địa chỉ" value={address} onChange={(e) => setAddress(e.target.value)} /></InlineField>
+                <InlineField label="Địa điểm"><input className="input py-2.5 text-sm" placeholder="Địa điểm kinh doanh" value={businessLocation} onChange={(e) => setBusinessLocation(e.target.value)} /></InlineField>
               </div>
+            </div>
+
+            <div className="xl:hidden">
+              <MobileCollapsible summary="Thông tin kỳ kê khai" defaultOpen>
+                <div className="space-y-2">
+                  <InlineField label="Từ ngày"><input className="input py-2.5 text-sm" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} /></InlineField>
+                  <InlineField label="Đến ngày"><input className="input py-2.5 text-sm" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} /></InlineField>
+                  <InlineField label="Hộ KD"><input className="input py-2.5 text-sm" placeholder="Tên hộ kinh doanh" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} /></InlineField>
+                  <InlineField label="MST"><input className="input py-2.5 text-sm" placeholder="Mã số thuế" value={taxCode} onChange={(e) => setTaxCode(e.target.value)} /></InlineField>
+                  <InlineField label="Đơn vị"><input className="input py-2.5 text-sm" placeholder="đồng" value={unit} onChange={(e) => setUnit(e.target.value)} /></InlineField>
+                  <InlineField label="Địa chỉ"><input className="input py-2.5 text-sm" placeholder="Địa chỉ" value={address} onChange={(e) => setAddress(e.target.value)} /></InlineField>
+                  <InlineField label="Địa điểm"><input className="input py-2.5 text-sm" placeholder="Địa điểm kinh doanh" value={businessLocation} onChange={(e) => setBusinessLocation(e.target.value)} /></InlineField>
+                </div>
+              </MobileCollapsible>
             </div>
           </div>
 
-          <div id="tax-book-export-root" ref={printRef} className="card">
-            <div className="mb-4 text-sm leading-6">
-              <div className="flex flex-col gap-4 md:flex-row md:justify-between">
+          <div id="tax-book-export-root" ref={printRef} className="card space-y-4">
+            <div className="text-sm leading-6">
+              <div className="flex flex-col gap-3 md:flex-row md:justify-between">
                 <div>
                   <p><strong>HỘ, CÁ NHÂN KINH DOANH:</strong> {ownerName || "..............."}</p>
                   <p><strong>Địa chỉ:</strong> {address || "..............."}</p>
@@ -266,7 +276,7 @@ export default function TaxBooksPage() {
               <p><strong>Đơn vị tính:</strong> {unit}</p>
             </div>
 
-            {error && <p className="mb-3 text-sm text-red-600">Lỗi: {error}</p>}
+            {error ? <p className="text-sm text-red-600">Lỗi: {error}</p> : null}
             {loading ? (
               <p className="text-sm text-neutral-500">Đang tải...</p>
             ) : (
@@ -292,11 +302,11 @@ export default function TaxBooksPage() {
                         <td className="amount">{formatVnd(r.amount)}</td>
                       </tr>
                     ))}
-                    {!rows.length && (
+                    {!rows.length ? (
                       <tr className="border-t border-neutral-100">
                         <td className="py-2 text-neutral-500" colSpan={3}>Không có dữ liệu trong khoảng thời gian đã chọn.</td>
                       </tr>
-                    )}
+                    ) : null}
                   </tbody>
                   <tfoot>
                     <tr className="border-t-2 border-neutral-200 font-semibold">
@@ -308,7 +318,7 @@ export default function TaxBooksPage() {
               </div>
             )}
 
-            <div className="mt-12 text-right text-sm leading-6">
+            <div className="pt-8 text-right text-sm leading-6">
               <p>Ngày ... tháng ... năm ...</p>
               <p><strong>NGƯỜI ĐẠI DIỆN HỘ KINH DOANH/CÁ NHÂN KINH DOANH</strong></p>
               <p>(Ký, ghi rõ họ tên, đóng dấu nếu có)</p>

@@ -1,13 +1,13 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
-import { MobileSectionHeader } from "@/components/manage-mobile";
+import { MobileCollapsible, MobileSectionHeader } from "@/components/manage-mobile";
 import { ManageQuickNav, setupQuickNav } from "@/components/manage-quick-nav";
 import { getCurrentSessionRole, type AppRole } from "@/lib/auth";
 import { createService, listServices, updateService } from "@/lib/domain";
 import { formatVnd } from "@/lib/mock-data";
 import { uploadServiceImage } from "@/lib/service-images";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type ServiceRow = {
   id: string;
@@ -22,15 +22,24 @@ type ServiceRow = {
   active: boolean;
 };
 
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">{children}</label>;
+function FieldLabel({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <label className={`text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-500 ${className}`}>{children}</label>;
+}
+
+function InlineField({ label, children, compact = false }: { label: React.ReactNode; children: React.ReactNode; compact?: boolean }) {
+  return (
+    <div className={`grid items-center gap-2 ${compact ? "grid-cols-[72px_minmax(0,1fr)]" : "grid-cols-[84px_minmax(0,1fr)]"}`}>
+      <FieldLabel className="mb-0">{label}</FieldLabel>
+      <div className="min-w-0">{children}</div>
+    </div>
+  );
 }
 
 function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-rose-300 focus:ring-4 focus:ring-rose-100 ${props.className ?? ""}`}
+      className={`w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2.5 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-rose-300 focus:ring-4 focus:ring-rose-100 ${props.className ?? ""}`}
     />
   );
 }
@@ -39,7 +48,7 @@ function TextArea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
       {...props}
-      className={`w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-rose-300 focus:ring-4 focus:ring-rose-100 ${props.className ?? ""}`}
+      className={`w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2.5 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-rose-300 focus:ring-4 focus:ring-rose-100 ${props.className ?? ""}`}
     />
   );
 }
@@ -53,6 +62,7 @@ export default function ServicesPage() {
   const [role, setRole] = useState<AppRole | null>(null);
   const [uploadingCreateImage, setUploadingCreateImage] = useState(false);
   const [uploadingEditImage, setUploadingEditImage] = useState(false);
+  const [search, setSearch] = useState("");
 
   const [name, setName] = useState("");
   const [shortDescription, setShortDescription] = useState("");
@@ -72,6 +82,11 @@ export default function ServicesPage() {
   const [editPrice, setEditPrice] = useState(250000);
   const [editVat, setEditVat] = useState(0);
   const [editActive, setEditActive] = useState(true);
+
+  const createSectionRef = useRef<HTMLDivElement | null>(null);
+  const listSectionRef = useRef<HTMLDivElement | null>(null);
+
+  const canEdit = role === "OWNER" || role === "MANAGER" || role === "RECEPTION";
 
   const load = useCallback(async (opts?: { force?: boolean }) => {
     const isInitial = rows.length === 0;
@@ -95,6 +110,15 @@ export default function ServicesPage() {
     void load({ force: true });
   }, [load]);
 
+  const filteredRows = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    if (!keyword) return rows;
+    return rows.filter((row) => [row.name, row.short_description ?? ""].join(" ").toLowerCase().includes(keyword));
+  }, [rows, search]);
+
+  const activeCount = useMemo(() => rows.filter((row) => row.active).length, [rows]);
+  const featuredCount = useMemo(() => rows.filter((row) => row.featured_in_lookbook).length, [rows]);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (submitting) return;
@@ -102,10 +126,8 @@ export default function ServicesPage() {
     try {
       setSubmitting(true);
       setError(null);
-      if (role !== "OWNER" && role !== "MANAGER" && role !== "RECEPTION") {
-        throw new Error("Role hiện tại không được phép thêm dịch vụ.");
-      }
-      await createService({
+      if (!canEdit) throw new Error("Role hiện tại không được phép thêm dịch vụ.");
+      const created = await createService({
         name,
         shortDescription: shortDescription || null,
         imageUrl: imageUrl || null,
@@ -124,6 +146,20 @@ export default function ServicesPage() {
       setPrice(250000);
       setVat(0);
       await load({ force: true });
+      const createdRow = created as Partial<ServiceRow> | null;
+      if (createdRow?.id) {
+        setEditingId(createdRow.id);
+        setEditName(createdRow.name ?? "");
+        setEditShortDescription(createdRow.short_description ?? shortDescription);
+        setEditImageUrl(createdRow.image_url ?? imageUrl);
+        setEditDisplayOrder(createdRow.display_order ?? displayOrder);
+        setEditFeaturedInLookbook(Boolean(createdRow.featured_in_lookbook ?? featuredInLookbook));
+        setEditDuration(createdRow.duration_min ?? duration);
+        setEditPrice(Number(createdRow.base_price ?? price));
+        setEditVat(Number(createdRow.vat_rate ?? vat / 100) * 100);
+        setEditActive(createdRow.active ?? true);
+      }
+      requestAnimationFrame(() => listSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Create service failed");
     } finally {
@@ -200,232 +236,292 @@ export default function ServicesPage() {
 
   return (
     <AppShell>
-      <div className="space-y-5 pb-24 md:pb-0">
+      <div className="space-y-4 pb-24 md:pb-0">
         <ManageQuickNav items={setupQuickNav("/manage/services")} />
 
         <MobileSectionHeader title="Dịch vụ" meta={<div className="manage-info-box">{refreshing ? "Đang làm mới..." : `${rows.length} dịch vụ`}</div>} />
 
         {role === "ACCOUNTANT" || role === "TECH" ? (
-          <div className="manage-warn-box">
+          <div className="manage-warn-box text-sm">
             Vai trò hiện tại chỉ xem danh sách dịch vụ, không thêm hoặc chỉnh sửa dữ liệu.
           </div>
         ) : null}
 
-        {error ? (
-          <div className="manage-error-box">
-            {error}
-          </div>
-        ) : null}
+        {error ? <div className="manage-error-box text-sm">{error}</div> : null}
 
-        <form onSubmit={onSubmit} className="manage-surface space-y-4 p-4 md:p-5">
+        <section className="manage-surface space-y-3 p-4">
           <div className="flex items-center justify-between gap-3">
-            <div>
-              <h3 className="text-lg font-semibold text-neutral-900">Thêm dịch vụ mới</h3>
-            </div>
-            <div className="rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-600">VAT mặc định 0%</div>
+            <h3 className="text-sm font-semibold text-neutral-900">Điều hướng nhanh</h3>
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
-            <div className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <FieldLabel>Tên dịch vụ</FieldLabel>
-                  <TextInput placeholder="Ví dụ: Luxury Gel" value={name} onChange={(e) => setName(e.target.value)} required />
-                </div>
-                <div>
-                  <FieldLabel>Ảnh đại diện</FieldLabel>
-                  <TextInput placeholder="URL hoặc storage path" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
-                </div>
-              </div>
-
-              <div>
-                <FieldLabel>Mô tả ngắn</FieldLabel>
-                <TextArea placeholder="Mô tả ngắn cho landing / lookbook" value={shortDescription} onChange={(e) => setShortDescription(e.target.value)} className="min-h-[110px]" />
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-4">
-                <div>
-                  <FieldLabel>Display order</FieldLabel>
-                  <TextInput type="number" value={displayOrder} onChange={(e) => setDisplayOrder(Number(e.target.value))} />
-                </div>
-                <div>
-                  <FieldLabel>Thời lượng</FieldLabel>
-                  <TextInput type="number" min={5} value={duration} onChange={(e) => setDuration(Number(e.target.value))} required />
-                </div>
-                <div>
-                  <FieldLabel>Giá</FieldLabel>
-                  <TextInput type="number" min={0} value={price} onChange={(e) => setPrice(Number(e.target.value))} required />
-                </div>
-                <div>
-                  <FieldLabel>VAT %</FieldLabel>
-                  <TextInput type="number" min={0} step={0.5} value={vat} onChange={(e) => setVat(Number(e.target.value))} required />
-                </div>
-              </div>
-
-              <label className="flex items-center gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
-                <input type="checkbox" className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-400" checked={featuredInLookbook} onChange={(e) => setFeaturedInLookbook(e.target.checked)} />
-                <span className="font-medium">Đưa lên Lookbook / dịch vụ nổi bật</span>
-              </label>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
+              <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-neutral-500">Tổng</div>
+              <div className="mt-1 text-sm font-semibold text-neutral-900">{rows.length}</div>
             </div>
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
+              <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-neutral-500">Active</div>
+              <div className="mt-1 text-sm font-semibold text-neutral-900">{activeCount}</div>
+            </div>
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
+              <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-neutral-500">Lookbook</div>
+              <div className="mt-1 text-sm font-semibold text-neutral-900">{featuredCount}</div>
+            </div>
+          </div>
 
-            <div className="space-y-4">
-              <div className="rounded-3xl border border-dashed border-neutral-200 bg-neutral-50 p-4">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-neutral-900">Ảnh lookbook</p>
-                    <p className="mt-1 text-xs leading-5 text-neutral-500">Upload ảnh lên storage để DB chỉ lưu URL/path, tránh phình dữ liệu.</p>
-                  </div>
-                  <label className="inline-flex cursor-pointer items-center rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-50">
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => requestAnimationFrame(() => listSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }))} className="cursor-pointer rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700">
+              Danh sách dịch vụ
+            </button>
+            <button type="button" onClick={() => void load({ force: true })} className="cursor-pointer rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700">
+              Làm mới
+            </button>
+          </div>
+        </section>
+
+        <div ref={createSectionRef}>
+          <div className="hidden md:block manage-surface p-4 md:p-5">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-neutral-900">Thêm dịch vụ mới</h3>
+              <p className="text-xs text-neutral-500">Form desktop luôn hiển thị</p>
+            </div>
+            <form onSubmit={onSubmit} className="space-y-3">
+              <div className="space-y-2 md:grid md:gap-2 md:grid-cols-[minmax(0,1.1fr)_180px_160px] md:space-y-0">
+                <InlineField label="Tên" compact>
+                  <TextInput placeholder="Luxury Gel" value={name} onChange={(e) => setName(e.target.value)} required />
+                </InlineField>
+                <InlineField label="Giá" compact>
+                  <TextInput type="number" min={0} value={price} onChange={(e) => setPrice(Number(e.target.value))} required />
+                </InlineField>
+                <InlineField label="Phút" compact>
+                  <TextInput type="number" min={5} value={duration} onChange={(e) => setDuration(Number(e.target.value))} required />
+                </InlineField>
+              </div>
+
+              <div className="space-y-2 md:grid md:gap-2 md:grid-cols-[minmax(0,1fr)_140px_140px] md:space-y-0">
+                <InlineField label="Ảnh" compact>
+                  <TextInput placeholder="URL hoặc storage path" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
+                </InlineField>
+                <InlineField label="Thứ tự" compact>
+                  <TextInput type="number" value={displayOrder} onChange={(e) => setDisplayOrder(Number(e.target.value))} />
+                </InlineField>
+                <InlineField label="VAT" compact>
+                  <TextInput type="number" min={0} step={0.5} value={vat} onChange={(e) => setVat(Number(e.target.value))} required />
+                </InlineField>
+              </div>
+
+              <InlineField label="Mô tả" compact>
+                <TextArea placeholder="Mô tả ngắn cho landing / lookbook" value={shortDescription} onChange={(e) => setShortDescription(e.target.value)} className="min-h-[56px]" />
+              </InlineField>
+
+              <div className="space-y-2 rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="flex min-w-0 flex-1 items-center gap-2 text-sm text-neutral-700">
+                    <input type="checkbox" className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-400" checked={featuredInLookbook} onChange={(e) => setFeaturedInLookbook(e.target.checked)} />
+                    <span className="font-medium">Đưa lên lookbook</span>
+                  </label>
+                  <label className="inline-flex cursor-pointer items-center justify-center rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50">
                     <input type="file" accept="image/*" className="hidden" onChange={(e) => void handleCreateImageUpload(e.target.files?.[0])} />
                     {uploadingCreateImage ? "Đang upload..." : "Upload ảnh"}
                   </label>
                 </div>
                 {imageUrl ? (
-                  <img src={imageUrl} alt="Preview lookbook" className="h-56 w-full rounded-2xl object-cover" />
-                ) : (
-                  <div className="flex h-56 items-center justify-center rounded-2xl border border-dashed border-neutral-200 bg-white text-sm text-neutral-400">
-                    Chưa có ảnh preview
+                  <div className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs text-neutral-600">
+                    <img src={imageUrl} alt="Preview lookbook" className="h-10 w-10 rounded-lg object-cover" />
+                    <div className="min-w-0 flex-1 truncate">Đã có ảnh preview</div>
                   </div>
+                ) : (
+                  <div className="text-xs text-neutral-500">Chưa có ảnh preview</div>
                 )}
               </div>
 
-              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-xs leading-5 text-neutral-500">
-                Gợi ý: dùng ảnh tỉ lệ dọc hoặc ngang rõ sản phẩm. Với bản hoàn chỉnh này, ảnh thật nằm ở storage/CDN, còn DB chỉ lưu <b>image_url</b>.
-              </div>
-
-              <button disabled={submitting || role === "ACCOUNTANT" || role === "TECH"} className="w-full rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60">
+              <button disabled={submitting || !canEdit} className="cursor-pointer w-full rounded-2xl bg-rose-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60">
                 {submitting ? "Đang thêm dịch vụ..." : "Thêm dịch vụ"}
               </button>
-            </div>
+            </form>
           </div>
-        </form>
 
-        <div className="manage-surface md:p-6">
-          <div className="mb-5 flex items-center justify-between gap-3">
+          <div className="md:hidden">
+            <MobileCollapsible summary="Thêm dịch vụ mới" defaultOpen={!rows.length}>
+            <form onSubmit={onSubmit} className="space-y-3">
+              <div className="space-y-2 md:grid md:gap-2 md:grid-cols-[minmax(0,1.1fr)_180px_160px] md:space-y-0">
+                <InlineField label="Tên" compact>
+                  <TextInput placeholder="Luxury Gel" value={name} onChange={(e) => setName(e.target.value)} required />
+                </InlineField>
+                <InlineField label="Giá" compact>
+                  <TextInput type="number" min={0} value={price} onChange={(e) => setPrice(Number(e.target.value))} required />
+                </InlineField>
+                <InlineField label="Phút" compact>
+                  <TextInput type="number" min={5} value={duration} onChange={(e) => setDuration(Number(e.target.value))} required />
+                </InlineField>
+              </div>
+
+              <div className="space-y-2 md:grid md:gap-2 md:grid-cols-[minmax(0,1fr)_140px_140px] md:space-y-0">
+                <InlineField label="Ảnh" compact>
+                  <TextInput placeholder="URL hoặc storage path" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
+                </InlineField>
+                <InlineField label="Thứ tự" compact>
+                  <TextInput type="number" value={displayOrder} onChange={(e) => setDisplayOrder(Number(e.target.value))} />
+                </InlineField>
+                <InlineField label="VAT" compact>
+                  <TextInput type="number" min={0} step={0.5} value={vat} onChange={(e) => setVat(Number(e.target.value))} required />
+                </InlineField>
+              </div>
+
+              <InlineField label="Mô tả" compact>
+                <TextArea placeholder="Mô tả ngắn cho landing / lookbook" value={shortDescription} onChange={(e) => setShortDescription(e.target.value)} className="min-h-[56px]" />
+              </InlineField>
+
+              <div className="space-y-2 rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="flex min-w-0 flex-1 items-center gap-2 text-sm text-neutral-700">
+                    <input type="checkbox" className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-400" checked={featuredInLookbook} onChange={(e) => setFeaturedInLookbook(e.target.checked)} />
+                    <span className="font-medium">Đưa lên lookbook</span>
+                  </label>
+                  <label className="inline-flex cursor-pointer items-center justify-center rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50">
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => void handleCreateImageUpload(e.target.files?.[0])} />
+                    {uploadingCreateImage ? "Đang upload..." : "Upload ảnh"}
+                  </label>
+                </div>
+                {imageUrl ? (
+                  <div className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs text-neutral-600">
+                    <img src={imageUrl} alt="Preview lookbook" className="h-10 w-10 rounded-lg object-cover" />
+                    <div className="min-w-0 flex-1 truncate">Đã có ảnh preview</div>
+                  </div>
+                ) : (
+                  <div className="text-xs text-neutral-500">Chưa có ảnh preview</div>
+                )}
+              </div>
+
+            <button disabled={submitting || !canEdit} className="cursor-pointer w-full rounded-2xl bg-rose-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60">
+              {submitting ? "Đang thêm dịch vụ..." : "Thêm dịch vụ"}
+            </button>
+            </form>
+            </MobileCollapsible>
+          </div>
+        </div>
+
+        <section ref={listSectionRef} className="manage-surface space-y-3 p-4 md:p-5">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-neutral-900">Danh sách dịch vụ</h3>
+              <h3 className="text-sm font-semibold text-neutral-900">Danh sách dịch vụ</h3>
+              <p className="text-xs text-neutral-500">Ưu tiên xem nhanh giá, thời lượng, trạng thái, hạn chế mở card dài.</p>
+            </div>
+            <div className="w-full md:w-[280px]">
+              <TextInput placeholder="Tìm theo tên hoặc mô tả" value={search} onChange={(e) => setSearch(e.target.value)} className="py-2.5 text-sm" />
             </div>
           </div>
 
           {loading ? (
             <p className="text-sm text-neutral-500">Đang tải dữ liệu dịch vụ...</p>
-          ) : rows.length === 0 ? (
+          ) : filteredRows.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-neutral-200 bg-neutral-50 px-4 py-8 text-center text-sm text-neutral-500">
-              Chưa có dịch vụ nào. Hãy tạo dịch vụ đầu tiên ở form phía trên.
+              {rows.length === 0 ? "Chưa có dịch vụ nào. Hãy tạo dịch vụ đầu tiên ở phía trên." : "Không có dịch vụ khớp bộ lọc hiện tại."}
             </div>
           ) : (
-            <div className="space-y-4">
-              {rows.map((s) => {
+            <div className="space-y-2">
+              {filteredRows.map((s) => {
                 const isEditing = editingId === s.id;
                 return (
-                  <div key={s.id} className="manage-surface-muted">
-                    <div className="grid gap-4 xl:grid-cols-[220px_1fr]">
-                      <div className="space-y-3">
-                        {isEditing ? (
-                          <>
-                            <div className="rounded-2xl border border-neutral-200 bg-white p-3">
-                              {editImageUrl ? (
-                                <img src={editImageUrl} alt="Preview" className="h-44 w-full rounded-2xl object-cover" />
-                              ) : (
-                                <div className="flex h-44 items-center justify-center rounded-2xl border border-dashed border-neutral-200 text-sm text-neutral-400">
-                                  Chưa có ảnh
-                                </div>
-                              )}
-                            </div>
-                            <TextInput placeholder="URL hoặc storage path" value={editImageUrl} onChange={(e) => setEditImageUrl(e.target.value)} />
-                            <label className="inline-flex cursor-pointer items-center rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-50">
+                  <div key={s.id} className="rounded-2xl border border-neutral-200 bg-white p-2.5">
+                    <div className="flex items-start justify-between gap-2.5">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {isEditing ? (
+                            <TextInput value={editName} onChange={(e) => setEditName(e.target.value)} className="max-w-xl py-2 text-sm" />
+                          ) : (
+                            <>
+                              <h4 className="text-sm font-semibold leading-5 text-neutral-900">{s.name}</h4>
+                              {s.featured_in_lookbook ? <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-700">LOOKBOOK</span> : null}
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${s.active ? "bg-emerald-100 text-emerald-700" : "bg-neutral-200 text-neutral-600"}`}>
+                                {s.active ? "ACTIVE" : "INACTIVE"}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                        {!isEditing ? <p className="mt-0.5 line-clamp-1 text-[11px] text-neutral-500">{s.short_description || "Chưa có mô tả ngắn."}</p> : null}
+                      </div>
+
+                      {!canEdit ? null : isEditing ? (
+                        <div className="flex gap-2">
+                          <button className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700" type="button" onClick={() => setEditingId(null)}>
+                            Huỷ
+                          </button>
+                          <button className="cursor-pointer rounded-xl bg-rose-500 px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => void saveEdit()} disabled={submitting}>
+                            {submitting ? "Đang lưu..." : "Lưu"}
+                          </button>
+                        </div>
+                      ) : (
+                        <button className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700" type="button" onClick={() => startEdit(s)}>
+                          Sửa
+                        </button>
+                      )}
+                    </div>
+
+                    {isEditing ? (
+                      <div className="mt-3 space-y-3 rounded-2xl bg-neutral-50 p-3">
+                        <div className="space-y-2 md:grid md:gap-2 md:grid-cols-[minmax(0,1fr)_140px_140px_120px] md:space-y-0">
+                          <InlineField label="Mô tả" compact>
+                            <TextArea value={editShortDescription} onChange={(e) => setEditShortDescription(e.target.value)} className="min-h-[72px]" />
+                          </InlineField>
+                          <InlineField label="Giá" compact>
+                            <TextInput type="number" min={0} value={editPrice} onChange={(e) => setEditPrice(Number(e.target.value))} />
+                          </InlineField>
+                          <InlineField label="Phút" compact>
+                            <TextInput type="number" min={5} value={editDuration} onChange={(e) => setEditDuration(Number(e.target.value))} />
+                          </InlineField>
+                          <InlineField label="VAT" compact>
+                            <TextInput type="number" min={0} step={0.5} value={editVat} onChange={(e) => setEditVat(Number(e.target.value))} />
+                          </InlineField>
+                        </div>
+
+                        <div className="space-y-2 md:grid md:gap-2 md:grid-cols-[minmax(0,1fr)_120px] md:space-y-0">
+                          <InlineField label="Ảnh" compact>
+                            <TextInput value={editImageUrl} onChange={(e) => setEditImageUrl(e.target.value)} placeholder="URL hoặc storage path" />
+                          </InlineField>
+                          <InlineField label="Thứ tự" compact>
+                            <TextInput type="number" value={editDisplayOrder} onChange={(e) => setEditDisplayOrder(Number(e.target.value))} />
+                          </InlineField>
+                        </div>
+
+                        <div className="grid gap-3 lg:grid-cols-[1fr_180px]">
+                          <div className="space-y-2">
+                            <label className="flex items-center gap-2 rounded-2xl border border-neutral-200 bg-white px-3 py-2.5 text-sm text-neutral-700">
+                              <input type="checkbox" className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-400" checked={editFeaturedInLookbook} onChange={(e) => setEditFeaturedInLookbook(e.target.checked)} />
+                              Đưa lên lookbook
+                            </label>
+                            <label className="flex items-center gap-2 rounded-2xl border border-neutral-200 bg-white px-3 py-2.5 text-sm text-neutral-700">
+                              <input type="checkbox" className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-400" checked={editActive} onChange={(e) => setEditActive(e.target.checked)} />
+                              Dịch vụ đang hoạt động
+                            </label>
+                            <label className="inline-flex w-full cursor-pointer items-center justify-center rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50">
                               <input type="file" accept="image/*" className="hidden" onChange={(e) => void handleEditImageUpload(e.target.files?.[0])} />
                               {uploadingEditImage ? "Đang upload..." : "Upload ảnh mới"}
                             </label>
-                          </>
-                        ) : s.image_url ? (
-                          <img src={s.image_url} alt={s.name} className="h-52 w-full rounded-2xl object-cover" />
-                        ) : (
-                          <div className="flex h-52 items-center justify-center rounded-2xl border border-dashed border-neutral-200 bg-white text-sm text-neutral-400">
-                            Chưa có ảnh lookbook
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="space-y-4">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            {isEditing ? (
-                              <TextInput value={editName} onChange={(e) => setEditName(e.target.value)} className="max-w-xl" />
-                            ) : (
-                              <div className="flex flex-wrap items-center gap-2">
-                                <h4 className="text-lg font-semibold text-neutral-900">{s.name}</h4>
-                                {s.featured_in_lookbook ? <span className="rounded-full bg-rose-100 px-2.5 py-1 text-[11px] font-semibold text-rose-700">LOOKBOOK</span> : null}
-                                <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${s.active ? "bg-emerald-100 text-emerald-700" : "bg-neutral-200 text-neutral-600"}`}>
-                                  {s.active ? "ACTIVE" : "INACTIVE"}
-                                </span>
-                              </div>
-                            )}
-                            <p className="mt-2 text-sm text-neutral-500">{isEditing ? "Chỉnh dịch vụ và dữ liệu hiển thị ngoài landing." : (s.short_description || "Chưa có mô tả ngắn cho landing.")}</p>
                           </div>
 
-                          {role === "ACCOUNTANT" || role === "TECH" ? null : isEditing ? (
-                            <div className="flex gap-2">
-                              <button className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50" type="button" onClick={() => setEditingId(null)}>
-                                Huỷ
-                              </button>
-                              <button className="rounded-2xl bg-rose-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => void saveEdit()} disabled={submitting}>
-                                {submitting ? "Đang lưu..." : "Lưu"}
-                              </button>
-                            </div>
+                          {editImageUrl ? (
+                            <img src={editImageUrl} alt="Preview" className="h-32 w-full rounded-2xl object-cover" />
                           ) : (
-                            <button className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50" type="button" onClick={() => startEdit(s)}>
-                              Sửa
-                            </button>
+                            <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed border-neutral-200 bg-white text-xs text-neutral-400">Chưa có ảnh</div>
                           )}
                         </div>
-
-                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                          <div className="rounded-2xl bg-white p-4 shadow-sm">
-                            <p className="manage-stat-label">Giá</p>
-                            {isEditing ? <TextInput type="number" min={0} value={editPrice} onChange={(e) => setEditPrice(Number(e.target.value))} className="mt-3" /> : <p className="mt-3 text-lg font-semibold text-neutral-900">{formatVnd(Number(s.base_price))}</p>}
-                          </div>
-                          <div className="rounded-2xl bg-white p-4 shadow-sm">
-                            <p className="manage-stat-label">Thời lượng</p>
-                            {isEditing ? <TextInput type="number" min={5} value={editDuration} onChange={(e) => setEditDuration(Number(e.target.value))} className="mt-3" /> : <p className="mt-3 text-lg font-semibold text-neutral-900">{s.duration_min} phút</p>}
-                          </div>
-                          <div className="rounded-2xl bg-white p-4 shadow-sm">
-                            <p className="manage-stat-label">VAT</p>
-                            {isEditing ? <TextInput type="number" min={0} step={0.5} value={editVat} onChange={(e) => setEditVat(Number(e.target.value))} className="mt-3" /> : <p className="mt-3 text-lg font-semibold text-neutral-900">{Number(s.vat_rate) * 100}%</p>}
-                          </div>
-                          <div className="rounded-2xl bg-white p-4 shadow-sm">
-                            <p className="manage-stat-label">Thứ tự</p>
-                            {isEditing ? <TextInput type="number" value={editDisplayOrder} onChange={(e) => setEditDisplayOrder(Number(e.target.value))} className="mt-3" /> : <p className="mt-3 text-lg font-semibold text-neutral-900">{s.display_order ?? 0}</p>}
-                          </div>
-                        </div>
-
-                        {isEditing ? (
-                          <div className="grid gap-4 lg:grid-cols-2">
-                            <div>
-                              <FieldLabel>Mô tả ngắn cho landing</FieldLabel>
-                              <TextArea value={editShortDescription} onChange={(e) => setEditShortDescription(e.target.value)} className="min-h-[110px]" />
-                            </div>
-                            <div className="space-y-4 rounded-2xl bg-white p-4 shadow-sm">
-                              <label className="flex items-center gap-3 text-sm text-neutral-700">
-                                <input type="checkbox" className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-400" checked={editFeaturedInLookbook} onChange={(e) => setEditFeaturedInLookbook(e.target.checked)} />
-                                Đưa lên Lookbook / dịch vụ nổi bật
-                              </label>
-                              <label className="flex items-center gap-3 text-sm text-neutral-700">
-                                <input type="checkbox" className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-400" checked={editActive} onChange={(e) => setEditActive(e.target.checked)} />
-                                Dịch vụ đang hoạt động
-                              </label>
-                              <p className="text-xs leading-5 text-neutral-500">Ảnh thật nằm ở storage/CDN; service chỉ lưu URL để landing load nhanh và DB không bị phình.</p>
-                            </div>
-                          </div>
-                        ) : null}
                       </div>
-                    </div>
+                    ) : (
+                      <div className="mt-2 flex flex-wrap gap-1 text-[11px]">
+                        <div className="rounded-full bg-neutral-100 px-2 py-1 text-neutral-700">{formatVnd(Number(s.base_price))}</div>
+                        <div className="rounded-full bg-neutral-100 px-2 py-1 text-neutral-700">{s.duration_min} phút</div>
+                        <div className="rounded-full bg-neutral-100 px-2 py-1 text-neutral-700">VAT {Number(s.vat_rate) * 100}%</div>
+                        <div className="rounded-full bg-neutral-100 px-2 py-1 text-neutral-700">STT {s.display_order ?? 0}</div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
           )}
-        </div>
+        </section>
+
       </div>
     </AppShell>
   );

@@ -1,26 +1,44 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
-import { MobileSectionHeader } from "@/components/manage-mobile";
+import { MobileCollapsible, MobileSectionHeader } from "@/components/manage-mobile";
 import { ManageQuickNav, setupQuickNav } from "@/components/manage-quick-nav";
 import { getOrCreateRole, listUserRoles, type AppRole, updateUserDisplayName, updateUserRoleByRowId } from "@/lib/auth";
 import { generateInviteCode, listInviteCodes, revokeInviteCode, type InviteCodeRow } from "@/lib/invite-codes";
 import { supabase } from "@/lib/supabase";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-type UserRoleRow = { id: string; user_id: string; role: AppRole; display_name?: string };
+type UserRoleRow = { id: string; user_id: string; role: AppRole; display_name?: string; email?: string | null };
 
 const roleOptions: AppRole[] = ["MANAGER", "RECEPTION", "ACCOUNTANT", "TECH"];
 
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">{children}</label>;
+function FieldLabel({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <label className={`text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-500 ${className}`}>{children}</label>;
+}
+
+function InlineField({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
+      <FieldLabel className="mb-0">{label}</FieldLabel>
+      <div className="min-w-0">{children}</div>
+    </div>
+  );
 }
 
 function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-rose-300 focus:ring-4 focus:ring-rose-100 ${props.className ?? ""}`}
+      className={`w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2.5 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-rose-300 focus:ring-4 focus:ring-rose-100 ${props.className ?? ""}`}
+    />
+  );
+}
+
+function SelectInput(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <select
+      {...props}
+      className={`w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2.5 text-sm text-neutral-900 outline-none transition focus:border-rose-300 focus:ring-4 focus:ring-rose-100 ${props.className ?? ""}`}
     />
   );
 }
@@ -29,6 +47,7 @@ export default function TeamPage() {
   const [rows, setRows] = useState<UserRoleRow[]>([]);
   const [myRole, setMyRole] = useState<AppRole>("RECEPTION");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [inviteRows, setInviteRows] = useState<InviteCodeRow[]>([]);
   const [inviteRole, setInviteRole] = useState<InviteCodeRow["allowed_role"]>("TECH");
   const [inviteNote, setInviteNote] = useState("");
@@ -36,6 +55,10 @@ export default function TeamPage() {
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+
+  const inviteSectionRef = useRef<HTMLDivElement | null>(null);
+  const listSectionRef = useRef<HTMLDivElement | null>(null);
 
   const canManage = myRole === "OWNER";
 
@@ -45,9 +68,16 @@ export default function TeamPage() {
     return stats;
   }, [rows]);
 
-  async function load() {
+  const filteredRows = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    if (!keyword) return rows;
+    return rows.filter((row) => `${row.display_name ?? ""} ${row.email ?? ""} ${row.user_id} ${row.role}`.toLowerCase().includes(keyword));
+  }, [rows, search]);
+
+  async function load(opts?: { silent?: boolean }) {
     try {
-      setLoading(true);
+      if (opts?.silent) setRefreshing(true);
+      else setLoading(true);
       setError(null);
       if (!supabase) throw new Error("Thiếu cấu hình Supabase env");
 
@@ -69,6 +99,7 @@ export default function TeamPage() {
       setError(e instanceof Error ? e.message : "Load team failed");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }
 
@@ -80,7 +111,7 @@ export default function TeamPage() {
     try {
       setError(null);
       await updateUserRoleByRowId(id, role);
-      await load();
+      await load({ silent: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Update role failed");
     }
@@ -93,7 +124,7 @@ export default function TeamPage() {
       const row = await generateInviteCode(inviteRole, inviteNote.trim() || undefined);
       setInviteRows((prev) => [row, ...prev].slice(0, 20));
       setInviteNote("");
-      if (typeof navigator !== "undefined"?.valueOf() && navigator.clipboard) {
+      if (typeof navigator !== "undefined" && navigator.clipboard) {
         await navigator.clipboard.writeText(row.code);
       }
     } catch (e) {
@@ -107,7 +138,7 @@ export default function TeamPage() {
     try {
       setError(null);
       await revokeInviteCode(inviteId);
-      await load();
+      await load({ silent: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Revoke invite failed");
     }
@@ -118,7 +149,7 @@ export default function TeamPage() {
       setError(null);
       await updateUserDisplayName(userId, editingName.trim() || "User");
       setEditingUserId(null);
-      await load();
+      await load({ silent: true });
     } catch (e) {
       if (e instanceof Error) setError(e.message);
       else if (e && typeof e === "object") {
@@ -132,164 +163,219 @@ export default function TeamPage() {
 
   return (
     <AppShell>
-      <div className="space-y-5 pb-24 md:pb-0">
+      <div className="space-y-4 pb-24 md:pb-0">
         <ManageQuickNav items={setupQuickNav("/manage/team")} />
 
-        <MobileSectionHeader title="Nhân sự" meta={<div className="manage-info-box">Role: <b className="text-neutral-900">{myRole}</b></div>} />
+        <MobileSectionHeader title="Nhân sự" meta={<div className="manage-info-box">{refreshing ? "Đang làm mới..." : <>Role: <b className="text-neutral-900">{myRole}</b></>}</div>} />
 
-        {error ? (
-          <div className="manage-error-box">{error}</div>
-        ) : null}
+        {error ? <div className="manage-error-box">{error}</div> : null}
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {(["OWNER", ...roleOptions] as AppRole[]).map((role) => (
-            <div key={role} className="manage-stat-card">
-              <p className="manage-stat-label">{role}</p>
-              <p className="mt-3 text-2xl font-bold text-neutral-900">{roleStats.get(role) ?? 0}</p>
-            </div>
-          ))}
-        </div>
+        <section className="manage-surface space-y-3 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-neutral-900">Điều hướng nhanh</h3>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 md:grid-cols-5">
+            {(["OWNER", ...roleOptions] as AppRole[]).map((role) => (
+              <div key={role} className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
+                <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-neutral-500">{role}</div>
+                <div className="mt-1 text-sm font-semibold text-neutral-900">{roleStats.get(role) ?? 0}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => requestAnimationFrame(() => listSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }))} className="cursor-pointer rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700">
+              Danh sách nhân sự
+            </button>
+            <button type="button" onClick={() => void load({ silent: true })} className="cursor-pointer rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700">
+              Làm mới
+            </button>
+          </div>
+        </section>
 
         {canManage ? (
-          <div className="manage-surface md:p-6 space-y-5">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <h3 className="text-lg font-semibold text-neutral-900">Mã mời nhân sự</h3>
+          <div ref={inviteSectionRef} className="space-y-3">
+            <div className="hidden md:block manage-surface p-4 md:p-5">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-neutral-900">Mã mời nhân sự</h3>
+                <p className="text-xs text-neutral-500">Chỉ OWNER mới quản lý</p>
+              </div>
+              <div className="space-y-3">
+                <div className="space-y-2 md:grid md:grid-cols-[180px_minmax(0,1fr)_auto] md:gap-2 md:space-y-0">
+                  <InlineField label="Role">
+                    <SelectInput value={inviteRole} onChange={(e) => setInviteRole(e.target.value as InviteCodeRow["allowed_role"])}>
+                      {roleOptions.map((role) => (
+                        <option key={role} value={role}>{role}</option>
+                      ))}
+                    </SelectInput>
+                  </InlineField>
+                  <InlineField label="Ghi chú">
+                    <TextInput placeholder="Ghi chú nội bộ (tuỳ chọn)" value={inviteNote} onChange={(e) => setInviteNote(e.target.value)} />
+                  </InlineField>
+                  <button type="button" className="cursor-pointer rounded-2xl bg-rose-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60" onClick={() => void onCreateInvite()} disabled={inviteBusy}>{inviteBusy ? "Đang tạo..." : "Tạo mã"}</button>
+                </div>
+
+                <div className="space-y-2">
+                  {inviteRows.length === 0 ? (
+                    <div className="manage-info-box">Chưa có mã mời nào gần đây.</div>
+                  ) : inviteRows.map((invite) => {
+                    const expired = new Date(invite.expires_at).getTime() <= Date.now();
+                    const used = invite.used_count >= invite.max_uses;
+                    const revoked = Boolean(invite.revoked_at);
+                    const status = revoked ? "Đã thu hồi" : used ? "Đã dùng" : expired ? "Hết hạn" : "Còn hiệu lực";
+                    return (
+                      <div key={invite.id} className="rounded-2xl border border-neutral-200 bg-white p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-400">{invite.allowed_role}</div>
+                            <div className="mt-1 font-mono text-sm font-semibold text-neutral-900">{invite.code}</div>
+                          </div>
+                          <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-semibold text-neutral-700">{status}</span>
+                        </div>
+                        <div className="mt-2 space-y-1 text-xs text-neutral-500">
+                          <p>Hết hạn: {new Date(invite.expires_at).toLocaleString("vi-VN")}</p>
+                          {invite.note ? <p>Ghi chú: {invite.note}</p> : null}
+                        </div>
+                        <div className="mt-2 flex gap-2">
+                          <button type="button" className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700" onClick={() => navigator.clipboard.writeText(invite.code)}>Copy</button>
+                          {!used && !revoked && !expired ? <button type="button" className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700" onClick={() => void onRevokeInvite(invite.id)}>Thu hồi</button> : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)_auto]">
-              <select className="input" value={inviteRole} onChange={(e) => setInviteRole(e.target.value as InviteCodeRow["allowed_role"])}>
-                {roleOptions.map((role) => (
-                  <option key={role} value={role}>{role}</option>
-                ))}
-              </select>
-              <TextInput placeholder="Ghi chú nội bộ (tuỳ chọn)" value={inviteNote} onChange={(e) => setInviteNote(e.target.value)} />
-              <button type="button" className="btn btn-primary" onClick={() => void onCreateInvite()} disabled={inviteBusy}>{inviteBusy ? "Đang tạo..." : "Tạo mã"}</button>
-            </div>
+            <div className="md:hidden">
+              <MobileCollapsible summary="Mã mời nhân sự" defaultOpen={inviteRows.length === 0}>
+                <div className="space-y-3">
+                  <InlineField label="Role">
+                    <SelectInput value={inviteRole} onChange={(e) => setInviteRole(e.target.value as InviteCodeRow["allowed_role"])}>
+                      {roleOptions.map((role) => (
+                        <option key={role} value={role}>{role}</option>
+                      ))}
+                    </SelectInput>
+                  </InlineField>
+                  <InlineField label="Ghi chú">
+                    <TextInput placeholder="Ghi chú nội bộ" value={inviteNote} onChange={(e) => setInviteNote(e.target.value)} />
+                  </InlineField>
+                  <button type="button" className="cursor-pointer w-full rounded-2xl bg-rose-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60" onClick={() => void onCreateInvite()} disabled={inviteBusy}>{inviteBusy ? "Đang tạo..." : "Tạo mã"}</button>
 
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {inviteRows.length === 0 ? (
-                <div className="manage-info-box md:col-span-2 xl:col-span-3">Chưa có mã mời nào gần đây.</div>
-              ) : inviteRows.map((invite) => {
-                const expired = new Date(invite.expires_at).getTime() <= Date.now();
-                const used = invite.used_count >= invite.max_uses;
-                const revoked = Boolean(invite.revoked_at);
-                const status = revoked ? "Đã thu hồi" : used ? "Đã dùng" : expired ? "Hết hạn" : "Còn hiệu lực";
-                return (
-                  <div key={invite.id} className="manage-surface-muted space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs text-neutral-400">{invite.allowed_role}</p>
-                        <p className="mt-1 font-mono text-lg font-semibold text-neutral-900">{invite.code}</p>
-                      </div>
-                      <span className="badge-soft">{status}</span>
-                    </div>
-                    <div className="space-y-1 text-sm text-neutral-500">
-                      <p>Hết hạn: {new Date(invite.expires_at).toLocaleString("vi-VN")}</p>
-                      {invite.note ? <p>Ghi chú: {invite.note}</p> : null}
-                    </div>
-                    <div className="flex gap-2">
-                      <button type="button" className="btn btn-outline" onClick={() => navigator.clipboard.writeText(invite.code)}>Copy</button>
-                      {!used && !revoked && !expired ? <button type="button" className="btn btn-outline" onClick={() => void onRevokeInvite(invite.id)}>Thu hồi</button> : null}
-                    </div>
+                  <div className="space-y-2">
+                    {inviteRows.length === 0 ? (
+                      <div className="manage-info-box">Chưa có mã mời nào gần đây.</div>
+                    ) : inviteRows.map((invite) => {
+                      const expired = new Date(invite.expires_at).getTime() <= Date.now();
+                      const used = invite.used_count >= invite.max_uses;
+                      const revoked = Boolean(invite.revoked_at);
+                      const status = revoked ? "Đã thu hồi" : used ? "Đã dùng" : expired ? "Hết hạn" : "Còn hiệu lực";
+                      return (
+                        <div key={invite.id} className="rounded-2xl border border-neutral-200 bg-white p-2.5">
+                          <div className="flex items-start justify-between gap-2.5">
+                            <div className="min-w-0">
+                              <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-400">{invite.allowed_role}</div>
+                              <div className="mt-1 font-mono text-sm font-semibold text-neutral-900">{invite.code}</div>
+                            </div>
+                            <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-semibold text-neutral-700">{status}</span>
+                          </div>
+                          <div className="mt-2 text-[11px] text-neutral-500">{new Date(invite.expires_at).toLocaleString("vi-VN")}</div>
+                          <div className="mt-2 flex gap-2">
+                            <button type="button" className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700" onClick={() => navigator.clipboard.writeText(invite.code)}>Copy</button>
+                            {!used && !revoked && !expired ? <button type="button" className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700" onClick={() => void onRevokeInvite(invite.id)}>Thu hồi</button> : null}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                </div>
+              </MobileCollapsible>
             </div>
           </div>
         ) : null}
 
-        <div className="manage-surface md:p-6">
-          <div className="mb-5 flex items-center justify-between gap-3">
+        <section ref={listSectionRef} className="manage-surface space-y-3 p-4 md:p-5">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-neutral-900">Danh sách nhân sự</h3>
+              <h3 className="text-sm font-semibold text-neutral-900">Danh sách nhân sự</h3>
+              <p className="text-xs text-neutral-500">Ưu tiên xem nhanh tên, role và sửa inline khi cần.</p>
             </div>
-            {!canManage ? (
-              <div className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-600">Chế độ chỉ xem</div>
-            ) : null}
+            <div className="w-full md:w-[280px]">
+              <TextInput placeholder="Tìm theo tên, user hoặc role" value={search} onChange={(e) => setSearch(e.target.value)} className="py-2.5 text-sm" />
+            </div>
           </div>
 
           {loading ? (
             <p className="text-sm text-neutral-500">Đang tải nhân sự...</p>
-          ) : rows.length === 0 ? (
+          ) : filteredRows.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-neutral-200 bg-neutral-50 px-4 py-8 text-center text-sm text-neutral-500">
-              Chưa có dữ liệu nhân sự.
+              {rows.length === 0 ? "Chưa có dữ liệu nhân sự." : "Không có nhân sự khớp bộ lọc hiện tại."}
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {rows.map((m) => {
+            <div className="space-y-2">
+              {filteredRows.map((m) => {
                 const isEditing = editingUserId === m.user_id;
                 return (
-                  <div key={m.id} className="manage-surface-muted">
-                    <div className="mb-4 flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h4 className="text-lg font-semibold text-neutral-900">{m.display_name || m.user_id}</h4>
-                          <span className="rounded-full bg-rose-100 px-2.5 py-1 text-[11px] font-semibold text-rose-700">{m.role}</span>
+                  <div key={m.id} className="rounded-2xl border border-neutral-200 bg-white p-2.5">
+                    <div className="flex items-start justify-between gap-2.5">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <h4 className="text-sm font-semibold leading-5 text-neutral-900">{m.display_name || m.user_id}</h4>
+                          <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-700">{m.role}</span>
                         </div>
-                        <p className="mt-1 text-xs text-neutral-400">row id: {m.id}</p>
+                        <p className="mt-0.5 line-clamp-1 text-[11px] text-neutral-400">{m.email || m.user_id}</p>
                       </div>
+
+                      {canManage ? isEditing ? (
+                        <div className="flex gap-2">
+                          <button className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700" type="button" onClick={() => setEditingUserId(null)}>
+                            Huỷ
+                          </button>
+                          <button className="cursor-pointer rounded-xl bg-rose-500 px-3 py-2 text-xs font-semibold text-white transition hover:bg-rose-600" type="button" onClick={() => void onSaveName(m.user_id)}>
+                            Lưu
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
+                          onClick={() => {
+                            setEditingUserId(m.user_id);
+                            setEditingName(m.display_name || "");
+                          }}
+                        >
+                          Sửa tên
+                        </button>
+                      ) : null}
                     </div>
 
                     {isEditing ? (
-                      <div className="space-y-4">
-                        <div>
-                          <FieldLabel>Tên hiển thị</FieldLabel>
+                      <div className="mt-3 space-y-2 rounded-2xl bg-neutral-50 p-3">
+                        <InlineField label="Tên">
                           <TextInput value={editingName} onChange={(e) => setEditingName(e.target.value)} />
-                        </div>
-                        <div className="flex gap-2">
-                          <button className="flex-1 rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50" type="button" onClick={() => setEditingUserId(null)}>
-                            Huỷ
-                          </button>
-                          <button className="flex-1 rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-600" type="button" onClick={() => void onSaveName(m.user_id)}>
-                            Lưu tên
-                          </button>
-                        </div>
+                        </InlineField>
                       </div>
-                    ) : (
-                      <div className="space-y-4">
-                        <div className="rounded-2xl bg-white p-4 shadow-sm">
-                          <p className="manage-stat-label">Vai trò</p>
-                          <div className="mt-3">
-                            {canManage && m.role !== "OWNER" ? (
-                              <select
-                                value={m.role}
-                                onChange={(e) => void onChangeRole(m.id, e.target.value as AppRole)}
-                                className="w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-rose-300 focus:ring-4 focus:ring-rose-100"
-                              >
-                                {roleOptions.map((r) => (
-                                  <option key={r} value={r}>
-                                    {r}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <p className="text-base font-semibold text-neutral-900">{m.role}</p>
-                            )}
-                          </div>
-                        </div>
+                    ) : null}
 
-                        {canManage && (
-                          <button
-                            type="button"
-                            className="w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
-                            onClick={() => {
-                              setEditingUserId(m.user_id);
-                              setEditingName(m.display_name || "");
-                            }}
-                          >
-                            Sửa tên hiển thị
-                          </button>
-                        )}
-                      </div>
-                    )}
+                    <div className="mt-2 flex flex-wrap gap-1 text-[11px]">
+                      <div className="rounded-full bg-neutral-100 px-2 py-1 text-neutral-700">{m.role}</div>
+                      {canManage && m.role !== "OWNER" ? (
+                        <div className="min-w-[180px]">
+                          <SelectInput value={m.role} onChange={(e) => void onChangeRole(m.id, e.target.value as AppRole)} className="py-2 text-xs">
+                            {roleOptions.map((r) => (
+                              <option key={r} value={r}>{r}</option>
+                            ))}
+                          </SelectInput>
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 );
               })}
             </div>
           )}
-        </div>
+        </section>
       </div>
     </AppShell>
   );

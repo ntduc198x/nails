@@ -89,12 +89,13 @@ export async function ensureOrgContext(opts?: { force?: boolean }): Promise<OrgC
         org_id: orgId,
         default_branch_id: branchId,
         display_name: (user.user_metadata?.display_name as string | undefined)?.trim() || user.email?.split("@")[0] || "User",
+        email: user.email ?? null,
       });
       if (insertProfileErr) throw insertProfileErr;
     } else if (profile.org_id !== orgId || profile.default_branch_id !== branchId) {
       const { error: updateProfileErr } = await supabase
         .from("profiles")
-        .update({ org_id: orgId, default_branch_id: branchId })
+        .update({ org_id: orgId, default_branch_id: branchId, email: user.email ?? null })
         .eq("user_id", user.id);
       if (updateProfileErr) throw updateProfileErr;
     }

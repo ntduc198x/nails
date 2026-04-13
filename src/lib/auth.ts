@@ -27,6 +27,7 @@ export async function getOrCreateRole(userId: string): Promise<AppRole> {
       org_id: orgId,
       default_branch_id: branchId,
       display_name: (sessionData.session?.user.user_metadata?.display_name as string | undefined)?.trim() || "User",
+      email: sessionData.session?.user.email ?? null,
     });
   }
 
@@ -72,21 +73,30 @@ export async function listUserRoles() {
 
   const rows = data ?? [];
   const ids = [...new Set(rows.map((r) => r.user_id as string))];
-  let profileMap = new Map<string, string>();
+  let profileMap = new Map<string, { display_name: string; email?: string | null }>();
 
   if (ids.length) {
     const { data: profiles, error: profileErr } = await supabase
       .from("profiles")
-      .select("user_id,display_name")
+      .select("user_id,display_name,email")
       .in("user_id", ids);
     if (!profileErr) {
-      profileMap = new Map((profiles ?? []).map((p) => [p.user_id as string, (p.display_name as string | null) || String(p.user_id).slice(0, 8)]));
+      profileMap = new Map(
+        (profiles ?? []).map((p) => [
+          p.user_id as string,
+          {
+            display_name: (p.display_name as string | null) || String(p.user_id).slice(0, 8),
+            email: (p as { email?: string | null }).email ?? null,
+          },
+        ]),
+      );
     }
   }
 
   return rows.map((r) => ({
     ...r,
-    display_name: profileMap.get(r.user_id as string) ?? String(r.user_id).slice(0, 8),
+    display_name: profileMap.get(r.user_id as string)?.display_name ?? String(r.user_id).slice(0, 8),
+    email: profileMap.get(r.user_id as string)?.email ?? null,
   }));
 }
 
