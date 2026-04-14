@@ -105,9 +105,9 @@ export default function ServicesPage() {
   const [uploadingCreateImage, setUploadingCreateImage] = useState(false);
   const [uploadingEditImage, setUploadingEditImage] = useState(false);
   const [search, setSearch] = useState("");
-  const [mobileCreateOpen] = useState(false);
-  const [mobileListOpen] = useState(false);
-  const [mobileTrashOpen] = useState(false);
+  const [mobileCreateOpen, setMobileCreateOpen] = useState(false);
+  const [mobileListOpen, setMobileListOpen] = useState(false);
+  const [mobileTrashOpen, setMobileTrashOpen] = useState(false);
 
   const [createForm, setCreateForm] = useState<ServiceFormState>(emptyCreateForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -315,6 +315,11 @@ export default function ServicesPage() {
     }
   }
 
+  function openListSection() {
+    setMobileListOpen(true);
+    requestAnimationFrame(() => listSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
   async function deleteForever(row: ServiceRow) {
     if (!canEdit || submitting) return;
     const ok = window.confirm(`Xóa vĩnh viễn dịch vụ "${row.name}"? Hành động này không thể hoàn tác.`);
@@ -355,7 +360,7 @@ export default function ServicesPage() {
         <section className="manage-surface space-y-3 p-4">
           <div className="flex items-center justify-between gap-3">
             <h3 className="text-sm font-semibold text-neutral-900">Điều hướng nhanh</h3>
-            <button type="button" onClick={() => requestAnimationFrame(() => listSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }))} className="cursor-pointer rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700">
+            <button type="button" onClick={openListSection} className="cursor-pointer rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700">
               Danh sách dịch vụ
             </button>
           </div>
@@ -445,7 +450,7 @@ export default function ServicesPage() {
           </div>
 
           <div className="md:hidden">
-            <MobileCollapsible summary="Thêm dịch vụ mới" defaultOpen={mobileCreateOpen || !rows.length}>
+            <MobileCollapsible summary="Thêm dịch vụ mới" open={!rows.length ? true : mobileCreateOpen} onToggle={setMobileCreateOpen}>
               <form onSubmit={onSubmit} className="space-y-2.5">
                 <div className="grid grid-cols-[minmax(0,1fr)_96px_78px] gap-2">
                   <TextInput placeholder="Tên dịch vụ" value={createForm.name} onChange={(e) => setCreateForm((prev) => ({ ...prev, name: e.target.value }))} required />
@@ -607,7 +612,7 @@ export default function ServicesPage() {
           </div>
 
           <div className="md:hidden">
-            <MobileCollapsible summary={<div className="flex items-center justify-between gap-3 pr-2"><span>Danh sách dịch vụ</span><span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[10px] font-medium text-neutral-700">{filteredRows.length}</span></div>} defaultOpen={mobileListOpen}>
+            <MobileCollapsible summary={<div className="flex items-center justify-between gap-3 pr-2"><span>Danh sách dịch vụ</span><span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[10px] font-medium text-neutral-700">{filteredRows.length}</span></div>} open={mobileListOpen} onToggle={setMobileListOpen}>
               <div className="space-y-2.5">
                 <TextInput placeholder="Tìm tên hoặc mô tả" value={search} onChange={(e) => setSearch(e.target.value)} className="py-2 text-sm" />
                 {loading ? (
@@ -758,7 +763,7 @@ export default function ServicesPage() {
           </div>
 
           <div className="md:hidden">
-            <MobileCollapsible summary={<div className="flex items-center justify-between gap-3 pr-2"><span>Thùng rác</span><span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[10px] font-medium text-neutral-700">{trashedRows.length}</span></div>} defaultOpen={mobileTrashOpen}>
+            <MobileCollapsible summary={<div className="flex items-center justify-between gap-3 pr-2"><span>Thùng rác</span><span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[10px] font-medium text-neutral-700">{trashedRows.length}</span></div>} open={mobileTrashOpen} onToggle={setMobileTrashOpen}>
               <div className="space-y-1.5">
                 {trashedRows.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-neutral-200 bg-neutral-50 px-4 py-6 text-center text-sm text-neutral-500">
@@ -806,7 +811,7 @@ export default function ServicesPage() {
         </button>
         <button
           type="button"
-          onClick={() => requestAnimationFrame(() => listSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }))}
+          onClick={openListSection}
           className="flex-1 rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white shadow-sm"
         >
           Danh sách
