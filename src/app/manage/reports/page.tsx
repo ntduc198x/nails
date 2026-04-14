@@ -250,27 +250,28 @@ export default function ReportsPage() {
             <button className="cursor-pointer rounded-full border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700" onClick={exportExcel}>Xuất Excel</button>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <div className="grid grid-cols-4 gap-2">
             <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
-              <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500">Bill</div>
+              <div className="text-[10px] tracking-[0.04em] text-neutral-500">Bill</div>
               <div className="mt-1 text-sm font-semibold text-neutral-900">{summary.count}</div>
             </div>
             <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
-              <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500">Subtotal</div>
+              <div className="text-[10px] tracking-[0.04em] text-neutral-500">Subtotal</div>
               <div className="mt-1 text-sm font-semibold text-neutral-900">{formatVnd(summary.subtotal)}</div>
             </div>
             <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
-              <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500">VAT</div>
+              <div className="text-[10px] tracking-[0.04em] text-neutral-500">VAT</div>
               <div className="mt-1 text-sm font-semibold text-neutral-900">{formatVnd(summary.vat)}</div>
             </div>
             <div className="rounded-2xl bg-[var(--color-primary)] px-3 py-2.5 text-white">
-              <div className="text-[10px] uppercase tracking-[0.08em] text-white/80">Doanh thu</div>
+              <div className="text-[10px] tracking-[0.04em] text-white/80">Doanh thu</div>
               <div className="mt-1 text-sm font-semibold">{formatVnd(summary.revenue)}</div>
             </div>
           </div>
 
-          <div className="hidden md:grid md:gap-2 md:grid-cols-[180px_repeat(5,minmax(0,1fr))]">
-            <select className="input py-2.5" value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}>
+          <div className="hidden md:grid md:items-center md:gap-2 md:grid-cols-[88px_180px_repeat(4,minmax(0,1fr))_auto]">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-500">Kiểu</div>
+            <select className="input py-2.5 text-sm" value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}>
               <option value="day">Theo ngày</option>
               <option value="week">Theo tuần</option>
               <option value="month">Theo tháng</option>
@@ -278,26 +279,26 @@ export default function ReportsPage() {
             </select>
 
             <div className="grid grid-cols-2 gap-2 md:contents">
-              {rangeMode === "day" && <input className="input py-2.5 col-span-2 md:col-span-1" type="date" value={dayValue} onChange={(e) => setDayValue(e.target.value)} />}
-              {rangeMode === "week" && <input className="input py-2.5 col-span-2 md:col-span-1" type="date" value={weekAnchor} onChange={(e) => setWeekAnchor(e.target.value)} />}
+              {rangeMode === "day" && <input className="input py-2.5 text-sm col-span-2 md:col-span-1" type="date" value={dayValue} onChange={(e) => setDayValue(e.target.value)} />}
+              {rangeMode === "week" && <input className="input py-2.5 text-sm col-span-2 md:col-span-1" type="date" value={weekAnchor} onChange={(e) => setWeekAnchor(e.target.value)} />}
               {rangeMode === "month" && (
                 <>
-                  <select className="input py-2.5" value={monthValue} onChange={(e) => setMonthValue(e.target.value)}>
+                  <select className="input py-2.5 text-sm" value={monthValue} onChange={(e) => setMonthValue(e.target.value)}>
                     {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={String(m)}>{`Tháng ${m}`}</option>)}
                   </select>
-                  <input className="input py-2.5" type="number" value={yearValue} onChange={(e) => setYearValue(e.target.value)} />
+                  <input className="input py-2.5 text-sm" type="number" value={yearValue} onChange={(e) => setYearValue(e.target.value)} />
                 </>
               )}
               {rangeMode === "custom" && (
                 <>
-                  <input className="input py-2.5" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-                  <input className="input py-2.5" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+                  <input className="input py-2.5 text-sm" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+                  <input className="input py-2.5 text-sm" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
                 </>
               )}
             </div>
 
             <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 md:contents">
-              <select className="input py-2.5" value={staffFilter} onChange={(e) => setStaffFilter(e.target.value)}>
+              <select className="input py-2.5 text-sm" value={staffFilter} onChange={(e) => setStaffFilter(e.target.value)}>
                 <option value="ALL">Tất cả nhân viên</option>
                 {staffRevenue.map((row) => <option key={row.staffUserId} value={row.staffUserId}>{row.staff}</option>)}
               </select>
@@ -306,46 +307,46 @@ export default function ReportsPage() {
           </div>
 
           <div className="space-y-2 md:hidden">
-            <div className="grid grid-cols-2 gap-2">
-              <button className="cursor-pointer rounded-2xl border border-neutral-200 bg-white px-3 py-2.5 text-sm font-medium text-neutral-700" onClick={() => setMobileFilterOpen((v) => !v)}>
-                {mobileFilterOpen ? "Ẩn bộ lọc" : "Bộ lọc nhanh"}
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
+              <button className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700" onClick={() => setMobileFilterOpen((v) => !v)}>
+                {mobileFilterOpen ? "Ẩn lọc" : "Bộ lọc"}
               </button>
-              <button className="cursor-pointer rounded-2xl border border-neutral-200 bg-white px-3 py-2.5 text-sm font-medium text-neutral-700" onClick={() => ticketsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+              <button className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700" onClick={() => ticketsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>
                 Xem bill
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-[11px] text-neutral-600">
-              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2">{rangeMode === "day" ? "Theo ngày" : rangeMode === "week" ? "Theo tuần" : rangeMode === "month" ? "Theo tháng" : "Tùy chỉnh"}</div>
-              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-right">{staffFilter === "ALL" ? "Tất cả NV" : (staffNameMap.get(staffFilter) ?? "1 NV")}</div>
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 text-[10px] text-neutral-600">
+              <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-1.5">{rangeMode === "day" ? "Theo ngày" : rangeMode === "week" ? "Theo tuần" : rangeMode === "month" ? "Theo tháng" : "Tùy chỉnh"}</div>
+              <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-right">{staffFilter === "ALL" ? "Tất cả NV" : (staffNameMap.get(staffFilter) ?? "1 NV")}</div>
             </div>
             {mobileFilterOpen ? (
-              <div className="space-y-2 rounded-2xl border border-neutral-200 bg-neutral-50 p-2.5">
-                <select className="input py-2.5" value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}>
+              <div className="space-y-2 rounded-xl border border-neutral-200 bg-neutral-50 p-2">
+                <select className="input py-2.5 text-sm" value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}>
                   <option value="day">Theo ngày</option>
                   <option value="week">Theo tuần</option>
                   <option value="month">Theo tháng</option>
                   <option value="custom">Tùy chỉnh</option>
                 </select>
                 <div className="grid grid-cols-2 gap-2">
-                  {rangeMode === "day" && <input className="input col-span-2 py-2.5" type="date" value={dayValue} onChange={(e) => setDayValue(e.target.value)} />}
-                  {rangeMode === "week" && <input className="input col-span-2 py-2.5" type="date" value={weekAnchor} onChange={(e) => setWeekAnchor(e.target.value)} />}
+                  {rangeMode === "day" && <input className="input col-span-2 py-2.5 text-sm" type="date" value={dayValue} onChange={(e) => setDayValue(e.target.value)} />}
+                  {rangeMode === "week" && <input className="input col-span-2 py-2.5 text-sm" type="date" value={weekAnchor} onChange={(e) => setWeekAnchor(e.target.value)} />}
                   {rangeMode === "month" && (
                     <>
-                      <select className="input py-2.5" value={monthValue} onChange={(e) => setMonthValue(e.target.value)}>
+                      <select className="input py-2.5 text-sm" value={monthValue} onChange={(e) => setMonthValue(e.target.value)}>
                         {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={String(m)}>{`Tháng ${m}`}</option>)}
                       </select>
-                      <input className="input py-2.5" type="number" value={yearValue} onChange={(e) => setYearValue(e.target.value)} />
+                      <input className="input py-2.5 text-sm" type="number" value={yearValue} onChange={(e) => setYearValue(e.target.value)} />
                     </>
                   )}
                   {rangeMode === "custom" && (
                     <>
-                      <input className="input py-2.5" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-                      <input className="input py-2.5" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+                      <input className="input py-2.5 text-sm" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+                      <input className="input py-2.5 text-sm" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
                     </>
                   )}
                 </div>
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-                  <select className="input py-2.5" value={staffFilter} onChange={(e) => setStaffFilter(e.target.value)}>
+                  <select className="input py-2.5 text-sm" value={staffFilter} onChange={(e) => setStaffFilter(e.target.value)}>
                     <option value="ALL">Tất cả nhân viên</option>
                     {staffRevenue.map((row) => <option key={row.staffUserId} value={row.staffUserId}>{row.staff}</option>)}
                   </select>
@@ -406,7 +407,7 @@ export default function ReportsPage() {
                       </div>
                       <div className="mt-1 flex flex-wrap gap-1 text-[10px] text-neutral-700 md:mt-1.5 md:text-[11px]">
                         <span className="rounded-full bg-neutral-100 px-2 py-0.5">{t.status}</span>
-                        <span className="rounded-full bg-neutral-100 px-2 py-0.5">Sub {formatVnd(Number(t.totals_json?.subtotal ?? 0))}</span>
+                        <span className="rounded-full bg-neutral-100 px-2 py-0.5">{formatVnd(Number(t.totals_json?.subtotal ?? 0))}</span>
                         <span className="rounded-full bg-neutral-100 px-2 py-0.5">VAT {formatVnd(Number(t.totals_json?.vat_total ?? 0))}</span>
                         <Link className="rounded-full border border-neutral-200 bg-white px-2 py-0.5 font-medium text-neutral-800" href={`/manage/reports/${t.id}`}>Chi tiết</Link>
                       </div>

@@ -86,7 +86,7 @@ function QueueCard({
             <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${statusTone(row.status, isExpiredBookingRequest(row))}`}>{statusLabel(row.status, isExpiredBookingRequest(row))}</span>
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-neutral-500 md:text-xs">
-            <span>{row.customer_phone}</span>
+            <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[12px] font-extrabold tracking-[0.02em] text-emerald-800 md:text-xs">{row.customer_phone}</span>
             <span>•</span>
             <span>{row.source === "landing_page" ? "Online" : row.source ?? "-"}</span>
           </div>
@@ -280,6 +280,7 @@ export default function BookingRequestsPage() {
   }
 
   const compactHeader = refreshing ? "Đang làm mới..." : `${rows.length} request`;
+  const canHandleRequest = role === "OWNER" || role === "MANAGER" || role === "RECEPTION" || role === "TECH";
   const selectionMeta = selectedRow
     ? `${selectedRow.customer_name} · ${selectedRow.status === "NEEDS_RESCHEDULE" ? (isExpiredBookingRequest(selectedRow) ? "Quá giờ" : "Trùng lịch") : "Mới"}`
     : "Chọn request để xử lý";
@@ -375,7 +376,7 @@ export default function BookingRequestsPage() {
                         <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${statusTone(selectedRow.status, isExpiredBookingRequest(selectedRow))}`}>{statusLabel(selectedRow.status, isExpiredBookingRequest(selectedRow))}</span>
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-neutral-500 md:text-xs">
-                        <span>{selectedRow.customer_phone}</span>
+                        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[12px] font-extrabold tracking-[0.02em] text-emerald-800 md:text-xs">{selectedRow.customer_phone}</span>
                         <span>•</span>
                         <span>{selectedRow.source === "landing_page" ? "Online" : selectedRow.source ?? "-"}</span>
                       </div>
@@ -448,19 +449,19 @@ export default function BookingRequestsPage() {
 
                 <div className="flex flex-wrap gap-1.5">
                   {selectedRow.status === "NEW" ? (
-                    <button type="button" className="cursor-pointer rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed md:px-3.5 md:py-2.5 md:text-sm" disabled={submitting} onClick={() => void onMarkNeedsReschedule(selectedRow.id)}>
+                    <button type="button" className="cursor-pointer rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed md:px-3.5 md:py-2.5 md:text-sm" disabled={submitting || !canHandleRequest} onClick={() => void onMarkNeedsReschedule(selectedRow.id)}>
                       Đánh dấu cần dời
                     </button>
                   ) : null}
 
                   {selectedRow.status !== "CONVERTED" && selectedRow.status !== "CANCELLED" ? (
-                    <button type="button" className="cursor-pointer rounded-2xl bg-[var(--color-primary)] px-3 py-2 text-xs font-semibold text-white shadow-sm ring-1 ring-[var(--color-primary)]/20 transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60 md:px-3.5 md:py-2.5 md:text-sm" disabled={submitting || !bookingAt || !capacityAllowed} onClick={() => void onConvert()}>
+                    <button type="button" className="cursor-pointer rounded-2xl bg-[var(--color-primary)] px-3 py-2 text-xs font-semibold text-white shadow-sm ring-1 ring-[var(--color-primary)]/20 transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60 md:px-3.5 md:py-2.5 md:text-sm" disabled={submitting || !bookingAt || !capacityAllowed || !canHandleRequest} onClick={() => void onConvert()}>
                       {submitting ? "Đang convert..." : selectedRow.status === "NEEDS_RESCHEDULE" ? "Chốt giờ & tạo lịch" : "Tạo lịch"}
                     </button>
                   ) : null}
 
                   {selectedRow.status !== "CANCELLED" && selectedRow.status !== "CONVERTED" ? (
-                    <button type="button" className="cursor-pointer rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 md:px-3.5 md:py-2.5 md:text-sm" disabled={submitting} onClick={() => void onCancel(selectedRow.id)}>
+                    <button type="button" className="cursor-pointer rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 md:px-3.5 md:py-2.5 md:text-sm" disabled={submitting || !canHandleRequest} onClick={() => void onCancel(selectedRow.id)}>
                       Hủy
                     </button>
                   ) : null}

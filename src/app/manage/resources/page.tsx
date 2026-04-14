@@ -27,7 +27,7 @@ function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2.5 text-base md:text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-rose-300 focus:ring-4 focus:ring-rose-100 ${props.className ?? ""}`}
+      className={`w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[16px] md:text-sm text-neutral-900 outline-none transition placeholder:text-[13px] placeholder:text-neutral-400 md:placeholder:text-sm focus:border-rose-300 focus:ring-3 focus:ring-rose-100 ${props.className ?? ""}`}
     />
   );
 }
@@ -36,7 +36,7 @@ function SelectInput(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       {...props}
-      className={`w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2.5 text-base md:text-sm text-neutral-900 outline-none transition focus:border-rose-300 focus:ring-4 focus:ring-rose-100 ${props.className ?? ""}`}
+      className={`w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[16px] md:text-sm text-neutral-900 outline-none transition focus:border-rose-300 focus:ring-3 focus:ring-rose-100 ${props.className ?? ""}`}
     />
   );
 }
@@ -151,17 +151,17 @@ export default function ResourcesPage() {
             <h3 className="text-sm font-semibold text-neutral-900">Điều hướng nhanh</h3>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 gap-2 md:grid-cols-3">
             <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
               <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-neutral-500">Tổng</div>
               <div className="mt-1 text-sm font-semibold text-neutral-900">{rows.length}</div>
             </div>
             <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
-              <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-neutral-500">Đang dùng</div>
+              <div className="text-[10px] font-medium tracking-[0.04em] text-neutral-500">Đang dùng</div>
               <div className="mt-1 text-sm font-semibold text-neutral-900">{activeCount}</div>
             </div>
             <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
-              <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-neutral-500">Ghế</div>
+              <div className="text-[10px] font-medium tracking-[0.04em] text-neutral-500">Ghế</div>
               <div className="mt-1 text-sm font-semibold text-neutral-900">{chairCount}</div>
             </div>
           </div>
@@ -185,7 +185,7 @@ export default function ResourcesPage() {
                   <TextInput placeholder="Ví dụ: Ghế 01" value={name} onChange={(e) => setName(e.target.value)} required />
                 </InlineField>
                 <InlineField label="Loại">
-                  <SelectInput value={type} onChange={(e) => setType(e.target.value as "CHAIR" | "TABLE" | "ROOM")}>
+                  <SelectInput value={type} onChange={(e) => setType(e.target.value as "CHAIR" | "TABLE" | "ROOM")} className="text-[14px] md:text-sm">
                     <option value="CHAIR">Ghế</option>
                     <option value="TABLE">Bàn</option>
                     <option value="ROOM">Phòng</option>
@@ -200,18 +200,16 @@ export default function ResourcesPage() {
 
           <div className="md:hidden">
             <MobileCollapsible summary="Thêm tài nguyên mới" defaultOpen={!rows.length}>
-              <form onSubmit={onSubmit} className="space-y-3">
-                <InlineField label="Tên">
-                  <TextInput placeholder="Ví dụ: Ghế 01" value={name} onChange={(e) => setName(e.target.value)} required />
-                </InlineField>
-                <InlineField label="Loại">
-                  <SelectInput value={type} onChange={(e) => setType(e.target.value as "CHAIR" | "TABLE" | "ROOM")}>
+              <form onSubmit={onSubmit} className="space-y-2.5">
+                <div className="grid grid-cols-[minmax(0,1fr)_112px] gap-2">
+                  <TextInput placeholder="Tên tài nguyên" value={name} onChange={(e) => setName(e.target.value)} required />
+                  <SelectInput value={type} onChange={(e) => setType(e.target.value as "CHAIR" | "TABLE" | "ROOM")} className="text-[14px] md:text-sm">
                     <option value="CHAIR">Ghế</option>
                     <option value="TABLE">Bàn</option>
                     <option value="ROOM">Phòng</option>
                   </SelectInput>
-                </InlineField>
-                <button className="cursor-pointer w-full rounded-2xl bg-rose-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting}>
+                </div>
+                <button className="cursor-pointer w-full rounded-xl bg-rose-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting}>
                   {submitting ? "Đang thêm..." : "Thêm tài nguyên"}
                 </button>
               </form>
@@ -223,10 +221,10 @@ export default function ResourcesPage() {
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
               <h3 className="text-sm font-semibold text-neutral-900">Danh sách tài nguyên</h3>
-              <p className="text-xs text-neutral-500">Ưu tiên quét nhanh tên, loại, trạng thái và sửa inline khi cần.</p>
+              <p className="text-xs text-neutral-500">Quét nhanh tên, loại, trạng thái rồi sửa inline khi cần.</p>
             </div>
             <div className="w-full md:w-[260px]">
-              <TextInput placeholder="Tìm theo tên hoặc loại" value={search} onChange={(e) => setSearch(e.target.value)} className="py-2.5 text-sm" />
+              <TextInput placeholder="Tìm tên hoặc loại" value={search} onChange={(e) => setSearch(e.target.value)} className="py-2.5 text-sm" />
             </div>
           </div>
 
@@ -246,9 +244,8 @@ export default function ResourcesPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <h4 className="text-sm font-semibold leading-5 text-neutral-900">{isEditing ? editName : r.name}</h4>
-                          <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-semibold text-neutral-700">{isEditing ? typeLabel(editType) : typeLabel(r.type)}</span>
                           <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${(isEditing ? editActive : r.active) ? "bg-emerald-100 text-emerald-700" : "bg-neutral-200 text-neutral-600"}`}>
-                            {(isEditing ? editActive : r.active) ? "ĐANG DÙNG" : "TẠM ẨN"}
+                            {isEditing ? `${typeLabel(editType)} · ${(editActive ? "Đang dùng" : "Tạm ẩn")}` : `${typeLabel(r.type)} · ${(r.active ? "Đang dùng" : "Tạm ẩn")}`}
                           </span>
                         </div>
                       </div>
@@ -275,7 +272,7 @@ export default function ResourcesPage() {
                           <TextInput value={editName} onChange={(e) => setEditName(e.target.value)} />
                         </InlineField>
                         <InlineField label="Loại">
-                          <SelectInput value={editType} onChange={(e) => setEditType(e.target.value as "CHAIR" | "TABLE" | "ROOM")}>
+                          <SelectInput value={editType} onChange={(e) => setEditType(e.target.value as "CHAIR" | "TABLE" | "ROOM")} className="text-[14px] md:text-sm">
                             <option value="CHAIR">Ghế</option>
                             <option value="TABLE">Bàn</option>
                             <option value="ROOM">Phòng</option>
@@ -286,12 +283,7 @@ export default function ResourcesPage() {
                           Tài nguyên đang hoạt động
                         </label>
                       </div>
-                    ) : (
-                      <div className="mt-2 flex flex-wrap gap-1 text-[11px]">
-                        <div className="rounded-full bg-neutral-100 px-2 py-1 text-neutral-700">{typeLabel(r.type)}</div>
-                        <div className="rounded-full bg-neutral-100 px-2 py-1 text-neutral-700">{r.active ? "Đang dùng" : "Tạm ẩn"}</div>
-                      </div>
-                    )}
+                    ) : null}
                   </div>
                 );
               })}

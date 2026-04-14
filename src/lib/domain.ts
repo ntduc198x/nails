@@ -323,19 +323,21 @@ export async function listAppointments(opts?: { force?: boolean }) {
 
   let { data, error } = await supabase
     .from("appointments")
-    .select("id,start_at,end_at,status,staff_user_id,resource_id,customers(name),booking_requests!booking_requests_appointment_id_fkey(id,source)")
+    .select("id,start_at,end_at,status,staff_user_id,resource_id,customers(name,phone),booking_requests!booking_requests_appointment_id_fkey(id,source)")
     .eq("org_id", orgId)
+    .gte("start_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
     .order("start_at", { ascending: true })
-    .limit(50);
+    .limit(300);
 
   if (error && isMissingResourceSchema(error)) {
     resourceSchedulingSupported = false;
     const fallback = await supabase
       .from("appointments")
-      .select("id,start_at,end_at,status,customers(name),booking_requests!booking_requests_appointment_id_fkey(id,source)")
+      .select("id,start_at,end_at,status,customers(name,phone),booking_requests!booking_requests_appointment_id_fkey(id,source)")
       .eq("org_id", orgId)
+      .gte("start_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
       .order("start_at", { ascending: true })
-      .limit(50);
+      .limit(300);
     data = (fallback.data ?? []).map((row) => ({ ...row, staff_user_id: null, resource_id: null }));
     error = fallback.error;
   }

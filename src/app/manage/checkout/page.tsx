@@ -564,7 +564,7 @@ export default function CheckoutPage() {
 
               <div className="hidden md:flex flex-col gap-2">
                 <button disabled={submitting || role === "ACCOUNTANT" || (role === "TECH" && techShiftOpen === false)} className="btn btn-primary w-full cursor-pointer py-3 text-base disabled:cursor-not-allowed">{submitting ? "Đang xử lý..." : "Thanh toán và đóng bill"}</button>
-                {role === "TECH" && techShiftOpen === false && <p className="text-xs text-amber-700">Chưa mở ca, vào Ca làm để chuyển sang ca mới và mở ca trước khi thanh toán.</p>}
+                {role === "TECH" && techShiftOpen === false ? <p className="text-xs text-amber-700">Chưa mở ca, vào Ca làm để chuyển sang ca mới và mở ca trước khi thanh toán.</p> : null}
               </div>
             </div>
           </div>

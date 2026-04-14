@@ -1239,7 +1239,7 @@ begin
     from public.user_roles ur
     where ur.user_id = v_uid
       and ur.org_id = v_org_id
-      and ur.role in ('OWNER','MANAGER','RECEPTION')
+      and ur.role in ('OWNER','MANAGER','RECEPTION','TECH')
   ) into v_allowed;
 
   if not coalesce(v_allowed, false) then

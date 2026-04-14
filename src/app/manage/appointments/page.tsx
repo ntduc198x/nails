@@ -18,7 +18,7 @@ type AppointmentRow = {
   status: string;
   staff_user_id?: string | null;
   resource_id?: string | null;
-  customers?: { name?: string } | { name?: string }[] | null;
+  customers?: { name?: string; phone?: string } | { name?: string; phone?: string }[] | null;
   booking_requests?: { id?: string; source?: string | null } | { id?: string; source?: string | null }[] | null;
 };
 
@@ -100,6 +100,11 @@ function pickCustomerName(customers: AppointmentRow["customers"]) {
   return customers?.name ?? "-";
 }
 
+function pickCustomerPhone(customers: AppointmentRow["customers"]) {
+  if (Array.isArray(customers)) return customers[0]?.phone ?? "";
+  return customers?.phone ?? "";
+}
+
 function pickBookingRequest(row: AppointmentRow) {
   return Array.isArray(row.booking_requests) ? row.booking_requests[0] ?? null : row.booking_requests ?? null;
 }
@@ -144,7 +149,7 @@ function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`w-full cursor-text rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-base md:text-[13px] text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-rose-300 focus:ring-4 focus:ring-rose-100 ${props.className ?? ""}`}
+      className={`w-full cursor-text rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-base md:text-[13px] text-neutral-900 outline-none transition placeholder:text-[13px] placeholder:text-neutral-400 md:placeholder:text-[12px] focus:border-rose-300 focus:ring-4 focus:ring-rose-100 ${props.className ?? ""}`}
     />
   );
 }
@@ -153,7 +158,7 @@ function SelectInput(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       {...props}
-      className={`w-full cursor-pointer rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-base md:text-[13px] text-neutral-900 outline-none transition focus:border-rose-300 focus:ring-4 focus:ring-rose-100 ${props.className ?? ""}`}
+      className={`w-full cursor-pointer rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-[15px] md:text-[13px] text-neutral-900 outline-none transition focus:border-rose-300 focus:ring-4 focus:ring-rose-100 ${props.className ?? ""}`}
     />
   );
 }
@@ -181,22 +186,34 @@ function AppointmentCard({ row, staffName, resourceName, onlineBooked, overdue, 
   criticalCheckedIn: boolean;
   updatingId: string | null;
   onEdit: () => void;
-  onQuickStatus: (id: string, status: "CHECKED_IN" | "CANCELLED" | "NO_SHOW") => Promise<void>;
+  onQuickStatus: (id: string, status: "CHECKED_IN" | "CANCELLED") => Promise<void>;
 }) {
   const customer = pickCustomerName(row.customers);
+  const customerPhone = pickCustomerPhone(row.customers);
 
   return (
     <div className={`rounded-2xl border bg-white p-3 shadow-sm ${overdue ? "border-amber-300 bg-amber-50/40" : criticalCheckedIn ? "border-fuchsia-300 bg-fuchsia-50/40" : staleCheckedIn ? "border-violet-300 bg-violet-50/40" : "border-neutral-200"}`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h4 className="text-sm font-semibold text-neutral-900">{customer}</h4>
-            <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${statusBadge(row.status)}`}>{row.status}</span>
-            {onlineBooked ? <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-700">ONLINE</span> : null}
-            {overdue ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">QUÁ GIỜ</span> : null}
-            {criticalCheckedIn ? <span className="rounded-full bg-fuchsia-100 px-2 py-0.5 text-[11px] font-medium text-fuchsia-700">CHECK-IN RẤT LÂU</span> : staleCheckedIn ? <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-700">CHECK-IN LÂU</span> : null}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h4 className="text-sm font-semibold text-neutral-900">{customer}</h4>
+                {customerPhone ? <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-800">{customerPhone}</span> : null}
+              </div>
+              <p className="mt-1 text-xs text-neutral-500">{onlineBooked ? <><b className="font-semibold text-neutral-700">Web</b>{" · "}</> : null}{new Date(row.start_at).toLocaleString("vi-VN")} · {staffName} · {resourceName}</p>
+            </div>
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              {row.status === "CHECKED_IN"
+                ? criticalCheckedIn
+                  ? <span className="rounded-full bg-fuchsia-100 px-2 py-0.5 text-[11px] font-medium text-fuchsia-700">ĐÃ LÀM RẤT LÂU</span>
+                  : staleCheckedIn
+                    ? <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-700">ĐÃ LÀM LÂU</span>
+                    : <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${statusBadge(row.status)}`}>{row.status}</span>
+                : <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${statusBadge(row.status)}`}>{row.status}</span>}
+              {overdue ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">QUÁ GIỜ</span> : null}
+            </div>
           </div>
-          <p className="mt-1 text-xs text-neutral-500">{new Date(row.start_at).toLocaleString("vi-VN")} · {staffName} · {resourceName}</p>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -204,7 +221,6 @@ function AppointmentCard({ row, staffName, resourceName, onlineBooked, overdue, 
             <>
               <button type="button" className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50" onClick={onEdit}>Sửa</button>
               <button onClick={() => void onQuickStatus(row.id, "CHECKED_IN")} className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60" disabled={!!updatingId}>{updatingId === row.id ? "Đang xử lý..." : "Check-in"}</button>
-              {overdue ? <button onClick={() => void onQuickStatus(row.id, "NO_SHOW")} className="cursor-pointer rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60" disabled={!!updatingId}>{updatingId === row.id ? "Đang xử lý..." : "No-show"}</button> : null}
               <button onClick={() => void onQuickStatus(row.id, "CANCELLED")} className="cursor-pointer rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60" disabled={!!updatingId}>{updatingId === row.id ? "Đang xử lý..." : "Hủy"}</button>
             </>
           )}
@@ -216,8 +232,6 @@ function AppointmentCard({ row, staffName, resourceName, onlineBooked, overdue, 
           )}
           {row.status === "CHECKED_IN" ? (
             <Link href={`/manage/checkout?customer=${encodeURIComponent(customer)}&appointmentId=${row.id}`} className={`cursor-pointer rounded-xl px-3 py-2 text-sm font-semibold text-white transition ${criticalCheckedIn ? "bg-fuchsia-600 hover:bg-fuchsia-700" : "bg-rose-500 hover:bg-rose-600"}`}>{criticalCheckedIn ? "Mở phiếu ngay" : "Mở phiếu"}</Link>
-          ) : row.status === "BOOKED" ? (
-            <span className={`rounded-xl px-3 py-2 text-sm font-medium ${overdue ? "border border-amber-300 bg-amber-100 text-amber-800" : "border border-amber-200 bg-amber-50 text-amber-700"}`}>{overdue ? "Cần xử lý ngay" : "Cần check-in"}</span>
           ) : null}
         </div>
       </div>
@@ -437,7 +451,7 @@ export default function OperationsPage() {
     }
   }
 
-  async function onQuickStatus(id: string, status: "CHECKED_IN" | "CANCELLED" | "NO_SHOW") {
+  async function onQuickStatus(id: string, status: "CHECKED_IN" | "CANCELLED") {
     try {
       setUpdatingId(id);
       setError(null);
@@ -457,7 +471,7 @@ export default function OperationsPage() {
       : staleCheckedInRows.length > 0
         ? `Có ${staleCheckedInRows.length} lịch check-in lâu chưa đóng bill`
       : activeBookedRows.length > 0
-        ? `Có ${activeBookedRows.length} lịch đang chờ check-in`
+        ? `Có ${activeBookedRows.length} lịch đang ở trạng thái booked`
         : pendingCheckoutRows.length > 0
           ? `Có ${pendingCheckoutRows.length} lịch sẵn sàng mở phiếu`
           : "Không có lịch cần xử lý gấp";
@@ -555,30 +569,56 @@ export default function OperationsPage() {
           </section>
 
           <section ref={listRef} className="manage-surface md:p-6 space-y-4">
-            <div className="hidden flex-col gap-3 md:flex">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <button type="button" onClick={() => setShowRangeFilters((v) => !v)} className="w-full cursor-pointer rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-left text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 sm:w-auto">
-                  {showRangeFilters ? "Ẩn khoảng thời gian" : "Hiện khoảng thời gian"}
-                </button>
-                <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-500">{`${filterRange.from.toLocaleDateString("vi-VN")} → ${filterRange.to.toLocaleDateString("vi-VN")}`}</div>
+            <div className="hidden space-y-4 md:block">
+              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-sm font-semibold text-neutral-900">Bộ lọc lịch</div>
+                  <div className="rounded-full bg-white px-3 py-1 text-xs font-medium text-neutral-700">{filteredRows.length} lịch</div>
+                </div>
+                <div className="mt-3 grid gap-2 lg:grid-cols-6">
+                  <button type="button" onClick={() => setStatusFilter("ALL")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "ALL" ? "bg-neutral-900 text-white" : "border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"}`}>Tất cả</button>
+                  <button type="button" onClick={() => setStatusFilter("BOOKED")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "BOOKED" ? "bg-amber-500 text-white" : "border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"}`}>Booked</button>
+                  <button type="button" onClick={() => setStatusFilter("OVERDUE")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "OVERDUE" ? "bg-red-600 text-white" : "border border-red-200 bg-red-50 text-red-800 hover:bg-red-100"}`}>Quá giờ</button>
+                  <button type="button" onClick={() => setStatusFilter("STALE_CHECKED_IN")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "STALE_CHECKED_IN" ? "bg-violet-600 text-white" : "border border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100"}`}>Check-in lâu</button>
+                  <button type="button" onClick={() => setStatusFilter("CHECKED_IN")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "CHECKED_IN" ? "bg-blue-600 text-white" : "border border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100"}`}>Chờ thanh toán</button>
+                  <button type="button" onClick={() => setStatusFilter("DONE")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "DONE" ? "bg-emerald-600 text-white" : "border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"}`}>Đã xong</button>
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-[180px_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-center">
+                  <div className="grid grid-cols-[92px_minmax(0,1fr)] items-center gap-2">
+                    <FieldLabel className="mb-0">Khoảng TG</FieldLabel>
+                    <SelectInput value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)} className="py-2"><option value="day">Trong ngày</option><option value="week">Trong tuần</option><option value="month">Trong tháng</option><option value="custom">Tùy chỉnh</option></SelectInput>
+                  </div>
+                  <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
+                    <FieldLabel className="mb-0">Từ ngày</FieldLabel>
+                    <TextInput className="py-2" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} disabled={rangeMode !== "custom"} />
+                  </div>
+                  <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
+                    <FieldLabel className="mb-0">Đến ngày</FieldLabel>
+                    <TextInput className="py-2" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} disabled={rangeMode !== "custom"} />
+                  </div>
+                  <div className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm text-neutral-500">{`${filterRange.from.toLocaleDateString("vi-VN")} → ${filterRange.to.toLocaleDateString("vi-VN")}`}</div>
+                </div>
               </div>
 
-              {showRangeFilters ? (
-                <div className="grid gap-3 md:grid-cols-3">
-                  <div>
-                    <FieldLabel>Khoảng thời gian</FieldLabel>
-                    <SelectInput value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}><option value="day">Trong ngày</option><option value="week">Trong tuần</option><option value="month">Trong tháng</option><option value="custom">Tùy chỉnh</option></SelectInput>
-                  </div>
-                  <div>
-                    <FieldLabel>Từ ngày</FieldLabel>
-                    <TextInput type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} disabled={rangeMode !== "custom"} />
-                  </div>
-                  <div>
-                    <FieldLabel>Đến ngày</FieldLabel>
-                    <TextInput type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} disabled={rangeMode !== "custom"} />
-                  </div>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold text-neutral-900 md:text-base">Chi tiết lịch</h3>
+                  <div className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">{filteredRows.length} lịch</div>
                 </div>
-              ) : null}
+                {loading ? <p className="text-sm text-neutral-500">Đang tải lịch hẹn...</p> : filteredRows.length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 bg-neutral-50 px-4 py-8 text-center text-sm text-neutral-500">Chưa có lịch hẹn nào trong bộ lọc hiện tại.</div> : (
+                  <div className="space-y-4">
+                    {filteredRows.map((a) => {
+                      const customer = pickCustomerName(a.customers);
+                      const staff = staffOptions.find((s) => s.userId === a.staff_user_id)?.name ?? "-";
+                      const resource = resourceOptions.find((r) => r.id === (a.resource_id ?? ""))?.name ?? "-";
+                      const overdue = isOverdueBooked(a);
+                      const staleCheckedIn = isStaleCheckedIn(a);
+                      const criticalCheckedIn = isCriticalCheckedIn(a);
+                      return <AppointmentCard key={`desktop-${a.id}`} row={a} staffName={staff} resourceName={resource} onlineBooked={isOnlineBooked(a)} overdue={overdue} staleCheckedIn={staleCheckedIn} criticalCheckedIn={criticalCheckedIn} updatingId={updatingId} onEdit={() => { setEditingId(a.id); setCustomerName(customer); setAutoTime(false); setBookingAt(rebaseDateTimeToToday(a.start_at)); setStaffUserId(a.staff_user_id ?? ""); setResourceId(a.resource_id ?? ""); requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }} onQuickStatus={onQuickStatus} />;
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="md:hidden space-y-3">
@@ -586,25 +626,25 @@ export default function OperationsPage() {
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-2">
                     <button type="button" onClick={() => openFilteredDetails("ALL")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "ALL" ? "bg-neutral-900 text-white" : "border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"}`}>Tất cả</button>
-                    <button type="button" onClick={() => openFilteredDetails("BOOKED")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "BOOKED" ? "bg-amber-500 text-white" : "border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"}`}>Check-in</button>
+                    <button type="button" onClick={() => openFilteredDetails("BOOKED")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "BOOKED" ? "bg-amber-500 text-white" : "border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"}`}>Booked</button>
                     <button type="button" onClick={() => openFilteredDetails("OVERDUE")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "OVERDUE" ? "bg-red-600 text-white" : "border border-red-200 bg-red-50 text-red-800 hover:bg-red-100"}`}>Quá giờ</button>
                     <button type="button" onClick={() => openFilteredDetails("STALE_CHECKED_IN")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "STALE_CHECKED_IN" ? "bg-violet-600 text-white" : "border border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100"}`}>Check-in lâu</button>
                     <button type="button" onClick={() => openFilteredDetails("CHECKED_IN")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "CHECKED_IN" ? "bg-blue-600 text-white" : "border border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100"}`}>Chờ thanh toán</button>
                     <button type="button" onClick={() => openFilteredDetails("DONE")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "DONE" ? "bg-emerald-600 text-white" : "border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"}`}>Đã xong</button>
                   </div>
                   <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-500">{`${filterRange.from.toLocaleDateString("vi-VN")} → ${filterRange.to.toLocaleDateString("vi-VN")}`}</div>
-                  <div className="grid gap-3">
-                    <div>
-                      <FieldLabel>Khoảng thời gian</FieldLabel>
-                      <SelectInput value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}><option value="day">Trong ngày</option><option value="week">Trong tuần</option><option value="month">Trong tháng</option><option value="custom">Tùy chỉnh</option></SelectInput>
+                  <div className="grid gap-2">
+                    <div className="grid grid-cols-[84px_minmax(0,1fr)] items-center gap-2">
+                      <FieldLabel className="mb-0">Khoảng TG</FieldLabel>
+                      <SelectInput value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)} className="py-2 text-sm"><option value="day">Trong ngày</option><option value="week">Trong tuần</option><option value="month">Trong tháng</option><option value="custom">Tùy chỉnh</option></SelectInput>
                     </div>
-                    <div>
-                      <FieldLabel>Từ ngày</FieldLabel>
-                      <TextInput type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} disabled={rangeMode !== "custom"} />
+                    <div className="grid grid-cols-[84px_minmax(0,1fr)] items-center gap-2">
+                      <FieldLabel className="mb-0">Từ ngày</FieldLabel>
+                      <TextInput className="py-2 text-sm" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} disabled={rangeMode !== "custom"} />
                     </div>
-                    <div>
-                      <FieldLabel>Đến ngày</FieldLabel>
-                      <TextInput type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} disabled={rangeMode !== "custom"} />
+                    <div className="grid grid-cols-[84px_minmax(0,1fr)] items-center gap-2">
+                      <FieldLabel className="mb-0">Đến ngày</FieldLabel>
+                      <TextInput className="py-2 text-sm" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} disabled={rangeMode !== "custom"} />
                     </div>
                   </div>
                 </div>

@@ -38,7 +38,7 @@ function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2.5 text-base md:text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-rose-300 focus:ring-4 focus:ring-rose-100 ${props.className ?? ""}`}
+      className={`w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[16px] md:text-sm text-neutral-900 outline-none transition placeholder:text-[13px] placeholder:text-neutral-400 md:placeholder:text-sm focus:border-rose-300 focus:ring-3 focus:ring-rose-100 ${props.className ?? ""}`}
     />
   );
 }
@@ -47,7 +47,7 @@ function TextArea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
       {...props}
-      className={`w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2.5 text-base md:text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-rose-300 focus:ring-4 focus:ring-rose-100 ${props.className ?? ""}`}
+      className={`w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[16px] md:text-sm text-neutral-900 outline-none transition placeholder:text-[13px] placeholder:text-neutral-400 md:placeholder:text-sm focus:border-rose-300 focus:ring-3 focus:ring-rose-100 ${props.className ?? ""}`}
     />
   );
 }
@@ -306,7 +306,7 @@ export default function ServicesPage() {
             <h3 className="text-sm font-semibold text-neutral-900">Điều hướng nhanh</h3>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 gap-2 md:grid-cols-3">
             <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
               <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-neutral-500">Tổng</div>
               <div className="mt-1 text-sm font-semibold text-neutral-900">{rows.length}</div>
@@ -346,10 +346,10 @@ export default function ServicesPage() {
                   <TextInput placeholder="Luxury Gel" value={name} onChange={(e) => setName(e.target.value)} required />
                 </InlineField>
                 <InlineField label="Giá" compact>
-                  <TextInput type="number" min={0} value={price} onChange={(e) => setPrice(Number(e.target.value))} required />
+                  <TextInput inputMode="numeric" pattern="[0-9]*" value={price ? String(price) : ""} onChange={(e) => setPrice(Number(e.target.value.replace(/\D/g, "") || 0))} required placeholder="Giá" />
                 </InlineField>
                 <InlineField label="Phút" compact>
-                  <TextInput type="number" min={5} value={duration} onChange={(e) => setDuration(Number(e.target.value))} required />
+                  <TextInput inputMode="numeric" pattern="[0-9]*" value={duration ? String(duration) : ""} onChange={(e) => setDuration(Number(e.target.value.replace(/\D/g, "") || 0))} required placeholder="Phút" />
                 </InlineField>
               </div>
 
@@ -358,7 +358,7 @@ export default function ServicesPage() {
                   <TextInput placeholder="URL hoặc storage path" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
                 </InlineField>
                 <InlineField label="VAT" compact>
-                  <TextInput type="number" min={0} step={0.5} value={vat} onChange={(e) => setVat(Number(e.target.value))} required />
+                  <TextInput inputMode="decimal" value={vat ? String(vat) : ""} onChange={(e) => setVat(Number(e.target.value.replace(/[^\d.]/g, "") || 0))} required placeholder="VAT %" />
                 </InlineField>
               </div>
 
@@ -395,31 +395,19 @@ export default function ServicesPage() {
 
           <div className="md:hidden">
             <MobileCollapsible summary="Thêm dịch vụ mới" defaultOpen={mobileCreateOpen || !rows.length}>
-            <form onSubmit={onSubmit} className="space-y-3">
-              <div className="space-y-2 md:grid md:gap-2 md:grid-cols-[minmax(0,1.1fr)_180px_160px] md:space-y-0">
-                <InlineField label="Tên" compact>
-                  <TextInput placeholder="Luxury Gel" value={name} onChange={(e) => setName(e.target.value)} required />
-                </InlineField>
-                <InlineField label="Giá" compact>
-                  <TextInput type="number" min={0} value={price} onChange={(e) => setPrice(Number(e.target.value))} required />
-                </InlineField>
-                <InlineField label="Phút" compact>
-                  <TextInput type="number" min={5} value={duration} onChange={(e) => setDuration(Number(e.target.value))} required />
-                </InlineField>
+            <form onSubmit={onSubmit} className="space-y-2.5">
+              <div className="grid grid-cols-[minmax(0,1fr)_96px_78px] gap-2">
+                <TextInput placeholder="Tên dịch vụ" value={name} onChange={(e) => setName(e.target.value)} required />
+                <TextInput inputMode="numeric" pattern="[0-9]*" value={price ? String(price) : ""} onChange={(e) => setPrice(Number(e.target.value.replace(/\D/g, "") || 0))} required placeholder="Giá" />
+                <TextInput inputMode="numeric" pattern="[0-9]*" value={duration ? String(duration) : ""} onChange={(e) => setDuration(Number(e.target.value.replace(/\D/g, "") || 0))} required placeholder="Phút" />
               </div>
 
-              <div className="space-y-2 md:grid md:gap-2 md:grid-cols-[minmax(0,1fr)_140px_140px] md:space-y-0">
-                <InlineField label="Ảnh" compact>
-                  <TextInput placeholder="URL hoặc storage path" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
-                </InlineField>
-                <InlineField label="VAT" compact>
-                  <TextInput type="number" min={0} step={0.5} value={vat} onChange={(e) => setVat(Number(e.target.value))} required />
-                </InlineField>
+              <div className="grid grid-cols-[minmax(0,1fr)_84px] gap-2">
+                <TextInput placeholder="Ảnh URL" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
+                <TextInput inputMode="decimal" value={vat ? String(vat) : ""} onChange={(e) => setVat(Number(e.target.value.replace(/[^\d.]/g, "") || 0))} required placeholder="VAT %" />
               </div>
 
-              <InlineField label="Mô tả" compact>
-                <TextArea placeholder="Mô tả ngắn cho landing / lookbook" value={shortDescription} onChange={(e) => setShortDescription(e.target.value)} className="min-h-[56px]" />
-              </InlineField>
+              <TextArea placeholder="Mô tả ngắn" value={shortDescription} onChange={(e) => setShortDescription(e.target.value)} className="min-h-[44px]" />
 
               <div className="space-y-2 rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
                 <div className="flex flex-wrap items-center gap-2">
@@ -458,7 +446,7 @@ export default function ServicesPage() {
                 <p className="text-xs text-neutral-500">Ưu tiên xem nhanh giá, thời lượng, trạng thái, hạn chế mở card dài.</p>
               </div>
               <div className="w-full md:w-[320px]">
-                <TextInput placeholder="Tìm theo tên hoặc mô tả" value={search} onChange={(e) => setSearch(e.target.value)} className="py-2.5 text-sm" />
+                <TextInput placeholder="Tìm tên hoặc mô tả" value={search} onChange={(e) => setSearch(e.target.value)} className="py-2.5 text-sm" />
               </div>
             </div>
 
@@ -480,13 +468,13 @@ export default function ServicesPage() {
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-1.5">
                             {isEditing ? (
-                              <TextInput value={editName} onChange={(e) => setEditName(e.target.value)} className="max-w-xl py-1.5 text-sm" />
+                              <TextInput value={editName} onChange={(e) => setEditName(e.target.value)} className="max-w-xl py-1.5 text-[13px]" />
                             ) : (
                             <>
                               <h4 className="text-[13px] font-semibold leading-4.5 text-neutral-900 md:text-sm">{s.name}</h4>
-                              {s.featured_in_lookbook ? <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px] font-semibold text-rose-700">LOOKBOOK</span> : null}
+                              {s.featured_in_lookbook ? <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px] font-semibold text-rose-700">Lookbook</span> : null}
                               <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${s.active ? "bg-emerald-100 text-emerald-700" : "bg-neutral-200 text-neutral-600"}`}>
-                                {s.active ? "ACTIVE" : "INACTIVE"}
+                                {s.active ? "Đang dùng" : "Tạm ẩn"}
                               </span>
                             </>
                           )}
@@ -515,25 +503,25 @@ export default function ServicesPage() {
                     </div>
 
                     {isEditing ? (
-                      <div className="mt-3 space-y-3 rounded-2xl bg-neutral-50 p-3">
+                      <div className="mt-2 space-y-2 rounded-2xl bg-neutral-50 p-2.5">
                         <div className="space-y-2 md:grid md:gap-2 md:grid-cols-[minmax(0,1fr)_140px_140px_120px] md:space-y-0">
                           <InlineField label="Mô tả" compact>
-                            <TextArea value={editShortDescription} onChange={(e) => setEditShortDescription(e.target.value)} className="min-h-[72px]" />
+                            <TextArea value={editShortDescription} onChange={(e) => setEditShortDescription(e.target.value)} className="min-h-[64px] text-[13px]" />
                           </InlineField>
                           <InlineField label="Giá" compact>
-                            <TextInput type="number" min={0} value={editPrice} onChange={(e) => setEditPrice(Number(e.target.value))} />
+                            <TextInput type="number" min={0} value={editPrice} onChange={(e) => setEditPrice(Number(e.target.value))} className="text-[13px]" />
                           </InlineField>
                           <InlineField label="Phút" compact>
-                            <TextInput type="number" min={5} value={editDuration} onChange={(e) => setEditDuration(Number(e.target.value))} />
+                            <TextInput type="number" min={5} value={editDuration} onChange={(e) => setEditDuration(Number(e.target.value))} className="text-[13px]" />
                           </InlineField>
                           <InlineField label="VAT" compact>
-                            <TextInput type="number" min={0} step={0.5} value={editVat} onChange={(e) => setEditVat(Number(e.target.value))} />
+                            <TextInput type="number" min={0} step={0.5} value={editVat} onChange={(e) => setEditVat(Number(e.target.value))} className="text-[13px]" />
                           </InlineField>
                         </div>
 
                         <div className="space-y-2">
                           <InlineField label="Ảnh" compact>
-                            <TextInput value={editImageUrl} onChange={(e) => setEditImageUrl(e.target.value)} placeholder="URL hoặc storage path" />
+                            <TextInput value={editImageUrl} onChange={(e) => setEditImageUrl(e.target.value)} placeholder="URL hoặc storage path" className="text-[13px]" />
                           </InlineField>
                         </div>
 
@@ -576,8 +564,8 @@ export default function ServicesPage() {
 
           <div className="md:hidden">
             <MobileCollapsible summary={<div className="flex items-center justify-between gap-3 pr-2"><span>Danh sách dịch vụ</span><span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[10px] font-medium text-neutral-700">{filteredRows.length}</span></div>} defaultOpen={mobileListOpen}>
-              <div className="space-y-3">
-                <TextInput placeholder="Tìm theo tên hoặc mô tả" value={search} onChange={(e) => setSearch(e.target.value)} className="py-2.5 text-sm" />
+              <div className="space-y-2.5">
+                <TextInput placeholder="Tìm tên hoặc mô tả" value={search} onChange={(e) => setSearch(e.target.value)} className="py-2 text-sm" />
                 {loading ? (
                   <p className="text-sm text-neutral-500">Đang tải dữ liệu dịch vụ...</p>
                 ) : filteredRows.length === 0 ? (
@@ -596,18 +584,17 @@ export default function ServicesPage() {
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-1.5">
                                   {isEditing ? (
-                                    <TextInput value={editName} onChange={(e) => setEditName(e.target.value)} className="max-w-xl py-1.5 text-sm" />
+                                    <TextInput value={editName} onChange={(e) => setEditName(e.target.value)} className="max-w-xl py-1 text-[12px]" />
                                   ) : (
                                   <>
                                     <h4 className="text-[13px] font-semibold leading-4.5 text-neutral-900 md:text-sm">{s.name}</h4>
-                                    {s.featured_in_lookbook ? <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px] font-semibold text-rose-700">LOOKBOOK</span> : null}
                                     <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${s.active ? "bg-emerald-100 text-emerald-700" : "bg-neutral-200 text-neutral-600"}`}>
-                                      {s.active ? "ACTIVE" : "INACTIVE"}
+                                      {s.featured_in_lookbook ? `Lookbook · ${s.active ? "Đang dùng" : "Tạm ẩn"}` : (s.active ? "Đang dùng" : "Tạm ẩn")}
                                     </span>
                                   </>
                                 )}
                               </div>
-                                {!isEditing ? <p className="mt-0.5 line-clamp-1 text-[10px] text-neutral-500">{s.short_description || "Chưa có mô tả ngắn."}</p> : null}
+                                {!isEditing ? <p className="mt-0.5 line-clamp-1 text-[10px] text-neutral-500">{s.short_description || "Chưa có mô tả."}</p> : null}
                               </div>
                             </div>
 
@@ -631,25 +618,25 @@ export default function ServicesPage() {
                           </div>
 
                           {isEditing ? (
-                            <div className="mt-3 space-y-3 rounded-2xl bg-neutral-50 p-3">
+                            <div className="mt-2 space-y-2 rounded-2xl bg-neutral-50 p-2.5">
                               <div className="space-y-2 md:grid md:gap-2 md:grid-cols-[minmax(0,1fr)_140px_140px_120px] md:space-y-0">
                                 <InlineField label="Mô tả" compact>
-                                  <TextArea value={editShortDescription} onChange={(e) => setEditShortDescription(e.target.value)} className="min-h-[72px]" />
+                                  <TextArea value={editShortDescription} onChange={(e) => setEditShortDescription(e.target.value)} className="min-h-[56px] text-[12px]" />
                                 </InlineField>
                                 <InlineField label="Giá" compact>
-                                  <TextInput type="number" min={0} value={editPrice} onChange={(e) => setEditPrice(Number(e.target.value))} />
+                                  <TextInput type="number" min={0} value={editPrice} onChange={(e) => setEditPrice(Number(e.target.value))} className="py-1 text-[12px]" />
                                 </InlineField>
                                 <InlineField label="Phút" compact>
-                                  <TextInput type="number" min={5} value={editDuration} onChange={(e) => setEditDuration(Number(e.target.value))} />
+                                  <TextInput type="number" min={5} value={editDuration} onChange={(e) => setEditDuration(Number(e.target.value))} className="py-1 text-[12px]" />
                                 </InlineField>
                                 <InlineField label="VAT" compact>
-                                  <TextInput type="number" min={0} step={0.5} value={editVat} onChange={(e) => setEditVat(Number(e.target.value))} />
+                                  <TextInput type="number" min={0} step={0.5} value={editVat} onChange={(e) => setEditVat(Number(e.target.value))} className="py-1 text-[12px]" />
                                 </InlineField>
                               </div>
 
                               <div className="space-y-2">
                                 <InlineField label="Ảnh" compact>
-                                  <TextInput value={editImageUrl} onChange={(e) => setEditImageUrl(e.target.value)} placeholder="URL hoặc storage path" />
+                                  <TextInput value={editImageUrl} onChange={(e) => setEditImageUrl(e.target.value)} placeholder="URL hoặc storage path" className="py-1 text-[12px]" />
                                 </InlineField>
                               </div>
 
