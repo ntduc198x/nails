@@ -262,7 +262,7 @@ export default function CheckoutPage() {
                           key={a.id}
                           type="button"
                           onClick={() => onSelectCheckedInAppointment(a.id)}
-                          className={`rounded-full border px-3 py-2 text-left text-xs font-medium transition ${active ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white" : "border-neutral-200 bg-white text-neutral-700"}`}
+                          className={`cursor-pointer rounded-full border px-3 py-2 text-left text-xs font-medium transition ${active ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white" : "border-neutral-200 bg-white text-neutral-700"}`}
                         >
                           <span className="block truncate">{customer ?? "Khách"}</span>
                           <span className={`block text-[10px] ${active ? "text-white/80" : "text-neutral-400"}`}>{new Date(a.start_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</span>
@@ -301,10 +301,10 @@ export default function CheckoutPage() {
 
               <div className="grid gap-2 md:grid-cols-3">
                 <div className="space-y-2 md:col-span-2">
-                  <input className="input py-2.5" placeholder="Tên khách" value={customerName} onChange={(e) => setCustomerName(e.target.value)} required />
+                  <input className="input cursor-text py-2.5" placeholder="Tên khách" value={customerName} onChange={(e) => setCustomerName(e.target.value)} required />
                 </div>
                 <div className="space-y-2">
-                  <select className="input py-2.5" aria-label="Phương thức thanh toán" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as "CASH" | "TRANSFER")}><option value="CASH">Tiền mặt</option><option value="TRANSFER">Chuyển khoản</option></select>
+                  <select className="input cursor-pointer py-2.5" aria-label="Phương thức thanh toán" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as "CASH" | "TRANSFER")}><option value="CASH">Tiền mặt</option><option value="TRANSFER">Chuyển khoản</option></select>
                 </div>
               </div>
 
@@ -313,7 +313,7 @@ export default function CheckoutPage() {
             <div ref={serviceSectionRef} className="card space-y-3 p-4">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-base font-semibold text-neutral-900">Dịch vụ</h3>
-                <button type="button" onClick={addLine} className="rounded-lg border px-3 py-2 text-xs md:text-sm">+ Thêm dòng</button>
+                <button type="button" onClick={addLine} className="cursor-pointer rounded-lg border px-3 py-2 text-xs md:text-sm">+ Thêm dòng</button>
               </div>
 
               {quickServices.length > 0 ? (
@@ -328,7 +328,7 @@ export default function CheckoutPage() {
                         key={service.id}
                         type="button"
                         onClick={() => addQuickService(service.id)}
-                        className="rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] md:text-sm"
+                        className="cursor-pointer rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] md:text-sm"
                       >
                         {service.name}
                       </button>
@@ -344,7 +344,7 @@ export default function CheckoutPage() {
                     <div key={idx} className="rounded-xl border border-neutral-200 bg-neutral-50 p-2.5">
                       <div className="space-y-3">
                         <div>
-                          <select className="input bg-white py-2.5 text-sm" aria-label={`Dịch vụ ${idx + 1}`} value={line.serviceId} onChange={(e) => updateLine(idx, { serviceId: e.target.value })}>
+                          <select className="input cursor-pointer bg-white py-2.5 text-sm" aria-label={`Dịch vụ ${idx + 1}`} value={line.serviceId} onChange={(e) => updateLine(idx, { serviceId: e.target.value })}>
                             <option value="">-- Chọn dịch vụ --</option>
                             {services.map((s) => <option key={s.id} value={s.id}>{s.name} · {formatVnd(Number(s.base_price))}</option>)}
                           </select>
@@ -363,7 +363,7 @@ export default function CheckoutPage() {
                               type="button"
                               onClick={() => updateLine(idx, { qty: Math.max(1, line.qty - 1) })}
                               disabled={line.qty <= 1}
-                              className="flex h-9 w-9 items-center justify-center rounded-full border border-neutral-200 bg-white text-base font-semibold text-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
+                              className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-neutral-200 bg-white text-base font-semibold text-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
                               aria-label={`Giảm số lượng dịch vụ ${idx + 1}`}
                             >
                               −
@@ -374,12 +374,12 @@ export default function CheckoutPage() {
                             <button
                               type="button"
                               onClick={() => updateLine(idx, { qty: line.qty + 1 })}
-                              className="flex h-9 w-9 items-center justify-center rounded-full border border-neutral-200 bg-white text-base font-semibold text-neutral-700"
+                              className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-neutral-200 bg-white text-base font-semibold text-neutral-700"
                               aria-label={`Tăng số lượng dịch vụ ${idx + 1}`}
                             >
                               +
                             </button>
-                            <button type="button" onClick={() => removeLine(idx)} disabled={lines.length === 1} className="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-600 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm">Xóa</button>
+                            <button type="button" onClick={() => removeLine(idx)} disabled={lines.length === 1} className="cursor-pointer rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-600 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm">Xóa</button>
                           </div>
                         </div>
                       </div>
@@ -429,14 +429,14 @@ export default function CheckoutPage() {
             <div className="card space-y-3 hidden md:block">
               <h3 className="font-semibold">Lịch sử phiếu</h3>
               <div className="grid gap-3 md:grid-cols-4">
-                <select className="input" value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}>
+                <select className="input cursor-pointer" value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}>
                   <option value="day">Trong ngày</option>
                   <option value="week">Trong tuần</option>
                   <option value="month">Trong tháng</option>
                   <option value="custom">Tùy chỉnh</option>
                 </select>
-                <input className="input" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} disabled={rangeMode !== "custom"} />
-                <input className="input" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} disabled={rangeMode !== "custom"} />
+                <input className="input cursor-pointer" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} disabled={rangeMode !== "custom"} />
+                <input className="input cursor-pointer" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} disabled={rangeMode !== "custom"} />
                 <div className="rounded-xl bg-neutral-100 px-3 py-2 text-sm text-neutral-700">{range.from.toLocaleDateString("vi-VN")} → {range.to.toLocaleDateString("vi-VN")}</div>
               </div>
 
@@ -473,7 +473,7 @@ export default function CheckoutPage() {
             <MobileCollapsible summary={`Lịch sử phiếu · ${tickets.length} bill`} defaultOpen={false}>
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-2">
-                  <select className="input py-2.5 text-sm" value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}>
+                  <select className="input cursor-pointer py-2.5 text-sm" value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}>
                     <option value="day">Trong ngày</option>
                     <option value="week">Trong tuần</option>
                     <option value="month">Trong tháng</option>
@@ -483,8 +483,8 @@ export default function CheckoutPage() {
                 </div>
                 {rangeMode === "custom" ? (
                   <div className="grid grid-cols-2 gap-2">
-                    <input className="input py-2.5 text-sm" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-                    <input className="input py-2.5 text-sm" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+                    <input className="input cursor-pointer py-2.5 text-sm" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+                    <input className="input cursor-pointer py-2.5 text-sm" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
                   </div>
                 ) : null}
 
@@ -563,7 +563,7 @@ export default function CheckoutPage() {
               </div>
 
               <div className="hidden md:flex flex-col gap-2">
-                <button disabled={submitting || role === "ACCOUNTANT" || (role === "TECH" && techShiftOpen === false)} className="btn btn-primary w-full py-3 text-base">{submitting ? "Đang xử lý..." : "Thanh toán và đóng bill"}</button>
+                <button disabled={submitting || role === "ACCOUNTANT" || (role === "TECH" && techShiftOpen === false)} className="btn btn-primary w-full cursor-pointer py-3 text-base disabled:cursor-not-allowed">{submitting ? "Đang xử lý..." : "Thanh toán và đóng bill"}</button>
                 {role === "TECH" && techShiftOpen === false && <p className="text-xs text-amber-700">Chưa mở ca, vào Ca làm để chuyển sang ca mới và mở ca trước khi thanh toán.</p>}
               </div>
             </div>
@@ -574,12 +574,12 @@ export default function CheckoutPage() {
           <button
             type="button"
             onClick={() => requestAnimationFrame(() => mobileSummaryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }))}
-            className="rounded-lg border px-4 py-3 text-sm font-medium"
+            className="cursor-pointer rounded-lg border px-4 py-3 text-sm font-medium"
           >
             Xem bill {formatVnd(estimatedTotal)}
           </button>
-          <button type="button" onClick={addLine} className="rounded-lg border px-4 py-3 text-sm font-medium">+ Dòng</button>
-          <button type="button" onClick={() => void onSubmit()} disabled={submitting || role === "ACCOUNTANT"} className="flex-1 btn btn-primary py-3">{submitting ? "Đang xử lý..." : "Thanh toán"}</button>
+          <button type="button" onClick={addLine} className="cursor-pointer rounded-lg border px-4 py-3 text-sm font-medium">+ Dòng</button>
+          <button type="button" onClick={() => void onSubmit()} disabled={submitting || role === "ACCOUNTANT"} className="flex-1 btn btn-primary cursor-pointer py-3 disabled:cursor-not-allowed">{submitting ? "Đang xử lý..." : "Thanh toán"}</button>
         </MobileStickyActions>
       </div>
     </AppShell>

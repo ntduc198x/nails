@@ -14,7 +14,6 @@ type ServiceRow = {
   name: string;
   short_description?: string | null;
   image_url?: string | null;
-  display_order?: number | null;
   featured_in_lookbook?: boolean | null;
   duration_min: number;
   base_price: number;
@@ -70,7 +69,6 @@ export default function ServicesPage() {
   const [name, setName] = useState("");
   const [shortDescription, setShortDescription] = useState("");
   const [imageUrl, setImageUrl] = useState("");
-  const [displayOrder, setDisplayOrder] = useState(0);
   const [featuredInLookbook, setFeaturedInLookbook] = useState(false);
   const [duration, setDuration] = useState(45);
   const [price, setPrice] = useState(250000);
@@ -79,7 +77,6 @@ export default function ServicesPage() {
   const [editName, setEditName] = useState("");
   const [editShortDescription, setEditShortDescription] = useState("");
   const [editImageUrl, setEditImageUrl] = useState("");
-  const [editDisplayOrder, setEditDisplayOrder] = useState(0);
   const [editFeaturedInLookbook, setEditFeaturedInLookbook] = useState(false);
   const [editDuration, setEditDuration] = useState(45);
   const [editPrice, setEditPrice] = useState(250000);
@@ -139,7 +136,6 @@ export default function ServicesPage() {
         name,
         shortDescription: shortDescription || null,
         imageUrl: imageUrl || null,
-        displayOrder,
         featuredInLookbook,
         durationMin: duration,
         basePrice: price,
@@ -148,7 +144,6 @@ export default function ServicesPage() {
       setName("");
       setShortDescription("");
       setImageUrl("");
-      setDisplayOrder(0);
       setFeaturedInLookbook(false);
       setDuration(45);
       setPrice(250000);
@@ -160,7 +155,6 @@ export default function ServicesPage() {
         setEditName(createdRow.name ?? "");
         setEditShortDescription(createdRow.short_description ?? shortDescription);
         setEditImageUrl(createdRow.image_url ?? imageUrl);
-        setEditDisplayOrder(createdRow.display_order ?? displayOrder);
         setEditFeaturedInLookbook(Boolean(createdRow.featured_in_lookbook ?? featuredInLookbook));
         setEditDuration(createdRow.duration_min ?? duration);
         setEditPrice(Number(createdRow.base_price ?? price));
@@ -180,7 +174,6 @@ export default function ServicesPage() {
     setEditName(row.name);
     setEditShortDescription(row.short_description ?? "");
     setEditImageUrl(row.image_url ?? "");
-    setEditDisplayOrder(row.display_order ?? 0);
     setEditFeaturedInLookbook(Boolean(row.featured_in_lookbook));
     setEditDuration(row.duration_min);
     setEditPrice(Number(row.base_price));
@@ -198,7 +191,6 @@ export default function ServicesPage() {
         name: editName,
         shortDescription: editShortDescription || null,
         imageUrl: editImageUrl || null,
-        displayOrder: editDisplayOrder,
         featuredInLookbook: editFeaturedInLookbook,
         durationMin: editDuration,
         basePrice: editPrice,
@@ -255,7 +247,6 @@ export default function ServicesPage() {
         name: row.name,
         shortDescription: row.short_description || null,
         imageUrl: row.image_url || null,
-        displayOrder: row.display_order ?? 0,
         featuredInLookbook: Boolean(row.featured_in_lookbook),
         durationMin: row.duration_min,
         basePrice: Number(row.base_price),
@@ -281,7 +272,6 @@ export default function ServicesPage() {
         name: row.name,
         shortDescription: row.short_description || null,
         imageUrl: row.image_url || null,
-        displayOrder: row.display_order ?? 0,
         featuredInLookbook: Boolean(row.featured_in_lookbook),
         durationMin: row.duration_min,
         basePrice: Number(row.base_price),
@@ -363,12 +353,9 @@ export default function ServicesPage() {
                 </InlineField>
               </div>
 
-              <div className="space-y-2 md:grid md:gap-2 md:grid-cols-[minmax(0,1fr)_140px_140px] md:space-y-0">
+              <div className="space-y-2 md:grid md:gap-2 md:grid-cols-[minmax(0,1fr)_140px] md:space-y-0">
                 <InlineField label="Ảnh" compact>
                   <TextInput placeholder="URL hoặc storage path" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
-                </InlineField>
-                <InlineField label="Thứ tự" compact>
-                  <TextInput type="number" value={displayOrder} onChange={(e) => setDisplayOrder(Number(e.target.value))} />
                 </InlineField>
                 <InlineField label="VAT" compact>
                   <TextInput type="number" min={0} step={0.5} value={vat} onChange={(e) => setVat(Number(e.target.value))} required />
@@ -424,9 +411,6 @@ export default function ServicesPage() {
               <div className="space-y-2 md:grid md:gap-2 md:grid-cols-[minmax(0,1fr)_140px_140px] md:space-y-0">
                 <InlineField label="Ảnh" compact>
                   <TextInput placeholder="URL hoặc storage path" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
-                </InlineField>
-                <InlineField label="Thứ tự" compact>
-                  <TextInput type="number" value={displayOrder} onChange={(e) => setDisplayOrder(Number(e.target.value))} />
                 </InlineField>
                 <InlineField label="VAT" compact>
                   <TextInput type="number" min={0} step={0.5} value={vat} onChange={(e) => setVat(Number(e.target.value))} required />
@@ -547,12 +531,9 @@ export default function ServicesPage() {
                           </InlineField>
                         </div>
 
-                        <div className="space-y-2 md:grid md:gap-2 md:grid-cols-[minmax(0,1fr)_120px] md:space-y-0">
+                        <div className="space-y-2">
                           <InlineField label="Ảnh" compact>
                             <TextInput value={editImageUrl} onChange={(e) => setEditImageUrl(e.target.value)} placeholder="URL hoặc storage path" />
-                          </InlineField>
-                          <InlineField label="Thứ tự" compact>
-                            <TextInput type="number" value={editDisplayOrder} onChange={(e) => setEditDisplayOrder(Number(e.target.value))} />
                           </InlineField>
                         </div>
 
@@ -584,7 +565,6 @@ export default function ServicesPage() {
                         <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">{formatVnd(Number(s.base_price))}</div>
                         <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">{s.duration_min}p</div>
                         <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">VAT {Number(s.vat_rate) * 100}%</div>
-                        <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">#{s.display_order ?? 0}</div>
                       </div>
                     )}
                   </div>
@@ -667,12 +647,9 @@ export default function ServicesPage() {
                                 </InlineField>
                               </div>
 
-                              <div className="space-y-2 md:grid md:gap-2 md:grid-cols-[minmax(0,1fr)_120px] md:space-y-0">
+                              <div className="space-y-2">
                                 <InlineField label="Ảnh" compact>
                                   <TextInput value={editImageUrl} onChange={(e) => setEditImageUrl(e.target.value)} placeholder="URL hoặc storage path" />
-                                </InlineField>
-                                <InlineField label="Thứ tự" compact>
-                                  <TextInput type="number" value={editDisplayOrder} onChange={(e) => setEditDisplayOrder(Number(e.target.value))} />
                                 </InlineField>
                               </div>
 
@@ -704,7 +681,6 @@ export default function ServicesPage() {
                               <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">{formatVnd(Number(s.base_price))}</div>
                               <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">{s.duration_min}p</div>
                               <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">VAT {Number(s.vat_rate) * 100}%</div>
-                              <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">#{s.display_order ?? 0}</div>
                             </div>
                           )}
                         </div>
@@ -746,7 +722,6 @@ export default function ServicesPage() {
                           <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">{formatVnd(Number(s.base_price))}</div>
                           <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">{s.duration_min}p</div>
                           <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">VAT {Number(s.vat_rate) * 100}%</div>
-                          <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">#{s.display_order ?? 0}</div>
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-1.5 justify-end">
@@ -785,7 +760,6 @@ export default function ServicesPage() {
                             <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">{formatVnd(Number(s.base_price))}</div>
                             <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">{s.duration_min}p</div>
                             <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">VAT {Number(s.vat_rate) * 100}%</div>
-                            <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">#{s.display_order ?? 0}</div>
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-1.5 justify-end">

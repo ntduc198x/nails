@@ -144,7 +144,7 @@ function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-[13px] text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-rose-300 focus:ring-4 focus:ring-rose-100 ${props.className ?? ""}`}
+      className={`w-full cursor-text rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-[13px] text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-rose-300 focus:ring-4 focus:ring-rose-100 ${props.className ?? ""}`}
     />
   );
 }
@@ -153,7 +153,7 @@ function SelectInput(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       {...props}
-      className={`w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-[13px] text-neutral-900 outline-none transition focus:border-rose-300 focus:ring-4 focus:ring-rose-100 ${props.className ?? ""}`}
+      className={`w-full cursor-pointer rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-[13px] text-neutral-900 outline-none transition focus:border-rose-300 focus:ring-4 focus:ring-rose-100 ${props.className ?? ""}`}
     />
   );
 }
@@ -164,7 +164,7 @@ function ResourceChip({ active, disabled, label, onClick }: { active: boolean; d
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`rounded-xl border px-2.5 py-1.5 text-[13px] font-medium transition ${active ? "border-rose-300 bg-rose-50 text-rose-700" : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"} ${disabled ? "cursor-not-allowed opacity-40" : ""}`}
+      className={`cursor-pointer rounded-xl border px-2.5 py-1.5 text-[13px] font-medium transition ${active ? "border-rose-300 bg-rose-50 text-rose-700" : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"} ${disabled ? "cursor-not-allowed opacity-40" : ""}`}
     >
       {label}
     </button>
@@ -202,20 +202,20 @@ function AppointmentCard({ row, staffName, resourceName, onlineBooked, overdue, 
         <div className="flex flex-wrap gap-2">
           {row.status === "BOOKED" && (
             <>
-              <button type="button" className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50" onClick={onEdit}>Sửa</button>
-              <button onClick={() => void onQuickStatus(row.id, "CHECKED_IN")} className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60" disabled={!!updatingId}>{updatingId === row.id ? "Đang xử lý..." : "Check-in"}</button>
-              {overdue ? <button onClick={() => void onQuickStatus(row.id, "NO_SHOW")} className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60" disabled={!!updatingId}>{updatingId === row.id ? "Đang xử lý..." : "No-show"}</button> : null}
-              <button onClick={() => void onQuickStatus(row.id, "CANCELLED")} className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60" disabled={!!updatingId}>{updatingId === row.id ? "Đang xử lý..." : "Hủy"}</button>
+              <button type="button" className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50" onClick={onEdit}>Sửa</button>
+              <button onClick={() => void onQuickStatus(row.id, "CHECKED_IN")} className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60" disabled={!!updatingId}>{updatingId === row.id ? "Đang xử lý..." : "Check-in"}</button>
+              {overdue ? <button onClick={() => void onQuickStatus(row.id, "NO_SHOW")} className="cursor-pointer rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60" disabled={!!updatingId}>{updatingId === row.id ? "Đang xử lý..." : "No-show"}</button> : null}
+              <button onClick={() => void onQuickStatus(row.id, "CANCELLED")} className="cursor-pointer rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60" disabled={!!updatingId}>{updatingId === row.id ? "Đang xử lý..." : "Hủy"}</button>
             </>
           )}
           {row.status === "CHECKED_IN" && (
             <>
-              <button onClick={() => void onQuickStatus(row.id, "CANCELLED")} className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60" disabled={!!updatingId}>{updatingId === row.id ? "Đang xử lý..." : "Cancel"}</button>
-              {criticalCheckedIn ? <button type="button" className="rounded-xl border border-fuchsia-300 bg-fuchsia-100 px-3 py-2 text-sm font-semibold text-fuchsia-800 transition hover:bg-fuchsia-200 disabled:cursor-not-allowed disabled:opacity-60" disabled={!!updatingId}>Đóng bill ngay</button> : null}
+              <button onClick={() => void onQuickStatus(row.id, "CANCELLED")} className="cursor-pointer rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60" disabled={!!updatingId}>{updatingId === row.id ? "Đang xử lý..." : "Cancel"}</button>
+              {criticalCheckedIn ? <button type="button" className="cursor-pointer rounded-xl border border-fuchsia-300 bg-fuchsia-100 px-3 py-2 text-sm font-semibold text-fuchsia-800 transition hover:bg-fuchsia-200 disabled:cursor-not-allowed disabled:opacity-60" disabled={!!updatingId}>Đóng bill ngay</button> : null}
             </>
           )}
           {row.status === "CHECKED_IN" ? (
-            <Link href={`/manage/checkout?customer=${encodeURIComponent(customer)}&appointmentId=${row.id}`} className={`rounded-xl px-3 py-2 text-sm font-semibold text-white transition ${criticalCheckedIn ? "bg-fuchsia-600 hover:bg-fuchsia-700" : "bg-rose-500 hover:bg-rose-600"}`}>{criticalCheckedIn ? "Mở phiếu ngay" : "Mở phiếu"}</Link>
+            <Link href={`/manage/checkout?customer=${encodeURIComponent(customer)}&appointmentId=${row.id}`} className={`cursor-pointer rounded-xl px-3 py-2 text-sm font-semibold text-white transition ${criticalCheckedIn ? "bg-fuchsia-600 hover:bg-fuchsia-700" : "bg-rose-500 hover:bg-rose-600"}`}>{criticalCheckedIn ? "Mở phiếu ngay" : "Mở phiếu"}</Link>
           ) : row.status === "BOOKED" ? (
             <span className={`rounded-xl px-3 py-2 text-sm font-medium ${overdue ? "border border-amber-300 bg-amber-100 text-amber-800" : "border border-amber-200 bg-amber-50 text-amber-700"}`}>{overdue ? "Cần xử lý ngay" : "Cần check-in"}</span>
           ) : null}
@@ -479,7 +479,7 @@ export default function OperationsPage() {
                     setShowDetailList(true);
                     requestAnimationFrame(() => listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
                   }}
-                  className="rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
+                  className="cursor-pointer rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
                 >
                   Danh sách lịch
                 </button>
@@ -542,8 +542,8 @@ export default function OperationsPage() {
                 {!autoTime ? <div className="pt-0.5"><ManageDateTimePicker label="Thời gian lịch hẹn" value={bookingAt} onChange={setBookingAt} /></div> : null}
               </div>
               <div className="space-y-1.5 rounded-2xl border border-neutral-200 bg-neutral-50 p-2.5">
-                {editingId ? <div className="flex items-center justify-end"><button type="button" className="rounded-xl border border-neutral-200 bg-white px-2.5 py-1.5 text-[13px] font-medium text-neutral-700 transition hover:bg-neutral-50" onClick={resetForm}>Hủy</button></div> : null}
-                <button className="w-full rounded-2xl bg-rose-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting || !staffUserId || !resourceId}>{submitting ? "Đang xử lý..." : editingId ? "Lưu lịch hẹn" : "Tạo lịch hẹn"}</button>
+                {editingId ? <div className="flex items-center justify-end"><button type="button" className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-2.5 py-1.5 text-[13px] font-medium text-neutral-700 transition hover:bg-neutral-50" onClick={resetForm}>Hủy</button></div> : null}
+                <button className="w-full cursor-pointer rounded-2xl bg-rose-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting || !staffUserId || !resourceId}>{submitting ? "Đang xử lý..." : editingId ? "Lưu lịch hẹn" : "Tạo lịch hẹn"}</button>
               </div>
             </form>
           </section>
@@ -551,7 +551,7 @@ export default function OperationsPage() {
           <section ref={listRef} className="manage-surface md:p-6 space-y-4">
             <div className="hidden flex-col gap-3 md:flex">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <button type="button" onClick={() => setShowRangeFilters((v) => !v)} className="w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-left text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 sm:w-auto">
+                <button type="button" onClick={() => setShowRangeFilters((v) => !v)} className="w-full cursor-pointer rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-left text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 sm:w-auto">
                   {showRangeFilters ? "Ẩn khoảng thời gian" : "Hiện khoảng thời gian"}
                 </button>
                 <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-500">{`${filterRange.from.toLocaleDateString("vi-VN")} → ${filterRange.to.toLocaleDateString("vi-VN")}`}</div>
@@ -579,12 +579,12 @@ export default function OperationsPage() {
               <MobileCollapsible summary={<div className="flex items-center justify-between gap-3 pr-2"><span>Bộ lọc lịch</span><span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[10px] font-medium text-neutral-700">{filteredRows.length}</span></div>} defaultOpen={false}>
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-2">
-                    <button type="button" onClick={() => setStatusFilter("ALL")} className={`rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "ALL" ? "bg-neutral-900 text-white" : "border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"}`}>Tất cả</button>
-                    <button type="button" onClick={() => setStatusFilter("BOOKED")} className={`rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "BOOKED" ? "bg-amber-500 text-white" : "border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"}`}>Check-in</button>
-                    <button type="button" onClick={() => setStatusFilter("OVERDUE")} className={`rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "OVERDUE" ? "bg-red-600 text-white" : "border border-red-200 bg-red-50 text-red-800 hover:bg-red-100"}`}>Quá giờ</button>
-                    <button type="button" onClick={() => setStatusFilter("STALE_CHECKED_IN")} className={`rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "STALE_CHECKED_IN" ? "bg-violet-600 text-white" : "border border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100"}`}>Check-in lâu</button>
-                    <button type="button" onClick={() => setStatusFilter("CHECKED_IN")} className={`rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "CHECKED_IN" ? "bg-blue-600 text-white" : "border border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100"}`}>Chờ thanh toán</button>
-                    <button type="button" onClick={() => setStatusFilter("DONE")} className={`rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "DONE" ? "bg-emerald-600 text-white" : "border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"}`}>Đã xong</button>
+                    <button type="button" onClick={() => setStatusFilter("ALL")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "ALL" ? "bg-neutral-900 text-white" : "border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"}`}>Tất cả</button>
+                    <button type="button" onClick={() => setStatusFilter("BOOKED")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "BOOKED" ? "bg-amber-500 text-white" : "border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"}`}>Check-in</button>
+                    <button type="button" onClick={() => setStatusFilter("OVERDUE")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "OVERDUE" ? "bg-red-600 text-white" : "border border-red-200 bg-red-50 text-red-800 hover:bg-red-100"}`}>Quá giờ</button>
+                    <button type="button" onClick={() => setStatusFilter("STALE_CHECKED_IN")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "STALE_CHECKED_IN" ? "bg-violet-600 text-white" : "border border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100"}`}>Check-in lâu</button>
+                    <button type="button" onClick={() => setStatusFilter("CHECKED_IN")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "CHECKED_IN" ? "bg-blue-600 text-white" : "border border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100"}`}>Chờ thanh toán</button>
+                    <button type="button" onClick={() => setStatusFilter("DONE")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "DONE" ? "bg-emerald-600 text-white" : "border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"}`}>Đã xong</button>
                   </div>
                   <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-500">{`${filterRange.from.toLocaleDateString("vi-VN")} → ${filterRange.to.toLocaleDateString("vi-VN")}`}</div>
                   <div className="grid gap-3">
@@ -626,7 +626,7 @@ export default function OperationsPage() {
           </section>
 
           <MobileStickyActions>
-            <button type="button" onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })} className="flex-1 rounded-2xl bg-[var(--color-primary)] px-4 py-3 text-sm font-semibold text-white shadow-md ring-1 ring-[var(--color-primary)]/25 transition hover:brightness-95">
+            <button type="button" onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })} className="flex-1 cursor-pointer rounded-2xl bg-[var(--color-primary)] px-4 py-3 text-sm font-semibold text-white shadow-md ring-1 ring-[var(--color-primary)]/25 transition hover:brightness-95">
               Form tạo lịch
             </button>
           </MobileStickyActions>

@@ -73,6 +73,9 @@ export default function ReportsPage() {
   const [fromDate, setFromDate] = useState(toDateInput(today));
   const [toDate, setToDate] = useState(toDateInput(new Date(today.getTime() + 24 * 60 * 60 * 1000)));
   const [staffFilter, setStaffFilter] = useState<string>("ALL");
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  const [mobileInsightsOpen, setMobileInsightsOpen] = useState(false);
+  const [mobileTicketsLimit, setMobileTicketsLimit] = useState(12);
 
   const [rows, setRows] = useState<ReportTicketRow[]>([]);
   const [breakdown, setBreakdown] = useState<{
@@ -197,6 +200,8 @@ export default function ReportsPage() {
     return rows.filter((row) => row.staff_user_id === staffFilter);
   }, [rows, staffFilter]);
 
+  const mobileTicketRows = useMemo(() => filteredTicketRows.slice(0, mobileTicketsLimit), [filteredTicketRows, mobileTicketsLimit]);
+
   function exportExcel() {
     downloadExcel(`bao-cao-nails-${rangeMode}.xlsx`, [
       {
@@ -264,7 +269,7 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          <div className="space-y-2 md:grid md:gap-2 md:grid-cols-[180px_repeat(5,minmax(0,1fr))] md:space-y-0">
+          <div className="hidden md:grid md:gap-2 md:grid-cols-[180px_repeat(5,minmax(0,1fr))]">
             <select className="input py-2.5 text-sm" value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}>
               <option value="day">Theo ngày</option>
               <option value="week">Theo tuần</option>
@@ -299,6 +304,56 @@ export default function ReportsPage() {
               <button className="cursor-pointer rounded-2xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-medium text-neutral-700" onClick={() => void load()} disabled={refreshing}>{refreshing ? "Đang lọc..." : "Lọc"}</button>
             </div>
           </div>
+
+          <div className="space-y-2 md:hidden">
+            <div className="grid grid-cols-2 gap-2">
+              <button className="cursor-pointer rounded-2xl border border-neutral-200 bg-white px-3 py-2.5 text-sm font-medium text-neutral-700" onClick={() => setMobileFilterOpen((v) => !v)}>
+                {mobileFilterOpen ? "Ẩn bộ lọc" : "Bộ lọc nhanh"}
+              </button>
+              <button className="cursor-pointer rounded-2xl border border-neutral-200 bg-white px-3 py-2.5 text-sm font-medium text-neutral-700" onClick={() => ticketsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+                Xem bill
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-[11px] text-neutral-600">
+              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2">{rangeMode === "day" ? "Theo ngày" : rangeMode === "week" ? "Theo tuần" : rangeMode === "month" ? "Theo tháng" : "Tùy chỉnh"}</div>
+              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-right">{staffFilter === "ALL" ? "Tất cả NV" : (staffNameMap.get(staffFilter) ?? "1 NV")}</div>
+            </div>
+            {mobileFilterOpen ? (
+              <div className="space-y-2 rounded-2xl border border-neutral-200 bg-neutral-50 p-2.5">
+                <select className="input py-2.5 text-sm" value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}>
+                  <option value="day">Theo ngày</option>
+                  <option value="week">Theo tuần</option>
+                  <option value="month">Theo tháng</option>
+                  <option value="custom">Tùy chỉnh</option>
+                </select>
+                <div className="grid grid-cols-2 gap-2">
+                  {rangeMode === "day" && <input className="input col-span-2 py-2.5 text-sm" type="date" value={dayValue} onChange={(e) => setDayValue(e.target.value)} />}
+                  {rangeMode === "week" && <input className="input col-span-2 py-2.5 text-sm" type="date" value={weekAnchor} onChange={(e) => setWeekAnchor(e.target.value)} />}
+                  {rangeMode === "month" && (
+                    <>
+                      <select className="input py-2.5 text-sm" value={monthValue} onChange={(e) => setMonthValue(e.target.value)}>
+                        {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={String(m)}>{`Tháng ${m}`}</option>)}
+                      </select>
+                      <input className="input py-2.5 text-sm" type="number" value={yearValue} onChange={(e) => setYearValue(e.target.value)} />
+                    </>
+                  )}
+                  {rangeMode === "custom" && (
+                    <>
+                      <input className="input py-2.5 text-sm" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+                      <input className="input py-2.5 text-sm" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+                    </>
+                  )}
+                </div>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                  <select className="input py-2.5 text-sm" value={staffFilter} onChange={(e) => setStaffFilter(e.target.value)}>
+                    <option value="ALL">Tất cả nhân viên</option>
+                    {staffRevenue.map((row) => <option key={row.staffUserId} value={row.staffUserId}>{row.staff}</option>)}
+                  </select>
+                  <button className="cursor-pointer rounded-2xl border border-neutral-200 bg-white px-3 py-2.5 text-sm font-medium text-neutral-700" onClick={() => void load()} disabled={refreshing}>{refreshing ? "Đang lọc..." : "Lọc"}</button>
+                </div>
+              </div>
+            ) : null}
+          </div>
         </section>
 
         {breakdownError ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Phân tích nâng cao đang lỗi: {breakdownError}. Danh sách phiếu cơ bản vẫn hiển thị bình thường.</div> : null}
@@ -309,16 +364,19 @@ export default function ReportsPage() {
             <div className="manage-surface space-y-2.5 p-3 md:p-4">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-sm font-semibold text-neutral-900">Phân tích doanh thu</h3>
+                <button className="cursor-pointer rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[11px] font-medium text-neutral-700 md:hidden" onClick={() => setMobileInsightsOpen((v) => !v)}>
+                  {mobileInsightsOpen ? "Thu gọn" : "Mở nhanh"}
+                </button>
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className={`grid gap-3 md:grid-cols-2 ${mobileInsightsOpen ? "" : "hidden md:grid"}`}>
                 <div className="space-y-2">
                   <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500">Top dịch vụ</div>
-                  {(breakdown?.by_service ?? []).length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">Chưa có dữ liệu dịch vụ trong kỳ này.</div> : (breakdown?.by_service ?? []).slice(0, 6).map((s, idx) => <div key={`${s.service_name}-${idx}`} className="rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"><div className="flex items-center justify-between gap-2"><div className="min-w-0"><div className="line-clamp-1 font-medium text-neutral-900">{s.service_name}</div><div className="text-[11px] text-neutral-500">SL {s.qty}</div></div><div className="font-semibold text-neutral-900">{formatVnd(Number(s.subtotal ?? 0))}</div></div></div>)}
+                  {(breakdown?.by_service ?? []).length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">Chưa có dữ liệu dịch vụ trong kỳ này.</div> : (breakdown?.by_service ?? []).slice(0, 4).map((s, idx) => <div key={`${s.service_name}-${idx}`} className="rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"><div className="flex items-center justify-between gap-2"><div className="min-w-0"><div className="line-clamp-1 font-medium text-neutral-900">{s.service_name}</div><div className="text-[11px] text-neutral-500">SL {s.qty}</div></div><div className="font-semibold text-neutral-900">{formatVnd(Number(s.subtotal ?? 0))}</div></div></div>)}
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2"><div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500">Theo nhân viên</div><div className="text-xs text-neutral-500">{formatVnd(revenueByStaffTotal)}</div></div>
-                  {staffRevenue.length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">Chưa có dữ liệu doanh thu theo nhân viên.</div> : staffRevenue.slice(0, 6).map((s) => <div key={s.staffUserId} className="rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"><div className="flex items-center justify-between gap-2"><div className="min-w-0"><div className="line-clamp-1 font-medium text-neutral-900">{s.staff}</div><div className="text-[11px] text-neutral-500">{s.tickets} bill</div></div><div className="font-semibold text-neutral-900">{formatVnd(s.revenue)}</div></div></div>)}
+                  {staffRevenue.length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">Chưa có dữ liệu doanh thu theo nhân viên.</div> : staffRevenue.slice(0, 4).map((s) => <div key={s.staffUserId} className="rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"><div className="flex items-center justify-between gap-2"><div className="min-w-0"><div className="line-clamp-1 font-medium text-neutral-900">{s.staff}</div><div className="text-[11px] text-neutral-500">{s.tickets} bill</div></div><div className="font-semibold text-neutral-900">{formatVnd(s.revenue)}</div></div></div>)}
                 </div>
               </div>
             </div>
@@ -337,7 +395,7 @@ export default function ReportsPage() {
                 <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-8 text-sm text-neutral-500">Không có bill nào khớp bộ lọc hiện tại.</div>
               ) : (
                 <div className="space-y-1.5">
-                  {filteredTicketRows.map((t) => (
+                  {mobileTicketRows.map((t) => (
                     <div key={t.id} className="rounded-xl border border-neutral-200 bg-white p-1.5 md:rounded-2xl md:p-2.5">
                       <div className="flex items-start justify-between gap-1.5">
                         <div className="min-w-0 flex-1">
@@ -354,6 +412,15 @@ export default function ReportsPage() {
                       </div>
                     </div>
                   ))}
+                  {filteredTicketRows.length > mobileTicketRows.length ? (
+                    <button
+                      type="button"
+                      className="mt-2 w-full cursor-pointer rounded-2xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-medium text-neutral-700 md:hidden"
+                      onClick={() => setMobileTicketsLimit((v) => v + 12)}
+                    >
+                      Xem thêm {Math.min(12, filteredTicketRows.length - mobileTicketRows.length)} bill
+                    </button>
+                  ) : null}
                 </div>
               )}
             </div>

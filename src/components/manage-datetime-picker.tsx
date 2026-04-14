@@ -162,7 +162,7 @@ export function ManageDateTimePicker({
           <div className="pk-group pk-date-group min-w-0">
             <button
               type="button"
-              className={`${compact ? compactTriggerClass : "pk-trigger manage-pk-trigger"} ${dateOpen ? "active" : ""}`}
+              className={`cursor-pointer ${compact ? compactTriggerClass : "pk-trigger manage-pk-trigger"} ${dateOpen ? "active" : ""}`}
               onClick={() => {
                 setTimeOpen(false);
                 setDateOpen((prev) => !prev);
@@ -241,7 +241,7 @@ export function ManageDateTimePicker({
                     <button
                       key={item.label}
                       type="button"
-                      className={`pk-qd-btn ${sameDay(selectedDate, quickDate) ? "active" : ""}`}
+                      className={`pk-qd-btn cursor-pointer ${sameDay(selectedDate, quickDate) ? "active" : ""}`}
                       onClick={() => pickDate(quickDate)}
                     >
                       {item.label}
@@ -255,7 +255,7 @@ export function ManageDateTimePicker({
           <div className="pk-group pk-time-group manage-pk-time-group min-w-0">
             <button
               type="button"
-              className={`${compact ? compactTimeTriggerClass : "pk-trigger manage-pk-trigger"} ${timeOpen ? "active" : ""}`}
+              className={`cursor-pointer ${compact ? compactTimeTriggerClass : "pk-trigger manage-pk-trigger"} ${timeOpen ? "active" : ""}`}
               onClick={() => {
                 setDateOpen(false);
                 setTimeOpen((prev) => !prev);
@@ -292,7 +292,7 @@ export function ManageDateTimePicker({
             <div className={`pk-dropdown ${timeOpen ? "open" : ""}`} onClick={(e) => e.stopPropagation()}>
               <div className="pk-time-grid">
                 {TIME_SLOTS.map((slot) => (
-                  <button key={slot} type="button" className={`pk-time-slot ${selectedTime === slot ? "selected" : ""}`} onClick={() => pickTime(slot)}>
+                  <button key={slot} type="button" className={`pk-time-slot cursor-pointer ${selectedTime === slot ? "selected" : ""}`} onClick={() => pickTime(slot)}>
                     {slot}
                   </button>
                 ))}

@@ -37,17 +37,19 @@ function addMinutes(date: Date, minutes: number) {
   return new Date(date.getTime() + minutes * 60 * 1000);
 }
 
-function statusTone(status: BookingRequestStatus) {
+function statusTone(status: BookingRequestStatus, isExpired = false) {
   if (status === "NEW") return "bg-blue-100 text-blue-700";
+  if (status === "NEEDS_RESCHEDULE" && isExpired) return "bg-red-100 text-red-700";
   if (status === "NEEDS_RESCHEDULE") return "bg-amber-100 text-amber-800";
   if (status === "CONFIRMED") return "bg-violet-100 text-violet-700";
   if (status === "CONVERTED") return "bg-emerald-100 text-emerald-700";
   return "bg-red-100 text-red-700";
 }
 
-function statusLabel(status: BookingRequestStatus) {
+function statusLabel(status: BookingRequestStatus, isExpired = false) {
   if (status === "NEW") return "MỚI";
-  if (status === "NEEDS_RESCHEDULE") return "CẦN DỜI";
+  if (status === "NEEDS_RESCHEDULE" && isExpired) return "QUÁ GIỜ";
+  if (status === "NEEDS_RESCHEDULE") return "TRÙNG LỊCH";
   if (status === "CONFIRMED") return "ĐÃ XÁC NHẬN";
   if (status === "CONVERTED") return "ĐÃ CHUYỂN";
   return "ĐÃ HỦY";
@@ -56,6 +58,10 @@ function statusLabel(status: BookingRequestStatus) {
 function pickCustomerName(customers: OverlapRow["customers"]) {
   if (Array.isArray(customers)) return customers[0]?.name ?? "Khách";
   return customers?.name ?? "Khách";
+}
+
+function isExpiredBookingRequest(row: BookingRequestRow) {
+  return !!row.requested_start_at && new Date(row.requested_start_at).getTime() < Date.now();
 }
 
 function QueueCard({
@@ -77,7 +83,7 @@ function QueueCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="truncate text-sm font-semibold text-neutral-900 md:text-base">{row.customer_name}</p>
-            <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${statusTone(row.status)}`}>{statusLabel(row.status)}</span>
+            <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${statusTone(row.status, isExpiredBookingRequest(row))}`}>{statusLabel(row.status, isExpiredBookingRequest(row))}</span>
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-neutral-500 md:text-xs">
             <span>{row.customer_phone}</span>
@@ -99,15 +105,12 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
   return <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">{children}</label>;
 }
 
-function ChoiceChip({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+function SelectInput(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`cursor-pointer rounded-xl border px-3 py-2 text-left text-xs font-medium transition ${active ? "border-rose-300 bg-rose-50 text-rose-700" : "border-neutral-200 bg-white text-neutral-700"}`}
-    >
-      {label}
-    </button>
+    <select
+      {...props}
+      className={`w-full cursor-pointer rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-xs text-neutral-900 outline-none transition focus:border-rose-300 focus:ring-4 focus:ring-rose-100 md:text-sm ${props.className ?? ""}`}
+    />
   );
 }
 
@@ -278,7 +281,7 @@ export default function BookingRequestsPage() {
 
   const compactHeader = refreshing ? "Đang làm mới..." : `${rows.length} request`;
   const selectionMeta = selectedRow
-    ? `${selectedRow.customer_name} · ${selectedRow.status === "NEEDS_RESCHEDULE" ? "Cần dời" : "Mới"}`
+    ? `${selectedRow.customer_name} · ${selectedRow.status === "NEEDS_RESCHEDULE" ? (isExpiredBookingRequest(selectedRow) ? "Quá giờ" : "Trùng lịch") : "Mới"}`
     : "Chọn request để xử lý";
 
   return (
@@ -369,7 +372,7 @@ export default function BookingRequestsPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-sm font-semibold text-neutral-900 md:text-base">{selectedRow.customer_name}</p>
-                        <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${statusTone(selectedRow.status)}`}>{statusLabel(selectedRow.status)}</span>
+                        <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${statusTone(selectedRow.status, isExpiredBookingRequest(selectedRow))}`}>{statusLabel(selectedRow.status, isExpiredBookingRequest(selectedRow))}</span>
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-neutral-500 md:text-xs">
                         <span>{selectedRow.customer_phone}</span>
@@ -391,8 +394,10 @@ export default function BookingRequestsPage() {
                   </div>
 
                   {selectedRow.status === "NEEDS_RESCHEDULE" ? (
-                    <p className="mt-2 rounded-xl bg-amber-100 px-3 py-1.5 text-xs text-amber-900 md:text-sm">
-                      Request đang trùng lịch, cần sửa giờ trước khi convert.
+                    <p className={`mt-2 rounded-xl px-3 py-1.5 text-xs md:text-sm ${isExpiredBookingRequest(selectedRow) ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-900"}`}>
+                      {isExpiredBookingRequest(selectedRow)
+                        ? "Request này đã quá giờ so với thời gian khách chọn. Cần chốt lại giờ mới trước khi convert."
+                        : "Request này đang trùng lịch hoặc vượt sức chứa khung giờ. Cần chọn giờ khác trước khi convert."}
                     </p>
                   ) : null}
                 </div>
@@ -404,21 +409,21 @@ export default function BookingRequestsPage() {
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <FieldLabel>Chọn thợ</FieldLabel>
-                    <div className="grid gap-1.5">
-                      <ChoiceChip active={staffUserId === ""} label="Không gán thợ" onClick={() => setStaffUserId("")} />
+                    <SelectInput value={staffUserId} onChange={(e) => setStaffUserId(e.target.value)}>
+                      <option value="">Không gán thợ</option>
                       {staffOptions.map((staff) => (
-                        <ChoiceChip key={staff.userId} active={staffUserId === staff.userId} label={staff.name} onClick={() => setStaffUserId(staff.userId)} />
+                        <option key={staff.userId} value={staff.userId}>{staff.name}</option>
                       ))}
-                    </div>
+                    </SelectInput>
                   </div>
                   <div>
                     <FieldLabel>Chọn ghế</FieldLabel>
-                    <div className="grid gap-1.5">
-                      <ChoiceChip active={resourceId === ""} label="Không gán ghế" onClick={() => setResourceId("")} />
+                    <SelectInput value={resourceId} onChange={(e) => setResourceId(e.target.value)}>
+                      <option value="">Không gán ghế</option>
                       {resourceOptions.map((resource) => (
-                        <ChoiceChip key={resource.id} active={resourceId === resource.id} label={resource.name} onClick={() => setResourceId(resource.id)} />
+                        <option key={resource.id} value={resource.id}>{resource.name}</option>
                       ))}
-                    </div>
+                    </SelectInput>
                   </div>
                 </div>
 
@@ -443,19 +448,19 @@ export default function BookingRequestsPage() {
 
                 <div className="flex flex-wrap gap-1.5">
                   {selectedRow.status === "NEW" ? (
-                    <button type="button" className="rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 md:px-3.5 md:py-2.5 md:text-sm" disabled={submitting} onClick={() => void onMarkNeedsReschedule(selectedRow.id)}>
+                    <button type="button" className="cursor-pointer rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed md:px-3.5 md:py-2.5 md:text-sm" disabled={submitting} onClick={() => void onMarkNeedsReschedule(selectedRow.id)}>
                       Đánh dấu cần dời
                     </button>
                   ) : null}
 
                   {selectedRow.status !== "CONVERTED" && selectedRow.status !== "CANCELLED" ? (
-                    <button type="button" className="rounded-2xl bg-[var(--color-primary)] px-3 py-2 text-xs font-semibold text-white shadow-sm ring-1 ring-[var(--color-primary)]/20 transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60 md:px-3.5 md:py-2.5 md:text-sm" disabled={submitting || !bookingAt || !capacityAllowed} onClick={() => void onConvert()}>
+                    <button type="button" className="cursor-pointer rounded-2xl bg-[var(--color-primary)] px-3 py-2 text-xs font-semibold text-white shadow-sm ring-1 ring-[var(--color-primary)]/20 transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60 md:px-3.5 md:py-2.5 md:text-sm" disabled={submitting || !bookingAt || !capacityAllowed} onClick={() => void onConvert()}>
                       {submitting ? "Đang convert..." : selectedRow.status === "NEEDS_RESCHEDULE" ? "Chốt giờ & tạo lịch" : "Tạo lịch"}
                     </button>
                   ) : null}
 
                   {selectedRow.status !== "CANCELLED" && selectedRow.status !== "CONVERTED" ? (
-                    <button type="button" className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 md:px-3.5 md:py-2.5 md:text-sm" disabled={submitting} onClick={() => void onCancel(selectedRow.id)}>
+                    <button type="button" className="cursor-pointer rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 md:px-3.5 md:py-2.5 md:text-sm" disabled={submitting} onClick={() => void onCancel(selectedRow.id)}>
                       Hủy
                     </button>
                   ) : null}
