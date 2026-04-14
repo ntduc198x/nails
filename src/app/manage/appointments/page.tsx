@@ -248,6 +248,7 @@ export default function OperationsPage() {
   const [toDate, setToDate] = useState(toDateInputValue(now));
   const [submitting, setSubmitting] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [showDetailList, setShowDetailList] = useState(false);
   const formRef = useRef<HTMLElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
 
@@ -472,7 +473,14 @@ export default function OperationsPage() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {currentConflict ? <span className="w-fit rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">Có xung đột</span> : null}
-                <button type="button" onClick={() => requestAnimationFrame(() => listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }))} className="rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDetailList(true);
+                    requestAnimationFrame(() => listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+                  }}
+                  className="rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
+                >
                   Danh sách lịch
                 </button>
               </div>
@@ -541,20 +549,6 @@ export default function OperationsPage() {
           </section>
 
           <section ref={listRef} className="manage-surface md:p-6 space-y-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <div>
-                <h3 className="text-base font-semibold text-neutral-900 md:text-lg">Danh sách lịch</h3>
-              </div>
-              <div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap">
-                <button type="button" onClick={() => setStatusFilter("ALL")} className={`rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "ALL" ? "bg-neutral-900 text-white" : "border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"}`}>Tất cả</button>
-                <button type="button" onClick={() => setStatusFilter("BOOKED")} className={`rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "BOOKED" ? "bg-amber-500 text-white" : "border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"}`}>Check-in</button>
-                <button type="button" onClick={() => setStatusFilter("OVERDUE")} className={`rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "OVERDUE" ? "bg-red-600 text-white" : "border border-red-200 bg-red-50 text-red-800 hover:bg-red-100"}`}>Quá giờ</button>
-                <button type="button" onClick={() => setStatusFilter("STALE_CHECKED_IN")} className={`rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "STALE_CHECKED_IN" ? "bg-violet-600 text-white" : "border border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100"}`}>Check-in lâu</button>
-                <button type="button" onClick={() => setStatusFilter("CHECKED_IN")} className={`rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "CHECKED_IN" ? "bg-blue-600 text-white" : "border border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100"}`}>Chờ thanh toán</button>
-                <button type="button" onClick={() => setStatusFilter("DONE")} className={`rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "DONE" ? "bg-emerald-600 text-white" : "border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"}`}>Đã xong</button>
-              </div>
-            </div>
-
             <div className="hidden flex-col gap-3 md:flex">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <button type="button" onClick={() => setShowRangeFilters((v) => !v)} className="w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-left text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 sm:w-auto">
@@ -611,24 +605,29 @@ export default function OperationsPage() {
               </MobileCollapsible>
             </div>
 
-            {loading ? <p className="text-sm text-neutral-500">Đang tải lịch hẹn...</p> : filteredRows.length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 bg-neutral-50 px-4 py-8 text-center text-sm text-neutral-500">Chưa có lịch hẹn nào trong bộ lọc hiện tại.</div> : (
-              <div className="space-y-4">
-                {filteredRows.map((a) => {
-                  const customer = pickCustomerName(a.customers);
-                  const staff = staffOptions.find((s) => s.userId === a.staff_user_id)?.name ?? "-";
-                  const resource = resourceOptions.find((r) => r.id === (a.resource_id ?? ""))?.name ?? "-";
-                  const overdue = isOverdueBooked(a);
-                  const staleCheckedIn = isStaleCheckedIn(a);
-                  const criticalCheckedIn = isCriticalCheckedIn(a);
-                  return <AppointmentCard key={a.id} row={a} staffName={staff} resourceName={resource} onlineBooked={isOnlineBooked(a)} overdue={overdue} staleCheckedIn={staleCheckedIn} criticalCheckedIn={criticalCheckedIn} updatingId={updatingId} onEdit={() => { setEditingId(a.id); setCustomerName(customer); setAutoTime(false); setBookingAt(rebaseDateTimeToToday(a.start_at)); setStaffUserId(a.staff_user_id ?? ""); setResourceId(a.resource_id ?? ""); requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }} onQuickStatus={onQuickStatus} />;
-                })}
-              </div>
-            )}
+            <MobileCollapsible
+              summary={<div className="flex items-center justify-between gap-3 pr-2"><span>Chi tiết lịch</span><span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[10px] font-medium text-neutral-700">{filteredRows.length}</span></div>}
+              defaultOpen={showDetailList}
+            >
+              {loading ? <p className="text-sm text-neutral-500">Đang tải lịch hẹn...</p> : filteredRows.length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 bg-neutral-50 px-4 py-8 text-center text-sm text-neutral-500">Chưa có lịch hẹn nào trong bộ lọc hiện tại.</div> : (
+                <div className="space-y-4">
+                  {filteredRows.map((a) => {
+                    const customer = pickCustomerName(a.customers);
+                    const staff = staffOptions.find((s) => s.userId === a.staff_user_id)?.name ?? "-";
+                    const resource = resourceOptions.find((r) => r.id === (a.resource_id ?? ""))?.name ?? "-";
+                    const overdue = isOverdueBooked(a);
+                    const staleCheckedIn = isStaleCheckedIn(a);
+                    const criticalCheckedIn = isCriticalCheckedIn(a);
+                    return <AppointmentCard key={a.id} row={a} staffName={staff} resourceName={resource} onlineBooked={isOnlineBooked(a)} overdue={overdue} staleCheckedIn={staleCheckedIn} criticalCheckedIn={criticalCheckedIn} updatingId={updatingId} onEdit={() => { setEditingId(a.id); setCustomerName(customer); setAutoTime(false); setBookingAt(rebaseDateTimeToToday(a.start_at)); setStaffUserId(a.staff_user_id ?? ""); setResourceId(a.resource_id ?? ""); requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }} onQuickStatus={onQuickStatus} />;
+                  })}
+                </div>
+              )}
+            </MobileCollapsible>
           </section>
 
           <MobileStickyActions>
             <button type="button" onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })} className="flex-1 rounded-2xl bg-[var(--color-primary)] px-4 py-3 text-sm font-semibold text-white shadow-md ring-1 ring-[var(--color-primary)]/25 transition hover:brightness-95">
-              Đi tới form tạo lịch
+              Form tạo lịch
             </button>
           </MobileStickyActions>
         </>
