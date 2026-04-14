@@ -70,16 +70,16 @@ export default function ServicesPage() {
   const [shortDescription, setShortDescription] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [featuredInLookbook, setFeaturedInLookbook] = useState(false);
-  const [duration, setDuration] = useState(45);
-  const [price, setPrice] = useState(250000);
+  const [durationInput, setDurationInput] = useState("");
+  const [priceInput, setPriceInput] = useState("");
   const [vat, setVat] = useState(0);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editShortDescription, setEditShortDescription] = useState("");
   const [editImageUrl, setEditImageUrl] = useState("");
   const [editFeaturedInLookbook, setEditFeaturedInLookbook] = useState(false);
-  const [editDuration, setEditDuration] = useState(45);
-  const [editPrice, setEditPrice] = useState(250000);
+  const [editDurationInput, setEditDurationInput] = useState("");
+  const [editPriceInput, setEditPriceInput] = useState("");
   const [editVat, setEditVat] = useState(0);
   const [editActive, setEditActive] = useState(true);
 
@@ -132,6 +132,8 @@ export default function ServicesPage() {
       setSubmitting(true);
       setError(null);
       if (!canEdit) throw new Error("Role hiện tại không được phép thêm dịch vụ.");
+      const duration = Number(durationInput.replace(/\D/g, "") || 0);
+      const price = Number(priceInput.replace(/\D/g, "") || 0);
       const created = await createService({
         name,
         shortDescription: shortDescription || null,
@@ -145,8 +147,8 @@ export default function ServicesPage() {
       setShortDescription("");
       setImageUrl("");
       setFeaturedInLookbook(false);
-      setDuration(45);
-      setPrice(250000);
+      setDurationInput("");
+      setPriceInput("");
       setVat(0);
       await load({ force: true });
       const createdRow = created as Partial<ServiceRow> | null;
@@ -156,8 +158,8 @@ export default function ServicesPage() {
         setEditShortDescription(createdRow.short_description ?? shortDescription);
         setEditImageUrl(createdRow.image_url ?? imageUrl);
         setEditFeaturedInLookbook(Boolean(createdRow.featured_in_lookbook ?? featuredInLookbook));
-        setEditDuration(createdRow.duration_min ?? duration);
-        setEditPrice(Number(createdRow.base_price ?? price));
+        setEditDurationInput(String(createdRow.duration_min ?? duration));
+        setEditPriceInput(String(Number(createdRow.base_price ?? price)));
         setEditVat(Number(createdRow.vat_rate ?? vat / 100) * 100);
         setEditActive(createdRow.active ?? true);
       }
@@ -175,8 +177,8 @@ export default function ServicesPage() {
     setEditShortDescription(row.short_description ?? "");
     setEditImageUrl(row.image_url ?? "");
     setEditFeaturedInLookbook(Boolean(row.featured_in_lookbook));
-    setEditDuration(row.duration_min);
-    setEditPrice(Number(row.base_price));
+    setEditDurationInput(String(row.duration_min));
+    setEditPriceInput(String(Number(row.base_price)));
     setEditVat(Number(row.vat_rate) * 100);
     setEditActive(row.active);
   }
@@ -186,6 +188,8 @@ export default function ServicesPage() {
     try {
       setSubmitting(true);
       setError(null);
+      const editDuration = Number(editDurationInput.replace(/\D/g, "") || 0);
+      const editPrice = Number(editPriceInput.replace(/\D/g, "") || 0);
       await updateService({
         id: editingId,
         name: editName,
@@ -346,10 +350,10 @@ export default function ServicesPage() {
                   <TextInput placeholder="Luxury Gel" value={name} onChange={(e) => setName(e.target.value)} required />
                 </InlineField>
                 <InlineField label="Giá" compact>
-                  <TextInput inputMode="numeric" pattern="[0-9]*" value={price ? String(price) : ""} onChange={(e) => setPrice(Number(e.target.value.replace(/\D/g, "") || 0))} required placeholder="Ví dụ: 250000" />
+                  <TextInput inputMode="numeric" pattern="[0-9]*" value={priceInput} onChange={(e) => setPriceInput(e.target.value.replace(/\D/g, ""))} required placeholder="Ví dụ: 250000" />
                 </InlineField>
                 <InlineField label="Phút" compact>
-                  <TextInput inputMode="numeric" pattern="[0-9]*" value={duration ? String(duration) : ""} onChange={(e) => setDuration(Number(e.target.value.replace(/\D/g, "") || 0))} required placeholder="Ví dụ: 60" />
+                  <TextInput inputMode="numeric" pattern="[0-9]*" value={durationInput} onChange={(e) => setDurationInput(e.target.value.replace(/\D/g, ""))} required placeholder="Ví dụ: 60" />
                 </InlineField>
               </div>
 
@@ -398,8 +402,8 @@ export default function ServicesPage() {
             <form onSubmit={onSubmit} className="space-y-2.5">
               <div className="grid grid-cols-[minmax(0,1fr)_96px_78px] gap-2">
                 <TextInput placeholder="Tên dịch vụ" value={name} onChange={(e) => setName(e.target.value)} required />
-                <TextInput inputMode="numeric" pattern="[0-9]*" value={price ? String(price) : undefined} onChange={(e) => setPrice(Number(e.target.value.replace(/\D/g, "") || 0))} required placeholder="250000" />
-                <TextInput inputMode="numeric" pattern="[0-9]*" value={duration ? String(duration) : undefined} onChange={(e) => setDuration(Number(e.target.value.replace(/\D/g, "") || 0))} required placeholder="60" />
+                <TextInput inputMode="numeric" pattern="[0-9]*" value={priceInput} onChange={(e) => setPriceInput(e.target.value.replace(/\D/g, ""))} required placeholder="250000" />
+                <TextInput inputMode="numeric" pattern="[0-9]*" value={durationInput} onChange={(e) => setDurationInput(e.target.value.replace(/\D/g, ""))} required placeholder="60" />
               </div>
 
               <div className="grid grid-cols-[minmax(0,1fr)_84px] gap-2">
@@ -509,10 +513,10 @@ export default function ServicesPage() {
                             <TextArea value={editShortDescription} onChange={(e) => setEditShortDescription(e.target.value)} className="min-h-[64px] text-[13px]" />
                           </InlineField>
                           <InlineField label="Giá" compact>
-                            <TextInput type="number" min={0} value={editPrice} onChange={(e) => setEditPrice(Number(e.target.value))} className="text-[13px]" />
+                            <TextInput inputMode="numeric" pattern="[0-9]*" value={editPriceInput} onChange={(e) => setEditPriceInput(e.target.value.replace(/\D/g, ""))} placeholder="Ví dụ: 250000" className="text-[13px]" />
                           </InlineField>
                           <InlineField label="Phút" compact>
-                            <TextInput type="number" min={5} value={editDuration} onChange={(e) => setEditDuration(Number(e.target.value))} className="text-[13px]" />
+                            <TextInput inputMode="numeric" pattern="[0-9]*" value={editDurationInput} onChange={(e) => setEditDurationInput(e.target.value.replace(/\D/g, ""))} placeholder="Ví dụ: 60" className="text-[13px]" />
                           </InlineField>
                           <InlineField label="VAT" compact>
                             <TextInput type="number" min={0} step={0.5} value={editVat} onChange={(e) => setEditVat(Number(e.target.value))} className="text-[13px]" />
@@ -624,10 +628,10 @@ export default function ServicesPage() {
                                   <TextArea value={editShortDescription} onChange={(e) => setEditShortDescription(e.target.value)} className="min-h-[56px] text-[12px]" />
                                 </InlineField>
                                 <InlineField label="Giá" compact>
-                                  <TextInput type="number" min={0} value={editPrice} onChange={(e) => setEditPrice(Number(e.target.value))} className="py-1 text-[12px]" />
+                                  <TextInput inputMode="numeric" pattern="[0-9]*" value={editPriceInput} onChange={(e) => setEditPriceInput(e.target.value.replace(/\D/g, ""))} placeholder="250000" className="py-1 text-[12px]" />
                                 </InlineField>
                                 <InlineField label="Phút" compact>
-                                  <TextInput type="number" min={5} value={editDuration} onChange={(e) => setEditDuration(Number(e.target.value))} className="py-1 text-[12px]" />
+                                  <TextInput inputMode="numeric" pattern="[0-9]*" value={editDurationInput} onChange={(e) => setEditDurationInput(e.target.value.replace(/\D/g, ""))} placeholder="60" className="py-1 text-[12px]" />
                                 </InlineField>
                                 <InlineField label="VAT" compact>
                                   <TextInput type="number" min={0} step={0.5} value={editVat} onChange={(e) => setEditVat(Number(e.target.value))} className="py-1 text-[12px]" />
