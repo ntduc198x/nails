@@ -454,8 +454,8 @@ export default function ServicesPage() {
               <form onSubmit={onSubmit} className="space-y-2.5">
                 <div className="grid grid-cols-[minmax(0,1fr)_96px_78px] gap-2">
                   <TextInput placeholder="Tên dịch vụ" value={createForm.name} onChange={(e) => setCreateForm((prev) => ({ ...prev, name: e.target.value }))} required />
-                  <TextInput inputMode="numeric" pattern="[0-9]*" value={createForm.priceInput} onChange={(e) => setCreateForm((prev) => ({ ...prev, priceInput: e.target.value.replace(/\D/g, "") }))} required placeholder="250000" />
-                  <TextInput inputMode="numeric" pattern="[0-9]*" value={createForm.durationInput} onChange={(e) => setCreateForm((prev) => ({ ...prev, durationInput: e.target.value.replace(/\D/g, "") }))} required placeholder="60" />
+                  <TextInput inputMode="numeric" pattern="[0-9]*" value={createForm.priceInput} onChange={(e) => setCreateForm((prev) => ({ ...prev, priceInput: e.target.value.replace(/\D/g, "") }))} required placeholder="Giá VNĐ" />
+                  <TextInput inputMode="numeric" pattern="[0-9]*" value={createForm.durationInput} onChange={(e) => setCreateForm((prev) => ({ ...prev, durationInput: e.target.value.replace(/\D/g, "") }))} required placeholder="Phút" />
                 </div>
 
                 <div className="grid grid-cols-[minmax(0,1fr)_84px] gap-2">
