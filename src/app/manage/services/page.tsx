@@ -21,6 +21,28 @@ type ServiceRow = {
   active: boolean;
 };
 
+type ServiceFormState = {
+  name: string;
+  shortDescription: string;
+  imageUrl: string;
+  featuredInLookbook: boolean;
+  durationInput: string;
+  priceInput: string;
+  vatInput: string;
+  active: boolean;
+};
+
+const emptyCreateForm: ServiceFormState = {
+  name: "",
+  shortDescription: "",
+  imageUrl: "",
+  featuredInLookbook: false,
+  durationInput: "",
+  priceInput: "",
+  vatInput: "",
+  active: true,
+};
+
 function FieldLabel({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return <label className={`text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-500 ${className}`}>{children}</label>;
 }
@@ -52,6 +74,27 @@ function TextArea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   );
 }
 
+function parseDigits(value: string) {
+  return Number(value.replace(/\D/g, "") || 0);
+}
+
+function parseDecimal(value: string) {
+  return Number(value.replace(/[^\d.]/g, "") || 0);
+}
+
+function serviceToFormState(row: ServiceRow): ServiceFormState {
+  return {
+    name: row.name,
+    shortDescription: row.short_description ?? "",
+    imageUrl: row.image_url ?? "",
+    featuredInLookbook: Boolean(row.featured_in_lookbook),
+    durationInput: String(row.duration_min),
+    priceInput: String(Number(row.base_price)),
+    vatInput: String(Number(row.vat_rate) * 100),
+    active: row.active,
+  };
+}
+
 export default function ServicesPage() {
   const [rows, setRows] = useState<ServiceRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,26 +105,13 @@ export default function ServicesPage() {
   const [uploadingCreateImage, setUploadingCreateImage] = useState(false);
   const [uploadingEditImage, setUploadingEditImage] = useState(false);
   const [search, setSearch] = useState("");
-  const [mobileCreateOpen, setMobileCreateOpen] = useState(false);
-  const [mobileListOpen, setMobileListOpen] = useState(false);
-  const [mobileTrashOpen, setMobileTrashOpen] = useState(false);
+  const [mobileCreateOpen] = useState(false);
+  const [mobileListOpen] = useState(false);
+  const [mobileTrashOpen] = useState(false);
 
-  const [name, setName] = useState("");
-  const [shortDescription, setShortDescription] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
-  const [featuredInLookbook, setFeaturedInLookbook] = useState(false);
-  const [durationInput, setDurationInput] = useState("");
-  const [priceInput, setPriceInput] = useState("");
-  const [vat, setVat] = useState(0);
+  const [createForm, setCreateForm] = useState<ServiceFormState>(emptyCreateForm);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editShortDescription, setEditShortDescription] = useState("");
-  const [editImageUrl, setEditImageUrl] = useState("");
-  const [editFeaturedInLookbook, setEditFeaturedInLookbook] = useState(false);
-  const [editDurationInput, setEditDurationInput] = useState("");
-  const [editPriceInput, setEditPriceInput] = useState("");
-  const [editVat, setEditVat] = useState(0);
-  const [editActive, setEditActive] = useState(true);
+  const [editForm, setEditForm] = useState<ServiceFormState | null>(null);
 
   const createSectionRef = useRef<HTMLDivElement | null>(null);
   const listSectionRef = useRef<HTMLDivElement | null>(null);
@@ -132,37 +162,37 @@ export default function ServicesPage() {
       setSubmitting(true);
       setError(null);
       if (!canEdit) throw new Error("Role hiện tại không được phép thêm dịch vụ.");
-      const duration = Number(durationInput.replace(/\D/g, "") || 0);
-      const price = Number(priceInput.replace(/\D/g, "") || 0);
+
       const created = await createService({
-        name,
-        shortDescription: shortDescription || null,
-        imageUrl: imageUrl || null,
-        featuredInLookbook,
-        durationMin: duration,
-        basePrice: price,
-        vatPercent: vat,
+        name: createForm.name,
+        shortDescription: createForm.shortDescription || null,
+        imageUrl: createForm.imageUrl || null,
+        featuredInLookbook: createForm.featuredInLookbook,
+        durationMin: parseDigits(createForm.durationInput),
+        basePrice: parseDigits(createForm.priceInput),
+        vatPercent: parseDecimal(createForm.vatInput),
       });
-      setName("");
-      setShortDescription("");
-      setImageUrl("");
-      setFeaturedInLookbook(false);
-      setDurationInput("");
-      setPriceInput("");
-      setVat(0);
+
+      setCreateForm(emptyCreateForm);
       await load({ force: true });
+
       const createdRow = created as Partial<ServiceRow> | null;
       if (createdRow?.id) {
-        setEditingId(createdRow.id);
-        setEditName(createdRow.name ?? "");
-        setEditShortDescription(createdRow.short_description ?? shortDescription);
-        setEditImageUrl(createdRow.image_url ?? imageUrl);
-        setEditFeaturedInLookbook(Boolean(createdRow.featured_in_lookbook ?? featuredInLookbook));
-        setEditDurationInput(String(createdRow.duration_min ?? duration));
-        setEditPriceInput(String(Number(createdRow.base_price ?? price)));
-        setEditVat(Number(createdRow.vat_rate ?? vat / 100) * 100);
-        setEditActive(createdRow.active ?? true);
+        const matchedRow = {
+          id: createdRow.id,
+          name: createdRow.name ?? createForm.name,
+          short_description: createdRow.short_description ?? createForm.shortDescription,
+          image_url: createdRow.image_url ?? createForm.imageUrl,
+          featured_in_lookbook: createdRow.featured_in_lookbook ?? createForm.featuredInLookbook,
+          duration_min: createdRow.duration_min ?? parseDigits(createForm.durationInput),
+          base_price: Number(createdRow.base_price ?? parseDigits(createForm.priceInput)),
+          vat_rate: Number(createdRow.vat_rate ?? parseDecimal(createForm.vatInput) / 100),
+          active: createdRow.active ?? true,
+        } as ServiceRow;
+        setEditingId(matchedRow.id);
+        setEditForm(serviceToFormState(matchedRow));
       }
+
       requestAnimationFrame(() => listSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Create service failed");
@@ -173,35 +203,27 @@ export default function ServicesPage() {
 
   function startEdit(row: ServiceRow) {
     setEditingId(row.id);
-    setEditName(row.name);
-    setEditShortDescription(row.short_description ?? "");
-    setEditImageUrl(row.image_url ?? "");
-    setEditFeaturedInLookbook(Boolean(row.featured_in_lookbook));
-    setEditDurationInput(String(row.duration_min));
-    setEditPriceInput(String(Number(row.base_price)));
-    setEditVat(Number(row.vat_rate) * 100);
-    setEditActive(row.active);
+    setEditForm(serviceToFormState(row));
   }
 
   async function saveEdit() {
-    if (!editingId || submitting) return;
+    if (!editingId || !editForm || submitting) return;
     try {
       setSubmitting(true);
       setError(null);
-      const editDuration = Number(editDurationInput.replace(/\D/g, "") || 0);
-      const editPrice = Number(editPriceInput.replace(/\D/g, "") || 0);
       await updateService({
         id: editingId,
-        name: editName,
-        shortDescription: editShortDescription || null,
-        imageUrl: editImageUrl || null,
-        featuredInLookbook: editFeaturedInLookbook,
-        durationMin: editDuration,
-        basePrice: editPrice,
-        vatPercent: editVat,
-        active: editActive,
+        name: editForm.name,
+        shortDescription: editForm.shortDescription || null,
+        imageUrl: editForm.imageUrl || null,
+        featuredInLookbook: editForm.featuredInLookbook,
+        durationMin: parseDigits(editForm.durationInput),
+        basePrice: parseDigits(editForm.priceInput),
+        vatPercent: parseDecimal(editForm.vatInput),
+        active: editForm.active,
       });
       setEditingId(null);
+      setEditForm(null);
       await load({ force: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Update service failed");
@@ -215,8 +237,8 @@ export default function ServicesPage() {
     try {
       setUploadingCreateImage(true);
       setError(null);
-      const uploaded = await uploadServiceImage(file, name || file.name);
-      setImageUrl(uploaded.publicUrl);
+      const uploaded = await uploadServiceImage(file, createForm.name || file.name);
+      setCreateForm((prev) => ({ ...prev, imageUrl: uploaded.publicUrl }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload ảnh thất bại");
     } finally {
@@ -225,12 +247,12 @@ export default function ServicesPage() {
   }
 
   async function handleEditImageUpload(file?: File | null) {
-    if (!file) return;
+    if (!file || !editForm) return;
     try {
       setUploadingEditImage(true);
       setError(null);
-      const uploaded = await uploadServiceImage(file, editName || file.name);
-      setEditImageUrl(uploaded.publicUrl);
+      const uploaded = await uploadServiceImage(file, editForm.name || file.name);
+      setEditForm((prev) => (prev ? { ...prev, imageUrl: uploaded.publicUrl } : prev));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload ảnh thất bại");
     } finally {
@@ -240,7 +262,7 @@ export default function ServicesPage() {
 
   async function moveToTrash(row: ServiceRow) {
     if (!canEdit || submitting) return;
-    const ok = window.confirm(`Chuyển dịch vụ \"${row.name}\" vào thùng rác? Có thể khôi phục sau.`);
+    const ok = window.confirm(`Chuyển dịch vụ "${row.name}" vào thùng rác? Có thể khôi phục sau.`);
     if (!ok) return;
 
     try {
@@ -257,7 +279,10 @@ export default function ServicesPage() {
         vatPercent: Number(row.vat_rate) * 100,
         active: false,
       });
-      if (editingId === row.id) setEditingId(null);
+      if (editingId === row.id) {
+        setEditingId(null);
+        setEditForm(null);
+      }
       await load({ force: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Chuyển vào thùng rác thất bại");
@@ -266,7 +291,7 @@ export default function ServicesPage() {
     }
   }
 
-  async function restoreService(row: ServiceRow) {
+  async function restoreFromTrash(row: ServiceRow) {
     if (!canEdit || submitting) return;
     try {
       setSubmitting(true);
@@ -290,20 +315,42 @@ export default function ServicesPage() {
     }
   }
 
+  async function deleteForever(row: ServiceRow) {
+    if (!canEdit || submitting) return;
+    const ok = window.confirm(`Xóa vĩnh viễn dịch vụ "${row.name}"? Hành động này không thể hoàn tác.`);
+    if (!ok) return;
+
+    try {
+      setSubmitting(true);
+      setError(null);
+      await updateService({
+        id: row.id,
+        name: row.name,
+        shortDescription: row.short_description || null,
+        imageUrl: row.image_url || null,
+        featuredInLookbook: Boolean(row.featured_in_lookbook),
+        durationMin: row.duration_min,
+        basePrice: Number(row.base_price),
+        vatPercent: Number(row.vat_rate) * 100,
+        active: false,
+        deletedAt: new Date().toISOString(),
+      });
+      await load({ force: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Xóa vĩnh viễn thất bại");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <AppShell>
       <div className="space-y-4 pb-24 md:pb-0">
         <ManageQuickNav items={setupQuickNav("/manage/services")} />
 
-        <MobileSectionHeader title="Dịch vụ" meta={<div className="manage-info-box">{refreshing ? "Đang làm mới..." : `${rows.length} dịch vụ`}</div>} />
+        <MobileSectionHeader title="Dịch vụ" meta={<div className="manage-info-box">{refreshing ? "Đang làm mới..." : `${activeCount} dịch vụ`}</div>} />
 
-        {role === "ACCOUNTANT" || role === "TECH" ? (
-          <div className="manage-warn-box text-sm">
-            Vai trò hiện tại chỉ xem danh sách dịch vụ, không thêm hoặc chỉnh sửa dữ liệu.
-          </div>
-        ) : null}
-
-        {error ? <div className="manage-error-box text-sm">{error}</div> : null}
+        {error ? <div className="manage-error-box">{error}</div> : null}
 
         <section className="manage-surface space-y-3 p-4">
           <div className="flex items-center justify-between gap-3">
@@ -313,15 +360,15 @@ export default function ServicesPage() {
           <div className="grid grid-cols-3 gap-2 md:grid-cols-3">
             <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
               <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-neutral-500">Tổng</div>
-              <div className="mt-1 text-sm font-semibold text-neutral-900">{rows.length}</div>
-            </div>
-            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
-              <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-neutral-500">Active</div>
               <div className="mt-1 text-sm font-semibold text-neutral-900">{activeCount}</div>
             </div>
             <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
-              <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-neutral-500">Lookbook</div>
+              <div className="text-[10px] font-medium tracking-[0.04em] text-neutral-500">Lookbook</div>
               <div className="mt-1 text-sm font-semibold text-neutral-900">{featuredCount}</div>
+            </div>
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
+              <div className="text-[10px] font-medium tracking-[0.04em] text-neutral-500">Thùng rác</div>
+              <div className="mt-1 text-sm font-semibold text-neutral-900">{trashedRows.length}</div>
             </div>
           </div>
 
@@ -347,33 +394,33 @@ export default function ServicesPage() {
             <form onSubmit={onSubmit} className="space-y-3">
               <div className="space-y-2 md:grid md:gap-2 md:grid-cols-[minmax(0,1.1fr)_180px_160px] md:space-y-0">
                 <InlineField label="Tên" compact>
-                  <TextInput placeholder="Luxury Gel" value={name} onChange={(e) => setName(e.target.value)} required />
+                  <TextInput placeholder="Luxury Gel" value={createForm.name} onChange={(e) => setCreateForm((prev) => ({ ...prev, name: e.target.value }))} required />
                 </InlineField>
                 <InlineField label="Giá" compact>
-                  <TextInput inputMode="numeric" pattern="[0-9]*" value={priceInput} onChange={(e) => setPriceInput(e.target.value.replace(/\D/g, ""))} required placeholder="Ví dụ: 250000" />
+                  <TextInput inputMode="numeric" pattern="[0-9]*" value={createForm.priceInput} onChange={(e) => setCreateForm((prev) => ({ ...prev, priceInput: e.target.value.replace(/\D/g, "") }))} required placeholder="Ví dụ: 250000" />
                 </InlineField>
                 <InlineField label="Phút" compact>
-                  <TextInput inputMode="numeric" pattern="[0-9]*" value={durationInput} onChange={(e) => setDurationInput(e.target.value.replace(/\D/g, ""))} required placeholder="Ví dụ: 60" />
+                  <TextInput inputMode="numeric" pattern="[0-9]*" value={createForm.durationInput} onChange={(e) => setCreateForm((prev) => ({ ...prev, durationInput: e.target.value.replace(/\D/g, "") }))} required placeholder="Ví dụ: 60" />
                 </InlineField>
               </div>
 
               <div className="space-y-2 md:grid md:gap-2 md:grid-cols-[minmax(0,1fr)_140px] md:space-y-0">
                 <InlineField label="Ảnh" compact>
-                  <TextInput placeholder="URL hoặc storage path" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
+                  <TextInput placeholder="URL hoặc storage path" value={createForm.imageUrl} onChange={(e) => setCreateForm((prev) => ({ ...prev, imageUrl: e.target.value }))} />
                 </InlineField>
                 <InlineField label="VAT" compact>
-                  <TextInput inputMode="decimal" value={vat ? String(vat) : ""} onChange={(e) => setVat(Number(e.target.value.replace(/[^\d.]/g, "") || 0))} required placeholder="VAT %" />
+                  <TextInput inputMode="decimal" value={createForm.vatInput} onChange={(e) => setCreateForm((prev) => ({ ...prev, vatInput: e.target.value.replace(/[^\d.]/g, "") }))} required placeholder="VAT %" />
                 </InlineField>
               </div>
 
               <InlineField label="Mô tả" compact>
-                <TextArea placeholder="Mô tả ngắn cho landing / lookbook" value={shortDescription} onChange={(e) => setShortDescription(e.target.value)} className="min-h-[56px]" />
+                <TextArea placeholder="Mô tả ngắn cho landing / lookbook" value={createForm.shortDescription} onChange={(e) => setCreateForm((prev) => ({ ...prev, shortDescription: e.target.value }))} className="min-h-[56px]" />
               </InlineField>
 
               <div className="space-y-2 rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <label className="flex min-w-0 flex-1 items-center gap-2 text-sm text-neutral-700">
-                    <input type="checkbox" className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-400" checked={featuredInLookbook} onChange={(e) => setFeaturedInLookbook(e.target.checked)} />
+                    <input type="checkbox" className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-400" checked={createForm.featuredInLookbook} onChange={(e) => setCreateForm((prev) => ({ ...prev, featuredInLookbook: e.target.checked }))} />
                     <span className="font-medium">Đưa lên lookbook</span>
                   </label>
                   <label className="inline-flex cursor-pointer items-center justify-center rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50">
@@ -381,9 +428,9 @@ export default function ServicesPage() {
                     {uploadingCreateImage ? "Đang upload..." : "Upload ảnh"}
                   </label>
                 </div>
-                {imageUrl ? (
+                {createForm.imageUrl ? (
                   <div className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs text-neutral-600">
-                    <img src={imageUrl} alt="Preview lookbook" className="h-10 w-10 rounded-lg object-cover" />
+                    <img src={createForm.imageUrl} alt="Preview lookbook" className="h-10 w-10 rounded-lg object-cover" />
                     <div className="min-w-0 flex-1 truncate">Đã có ảnh preview</div>
                   </div>
                 ) : (
@@ -399,45 +446,45 @@ export default function ServicesPage() {
 
           <div className="md:hidden">
             <MobileCollapsible summary="Thêm dịch vụ mới" defaultOpen={mobileCreateOpen || !rows.length}>
-            <form onSubmit={onSubmit} className="space-y-2.5">
-              <div className="grid grid-cols-[minmax(0,1fr)_96px_78px] gap-2">
-                <TextInput placeholder="Tên dịch vụ" value={name} onChange={(e) => setName(e.target.value)} required />
-                <TextInput inputMode="numeric" pattern="[0-9]*" value={priceInput} onChange={(e) => setPriceInput(e.target.value.replace(/\D/g, ""))} required placeholder="250000" />
-                <TextInput inputMode="numeric" pattern="[0-9]*" value={durationInput} onChange={(e) => setDurationInput(e.target.value.replace(/\D/g, ""))} required placeholder="60" />
-              </div>
-
-              <div className="grid grid-cols-[minmax(0,1fr)_84px] gap-2">
-                <TextInput placeholder="Ảnh URL" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
-                <TextInput inputMode="decimal" value={vat ? String(vat) : ""} onChange={(e) => setVat(Number(e.target.value.replace(/[^\d.]/g, "") || 0))} required placeholder="VAT %" />
-              </div>
-
-              <TextArea placeholder="Mô tả ngắn" value={shortDescription} onChange={(e) => setShortDescription(e.target.value)} className="min-h-[44px]" />
-
-              <div className="space-y-2 rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <label className="flex min-w-0 flex-1 items-center gap-2 text-sm text-neutral-700">
-                    <input type="checkbox" className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-400" checked={featuredInLookbook} onChange={(e) => setFeaturedInLookbook(e.target.checked)} />
-                    <span className="font-medium">Đưa lên lookbook</span>
-                  </label>
-                  <label className="inline-flex cursor-pointer items-center justify-center rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50">
-                    <input type="file" accept="image/*" className="hidden" onChange={(e) => void handleCreateImageUpload(e.target.files?.[0])} />
-                    {uploadingCreateImage ? "Đang upload..." : "Upload ảnh"}
-                  </label>
+              <form onSubmit={onSubmit} className="space-y-2.5">
+                <div className="grid grid-cols-[minmax(0,1fr)_96px_78px] gap-2">
+                  <TextInput placeholder="Tên dịch vụ" value={createForm.name} onChange={(e) => setCreateForm((prev) => ({ ...prev, name: e.target.value }))} required />
+                  <TextInput inputMode="numeric" pattern="[0-9]*" value={createForm.priceInput} onChange={(e) => setCreateForm((prev) => ({ ...prev, priceInput: e.target.value.replace(/\D/g, "") }))} required placeholder="250000" />
+                  <TextInput inputMode="numeric" pattern="[0-9]*" value={createForm.durationInput} onChange={(e) => setCreateForm((prev) => ({ ...prev, durationInput: e.target.value.replace(/\D/g, "") }))} required placeholder="60" />
                 </div>
-                {imageUrl ? (
-                  <div className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs text-neutral-600">
-                    <img src={imageUrl} alt="Preview lookbook" className="h-10 w-10 rounded-lg object-cover" />
-                    <div className="min-w-0 flex-1 truncate">Đã có ảnh preview</div>
-                  </div>
-                ) : (
-                  <div className="text-xs text-neutral-500">Chưa có ảnh preview</div>
-                )}
-              </div>
 
-            <button disabled={submitting || !canEdit} className="cursor-pointer w-full rounded-2xl bg-rose-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60">
-              {submitting ? "Đang thêm dịch vụ..." : "Thêm dịch vụ"}
-            </button>
-            </form>
+                <div className="grid grid-cols-[minmax(0,1fr)_84px] gap-2">
+                  <TextInput placeholder="Ảnh URL" value={createForm.imageUrl} onChange={(e) => setCreateForm((prev) => ({ ...prev, imageUrl: e.target.value }))} />
+                  <TextInput inputMode="decimal" value={createForm.vatInput} onChange={(e) => setCreateForm((prev) => ({ ...prev, vatInput: e.target.value.replace(/[^\d.]/g, "") }))} required placeholder="VAT %" />
+                </div>
+
+                <TextArea placeholder="Mô tả ngắn" value={createForm.shortDescription} onChange={(e) => setCreateForm((prev) => ({ ...prev, shortDescription: e.target.value }))} className="min-h-[44px]" />
+
+                <div className="space-y-2 rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="flex min-w-0 flex-1 items-center gap-2 text-sm text-neutral-700">
+                      <input type="checkbox" className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-400" checked={createForm.featuredInLookbook} onChange={(e) => setCreateForm((prev) => ({ ...prev, featuredInLookbook: e.target.checked }))} />
+                      <span className="font-medium">Đưa lên lookbook</span>
+                    </label>
+                    <label className="inline-flex cursor-pointer items-center justify-center rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50">
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => void handleCreateImageUpload(e.target.files?.[0])} />
+                      {uploadingCreateImage ? "Đang upload..." : "Upload ảnh"}
+                    </label>
+                  </div>
+                  {createForm.imageUrl ? (
+                    <div className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs text-neutral-600">
+                      <img src={createForm.imageUrl} alt="Preview lookbook" className="h-10 w-10 rounded-lg object-cover" />
+                      <div className="min-w-0 flex-1 truncate">Đã có ảnh preview</div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-neutral-500">Chưa có ảnh preview</div>
+                  )}
+                </div>
+
+                <button disabled={submitting || !canEdit} className="cursor-pointer w-full rounded-2xl bg-rose-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60">
+                  {submitting ? "Đang thêm dịch vụ..." : "Thêm dịch vụ"}
+                </button>
+              </form>
             </MobileCollapsible>
           </div>
         </div>
@@ -462,108 +509,101 @@ export default function ServicesPage() {
               </div>
             ) : (
               <div className="space-y-1.5">
-              {filteredRows.map((s) => {
-                const isEditing = editingId === s.id;
-                return (
-                  <div key={s.id} className="rounded-2xl border border-neutral-200 bg-white p-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex min-w-0 flex-1 items-start gap-2">
-                        {s.image_url ? <img src={s.image_url} alt={s.name} className="h-9 w-9 shrink-0 rounded-xl object-cover" /> : null}
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            {isEditing ? (
-                              <TextInput value={editName} onChange={(e) => setEditName(e.target.value)} className="max-w-xl py-1.5 text-[13px]" />
+                {filteredRows.map((s) => {
+                  const isEditing = editingId === s.id;
+                  return (
+                    <div key={s.id} className="rounded-2xl border border-neutral-200 bg-white p-2.5">
+                      <div className="flex items-start justify-between gap-2.5">
+                        <div className="flex min-w-0 flex-1 items-start gap-2.5">
+                          {s.image_url ? <img src={s.image_url} alt={s.name} className="h-10 w-10 shrink-0 rounded-xl object-cover" /> : null}
+                          <div className="min-w-0 flex-1">
+                            {isEditing && editForm ? (
+                              <TextInput value={editForm.name} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, name: e.target.value } : prev))} className="max-w-xl py-1.5 text-[13px]" placeholder="Tên dịch vụ" />
                             ) : (
-                            <>
-                              <h4 className="text-[13px] font-semibold leading-4.5 text-neutral-900 md:text-sm">{s.name}</h4>
-                              {s.featured_in_lookbook ? <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px] font-semibold text-rose-700">Lookbook</span> : null}
-                              <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${s.active ? "bg-emerald-100 text-emerald-700" : "bg-neutral-200 text-neutral-600"}`}>
-                                {s.active ? "Đang dùng" : "Tạm ẩn"}
-                              </span>
-                            </>
-                          )}
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <h4 className="text-[13px] font-semibold leading-4.5 text-neutral-900 md:text-sm">{s.name}</h4>
+                                {s.featured_in_lookbook ? <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px] font-semibold text-rose-700">Lookbook</span> : null}
+                                <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${s.active ? "bg-emerald-100 text-emerald-700" : "bg-neutral-200 text-neutral-600"}`}>
+                                  {s.active ? "Đang dùng" : "Tạm ẩn"}
+                                </span>
+                              </div>
+                            )}
+                            {!isEditing ? <p className="mt-0.5 line-clamp-1 text-[10px] text-neutral-500">{s.short_description || "Chưa có mô tả ngắn."}</p> : null}
+                          </div>
                         </div>
-                          {!isEditing ? <p className="mt-0.5 line-clamp-1 text-[10px] text-neutral-500">{s.short_description || "Chưa có mô tả ngắn."}</p> : null}
-                        </div>
+
+                        {!canEdit ? null : isEditing ? (
+                          <div className="flex gap-1.5">
+                            <button className="cursor-pointer rounded-xl border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] font-medium text-red-700 disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => void moveToTrash(s)} disabled={submitting}>
+                              Xóa
+                            </button>
+                            <button className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-neutral-700" type="button" onClick={() => {
+                              setEditingId(null);
+                              setEditForm(null);
+                            }}>
+                              Huỷ
+                            </button>
+                            <button className="cursor-pointer rounded-xl bg-rose-500 px-2.5 py-1.5 text-[11px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => void saveEdit()} disabled={submitting}>
+                              {submitting ? "Đang lưu..." : "Lưu"}
+                            </button>
+                          </div>
+                        ) : (
+                          <button className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-neutral-700" type="button" onClick={() => startEdit(s)}>
+                            Sửa
+                          </button>
+                        )}
                       </div>
 
-                      {!canEdit ? null : isEditing ? (
-                        <div className="flex gap-1.5">
-                          <button className="cursor-pointer rounded-xl border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] font-medium text-red-700 disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => void moveToTrash(s)} disabled={submitting}>
-                            Xóa
-                          </button>
-                          <button className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-neutral-700" type="button" onClick={() => setEditingId(null)}>
-                            Huỷ
-                          </button>
-                          <button className="cursor-pointer rounded-xl bg-rose-500 px-2.5 py-1.5 text-[11px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => void saveEdit()} disabled={submitting}>
-                            {submitting ? "Đang lưu..." : "Lưu"}
-                          </button>
+                      {isEditing && editForm ? (
+                        <div className="mt-2 rounded-2xl bg-neutral-50 p-3">
+                          <div className="space-y-2">
+                            <TextArea value={editForm.shortDescription} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, shortDescription: e.target.value } : prev))} placeholder="Mô tả ngắn" className="min-h-[54px] text-[13px]" />
+
+                            <div className="grid grid-cols-3 gap-2">
+                              <TextInput inputMode="numeric" pattern="[0-9]*" value={editForm.priceInput} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, priceInput: e.target.value.replace(/\D/g, "") } : prev))} placeholder="Giá" className="text-[13px]" />
+                              <TextInput inputMode="numeric" pattern="[0-9]*" value={editForm.durationInput} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, durationInput: e.target.value.replace(/\D/g, "") } : prev))} placeholder="Phút" className="text-[13px]" />
+                              <TextInput inputMode="decimal" value={editForm.vatInput} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, vatInput: e.target.value.replace(/[^\d.]/g, "") } : prev))} placeholder="VAT %" className="text-[13px]" />
+                            </div>
+
+                            <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
+                              <TextInput value={editForm.imageUrl} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, imageUrl: e.target.value } : prev))} placeholder="URL hoặc storage path" className="text-[13px]" />
+                              <label className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50">
+                                <input type="file" accept="image/*" className="hidden" onChange={(e) => void handleEditImageUpload(e.target.files?.[0])} />
+                                {uploadingEditImage ? "Đang upload..." : "Upload ảnh"}
+                              </label>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                              <label className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs text-neutral-700">
+                                <input type="checkbox" className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-400" checked={editForm.featuredInLookbook} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, featuredInLookbook: e.target.checked } : prev))} />
+                                Lookbook
+                              </label>
+                              <label className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs text-neutral-700">
+                                <input type="checkbox" className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-400" checked={editForm.active} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, active: e.target.checked } : prev))} />
+                                Đang hoạt động
+                              </label>
+                            </div>
+
+                            {editForm.imageUrl ? (
+                              <div className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs text-neutral-600">
+                                <img src={editForm.imageUrl} alt="Preview" className="h-10 w-10 rounded-lg object-cover" />
+                                <div className="min-w-0 flex-1 truncate">Đã có ảnh preview</div>
+                              </div>
+                            ) : null}
+                          </div>
                         </div>
                       ) : (
-                        <button className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-neutral-700" type="button" onClick={() => startEdit(s)}>
-                          Sửa
-                        </button>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                          <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">{formatVnd(Number(s.base_price))}</div>
+                          <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">{s.duration_min}p</div>
+                          <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">VAT {Number(s.vat_rate) * 100}%</div>
+                        </div>
                       )}
                     </div>
-
-                    {isEditing ? (
-                      <div className="mt-2 space-y-2 rounded-2xl bg-neutral-50 p-2.5">
-                        <div className="space-y-2 md:grid md:gap-2 md:grid-cols-[minmax(0,1fr)_140px_140px_120px] md:space-y-0">
-                          <InlineField label="Mô tả" compact>
-                            <TextArea value={editShortDescription} onChange={(e) => setEditShortDescription(e.target.value)} className="min-h-[64px] text-[13px]" />
-                          </InlineField>
-                          <InlineField label="Giá" compact>
-                            <TextInput inputMode="numeric" pattern="[0-9]*" value={editPriceInput} onChange={(e) => setEditPriceInput(e.target.value.replace(/\D/g, ""))} placeholder="Ví dụ: 250000" className="text-[13px]" />
-                          </InlineField>
-                          <InlineField label="Phút" compact>
-                            <TextInput inputMode="numeric" pattern="[0-9]*" value={editDurationInput} onChange={(e) => setEditDurationInput(e.target.value.replace(/\D/g, ""))} placeholder="Ví dụ: 60" className="text-[13px]" />
-                          </InlineField>
-                          <InlineField label="VAT" compact>
-                            <TextInput type="number" min={0} step={0.5} value={editVat} onChange={(e) => setEditVat(Number(e.target.value))} className="text-[13px]" />
-                          </InlineField>
-                        </div>
-
-                        <div className="space-y-2">
-                          <InlineField label="Ảnh" compact>
-                            <TextInput value={editImageUrl} onChange={(e) => setEditImageUrl(e.target.value)} placeholder="URL hoặc storage path" className="text-[13px]" />
-                          </InlineField>
-                        </div>
-
-                        <div className="grid gap-3 lg:grid-cols-[1fr_180px]">
-                          <div className="space-y-2">
-                            <label className="flex items-center gap-2 rounded-2xl border border-neutral-200 bg-white px-3 py-2.5 text-sm text-neutral-700">
-                              <input type="checkbox" className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-400" checked={editFeaturedInLookbook} onChange={(e) => setEditFeaturedInLookbook(e.target.checked)} />
-                              Đưa lên lookbook
-                            </label>
-                            <label className="flex items-center gap-2 rounded-2xl border border-neutral-200 bg-white px-3 py-2.5 text-sm text-neutral-700">
-                              <input type="checkbox" className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-400" checked={editActive} onChange={(e) => setEditActive(e.target.checked)} />
-                              Dịch vụ đang hoạt động
-                            </label>
-                            <label className="inline-flex w-full cursor-pointer items-center justify-center rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50">
-                              <input type="file" accept="image/*" className="hidden" onChange={(e) => void handleEditImageUpload(e.target.files?.[0])} />
-                              {uploadingEditImage ? "Đang upload..." : "Upload ảnh mới"}
-                            </label>
-                          </div>
-
-                          {editImageUrl ? (
-                            <img src={editImageUrl} alt="Preview" className="h-32 w-full rounded-2xl object-cover" />
-                          ) : (
-                            <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed border-neutral-200 bg-white text-xs text-neutral-400">Chưa có ảnh</div>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                        <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">{formatVnd(Number(s.base_price))}</div>
-                        <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">{s.duration_min}p</div>
-                        <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">VAT {Number(s.vat_rate) * 100}%</div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="md:hidden">
@@ -586,18 +626,16 @@ export default function ServicesPage() {
                             <div className="flex min-w-0 flex-1 items-start gap-2">
                               {s.image_url ? <img src={s.image_url} alt={s.name} className="h-9 w-9 shrink-0 rounded-xl object-cover" /> : null}
                               <div className="min-w-0 flex-1">
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                  {isEditing ? (
-                                    <TextInput value={editName} onChange={(e) => setEditName(e.target.value)} className="max-w-xl py-1 text-[12px]" />
-                                  ) : (
-                                  <>
+                                {isEditing && editForm ? (
+                                  <TextInput value={editForm.name} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, name: e.target.value } : prev))} className="max-w-xl py-1 text-[12px]" placeholder="Tên dịch vụ" />
+                                ) : (
+                                  <div className="flex flex-wrap items-center gap-1.5">
                                     <h4 className="text-[13px] font-semibold leading-4.5 text-neutral-900 md:text-sm">{s.name}</h4>
                                     <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${s.active ? "bg-emerald-100 text-emerald-700" : "bg-neutral-200 text-neutral-600"}`}>
                                       {s.featured_in_lookbook ? `Lookbook · ${s.active ? "Đang dùng" : "Tạm ẩn"}` : (s.active ? "Đang dùng" : "Tạm ẩn")}
                                     </span>
-                                  </>
+                                  </div>
                                 )}
-                              </div>
                                 {!isEditing ? <p className="mt-0.5 line-clamp-1 text-[10px] text-neutral-500">{s.short_description || "Chưa có mô tả."}</p> : null}
                               </div>
                             </div>
@@ -607,7 +645,10 @@ export default function ServicesPage() {
                                 <button className="cursor-pointer rounded-xl border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] font-medium text-red-700 disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => void moveToTrash(s)} disabled={submitting}>
                                   Xóa
                                 </button>
-                                <button className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-neutral-700" type="button" onClick={() => setEditingId(null)}>
+                                <button className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-neutral-700" type="button" onClick={() => {
+                                  setEditingId(null);
+                                  setEditForm(null);
+                                }}>
                                   Huỷ
                                 </button>
                                 <button className="cursor-pointer rounded-xl bg-rose-500 px-2.5 py-1.5 text-[11px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => void saveEdit()} disabled={submitting}>
@@ -621,50 +662,36 @@ export default function ServicesPage() {
                             )}
                           </div>
 
-                          {isEditing ? (
-                            <div className="mt-2 space-y-2 rounded-2xl bg-neutral-50 p-2.5">
-                              <div className="space-y-2 md:grid md:gap-2 md:grid-cols-[minmax(0,1fr)_140px_140px_120px] md:space-y-0">
-                                <InlineField label="Mô tả" compact>
-                                  <TextArea value={editShortDescription} onChange={(e) => setEditShortDescription(e.target.value)} className="min-h-[56px] text-[12px]" />
-                                </InlineField>
-                                <InlineField label="Giá" compact>
-                                  <TextInput inputMode="numeric" pattern="[0-9]*" value={editPriceInput} onChange={(e) => setEditPriceInput(e.target.value.replace(/\D/g, ""))} placeholder="250000" className="py-1 text-[12px]" />
-                                </InlineField>
-                                <InlineField label="Phút" compact>
-                                  <TextInput inputMode="numeric" pattern="[0-9]*" value={editDurationInput} onChange={(e) => setEditDurationInput(e.target.value.replace(/\D/g, ""))} placeholder="60" className="py-1 text-[12px]" />
-                                </InlineField>
-                                <InlineField label="VAT" compact>
-                                  <TextInput type="number" min={0} step={0.5} value={editVat} onChange={(e) => setEditVat(Number(e.target.value))} className="py-1 text-[12px]" />
-                                </InlineField>
-                              </div>
-
+                          {isEditing && editForm ? (
+                            <div className="mt-2 rounded-2xl bg-neutral-50 p-2.5">
                               <div className="space-y-2">
-                                <InlineField label="Ảnh" compact>
-                                  <TextInput value={editImageUrl} onChange={(e) => setEditImageUrl(e.target.value)} placeholder="URL hoặc storage path" className="py-1 text-[12px]" />
-                                </InlineField>
-                              </div>
-
-                              <div className="grid gap-3 lg:grid-cols-[1fr_180px]">
-                                <div className="space-y-2">
-                                  <label className="flex items-center gap-2 rounded-2xl border border-neutral-200 bg-white px-3 py-2.5 text-sm text-neutral-700">
-                                    <input type="checkbox" className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-400" checked={editFeaturedInLookbook} onChange={(e) => setEditFeaturedInLookbook(e.target.checked)} />
-                                    Đưa lên lookbook
+                                <TextArea value={editForm.shortDescription} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, shortDescription: e.target.value } : prev))} placeholder="Mô tả ngắn" className="min-h-[52px] text-[12px]" />
+                                <div className="grid grid-cols-3 gap-2">
+                                  <TextInput inputMode="numeric" pattern="[0-9]*" value={editForm.priceInput} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, priceInput: e.target.value.replace(/\D/g, "") } : prev))} placeholder="Giá" className="py-1 text-[12px]" />
+                                  <TextInput inputMode="numeric" pattern="[0-9]*" value={editForm.durationInput} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, durationInput: e.target.value.replace(/\D/g, "") } : prev))} placeholder="Phút" className="py-1 text-[12px]" />
+                                  <TextInput inputMode="decimal" value={editForm.vatInput} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, vatInput: e.target.value.replace(/[^\d.]/g, "") } : prev))} placeholder="VAT %" className="py-1 text-[12px]" />
+                                </div>
+                                <TextInput value={editForm.imageUrl} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, imageUrl: e.target.value } : prev))} placeholder="URL hoặc storage path" className="py-1 text-[12px]" />
+                                <div className="flex flex-wrap gap-2">
+                                  <label className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs text-neutral-700">
+                                    <input type="checkbox" className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-400" checked={editForm.featuredInLookbook} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, featuredInLookbook: e.target.checked } : prev))} />
+                                    Lookbook
                                   </label>
-                                  <label className="flex items-center gap-2 rounded-2xl border border-neutral-200 bg-white px-3 py-2.5 text-sm text-neutral-700">
-                                    <input type="checkbox" className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-400" checked={editActive} onChange={(e) => setEditActive(e.target.checked)} />
-                                    Dịch vụ đang hoạt động
+                                  <label className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs text-neutral-700">
+                                    <input type="checkbox" className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-400" checked={editForm.active} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, active: e.target.checked } : prev))} />
+                                    Đang hoạt động
                                   </label>
-                                  <label className="inline-flex w-full cursor-pointer items-center justify-center rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50">
+                                  <label className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50">
                                     <input type="file" accept="image/*" className="hidden" onChange={(e) => void handleEditImageUpload(e.target.files?.[0])} />
-                                    {uploadingEditImage ? "Đang upload..." : "Upload ảnh mới"}
+                                    {uploadingEditImage ? "Đang upload..." : "Upload ảnh"}
                                   </label>
                                 </div>
-
-                                {editImageUrl ? (
-                                  <img src={editImageUrl} alt="Preview" className="h-32 w-full rounded-2xl object-cover" />
-                                ) : (
-                                  <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed border-neutral-200 bg-white text-xs text-neutral-400">Chưa có ảnh</div>
-                                )}
+                                {editForm.imageUrl ? (
+                                  <div className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs text-neutral-600">
+                                    <img src={editForm.imageUrl} alt="Preview" className="h-10 w-10 rounded-lg object-cover" />
+                                    <div className="min-w-0 flex-1 truncate">Đã có ảnh preview</div>
+                                  </div>
+                                ) : null}
                               </div>
                             </div>
                           ) : (
@@ -715,11 +742,11 @@ export default function ServicesPage() {
                           <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">VAT {Number(s.vat_rate) * 100}%</div>
                         </div>
                       </div>
-                      <div className="flex flex-wrap gap-1.5 justify-end">
-                        <button className="cursor-pointer rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-medium text-emerald-700 disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => void restoreService(s)} disabled={submitting}>
+                      <div className="flex gap-1.5">
+                        <button className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-neutral-700 disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => void restoreFromTrash(s)} disabled={submitting || !canEdit}>
                           Khôi phục
                         </button>
-                        <button className="cursor-pointer rounded-xl border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] font-medium text-red-700 disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => window.alert("Hiện tại đã có thùng rác tạm. Nếu anh chốt xóa hẳn thật, em sẽ nối thêm bước delete DB ở lượt sau để tránh xóa nhầm.")} disabled={submitting}>
+                        <button className="cursor-pointer rounded-xl border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] font-medium text-red-700 disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => void deleteForever(s)} disabled={submitting || !canEdit}>
                           Xóa hẳn
                         </button>
                       </div>
@@ -732,57 +759,59 @@ export default function ServicesPage() {
 
           <div className="md:hidden">
             <MobileCollapsible summary={<div className="flex items-center justify-between gap-3 pr-2"><span>Thùng rác</span><span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[10px] font-medium text-neutral-700">{trashedRows.length}</span></div>} defaultOpen={mobileTrashOpen}>
-              {trashedRows.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-neutral-200 bg-neutral-50 px-4 py-6 text-center text-sm text-neutral-500">
-                  Thùng rác đang trống.
-                </div>
-              ) : (
-                <div className="space-y-1.5">
-                  {trashedRows.map((s) => (
-                    <div key={s.id} className="rounded-2xl border border-neutral-200 bg-white p-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <h4 className="text-[13px] font-semibold leading-4.5 text-neutral-900 md:text-sm">{s.name}</h4>
-                            <span className="rounded-full bg-neutral-200 px-1.5 py-0.5 text-[9px] font-semibold text-neutral-600">TRASH</span>
-                          </div>
-                          <p className="mt-0.5 line-clamp-1 text-[10px] text-neutral-500">{s.short_description || "Chưa có mô tả ngắn."}</p>
-                          <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                            <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">{formatVnd(Number(s.base_price))}</div>
-                            <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">{s.duration_min}p</div>
-                            <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">VAT {Number(s.vat_rate) * 100}%</div>
-                          </div>
+              <div className="space-y-1.5">
+                {trashedRows.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-neutral-200 bg-neutral-50 px-4 py-6 text-center text-sm text-neutral-500">
+                    Thùng rác đang trống.
+                  </div>
+                ) : trashedRows.map((s) => (
+                  <div key={s.id} className="rounded-2xl border border-neutral-200 bg-white p-2">
+                    <div className="space-y-2">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <h4 className="text-[13px] font-semibold leading-4.5 text-neutral-900">{s.name}</h4>
+                          <span className="rounded-full bg-neutral-200 px-1.5 py-0.5 text-[9px] font-semibold text-neutral-600">TRASH</span>
                         </div>
-                        <div className="flex flex-wrap gap-1.5 justify-end">
-                          <button className="cursor-pointer rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-medium text-emerald-700 disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => void restoreService(s)} disabled={submitting}>
-                            Khôi phục
-                          </button>
-                          <button className="cursor-pointer rounded-xl border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] font-medium text-red-700 disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => window.alert("Hiện tại đã có thùng rác tạm. Nếu anh chốt xóa hẳn thật, em sẽ nối thêm bước delete DB ở lượt sau để tránh xóa nhầm.")} disabled={submitting}>
-                            Xóa hẳn
-                          </button>
+                        <p className="mt-0.5 line-clamp-1 text-[10px] text-neutral-500">{s.short_description || "Chưa có mô tả ngắn."}</p>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                          <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">{formatVnd(Number(s.base_price))}</div>
+                          <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">{s.duration_min}p</div>
+                          <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">VAT {Number(s.vat_rate) * 100}%</div>
                         </div>
                       </div>
+                      <div className="flex gap-1.5">
+                        <button className="cursor-pointer flex-1 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[11px] font-medium text-neutral-700 disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => void restoreFromTrash(s)} disabled={submitting || !canEdit}>
+                          Khôi phục
+                        </button>
+                        <button className="cursor-pointer flex-1 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[11px] font-medium text-red-700 disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => void deleteForever(s)} disabled={submitting || !canEdit}>
+                          Xóa hẳn
+                        </button>
+                      </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                ))}
+              </div>
             </MobileCollapsible>
           </div>
         </div>
-
-        <MobileStickyActions>
-          <button type="button" onClick={() => { setMobileCreateOpen(true); setMobileListOpen(false); setMobileTrashOpen(false); requestAnimationFrame(() => createSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }} className="flex-1 rounded-2xl bg-[var(--color-primary)] px-3 py-3 text-[13px] font-semibold text-white shadow-sm transition hover:brightness-95">
-            Thêm mới
-          </button>
-          <button type="button" onClick={() => { setMobileCreateOpen(false); setMobileListOpen(true); setMobileTrashOpen(false); requestAnimationFrame(() => listSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }} className="flex-1 rounded-2xl border border-neutral-200 bg-white px-3 py-3 text-[13px] font-semibold text-neutral-800 shadow-sm transition hover:bg-neutral-50">
-            Danh sách
-          </button>
-          <button type="button" onClick={() => { setMobileCreateOpen(false); setMobileListOpen(false); setMobileTrashOpen(true); requestAnimationFrame(() => trashSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }} className="flex-1 rounded-2xl border border-neutral-200 bg-white px-3 py-3 text-[13px] font-semibold text-neutral-800 shadow-sm transition hover:bg-neutral-50">
-            Thùng rác
-          </button>
-        </MobileStickyActions>
-
       </div>
+
+      <MobileStickyActions>
+        <button
+          type="button"
+          onClick={() => requestAnimationFrame(() => createSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }))}
+          className="flex-1 rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-medium text-neutral-700 shadow-sm"
+        >
+          Thêm dịch vụ
+        </button>
+        <button
+          type="button"
+          onClick={() => requestAnimationFrame(() => listSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }))}
+          className="flex-1 rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white shadow-sm"
+        >
+          Danh sách
+        </button>
+      </MobileStickyActions>
     </AppShell>
   );
 }
