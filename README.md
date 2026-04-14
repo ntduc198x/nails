@@ -1,109 +1,139 @@
-# Nails App (MVP starter)
+# Nails App
 
-Starter app để chạy localhost cho bài toán quản lý + tính tiền quán nails.
+Ứng dụng vận hành tiệm nails theo hướng mobile-first, tập trung cho 3 nhóm người dùng chính:
+- **Chủ tiệm / Quản lý**: quản lý dịch vụ, tài nguyên, nhân sự, báo cáo, sổ thuế
+- **Lễ tân**: nhận booking online, điều phối lịch, check-in, thanh toán
+- **Thợ (TECH)**: xem lịch, mở/đóng ca, xử lý khách đang phục vụ, mở phiếu thanh toán
 
-## 1) Chạy local
+App được xây bằng **Next.js 16 + React 19 + Supabase**.
+
+## 1. Tính năng chính
+
+### Landing page và booking online
+- Landing page giới thiệu dịch vụ nổi bật
+- Form khách tự tạo booking online
+- Đẩy booking vào luồng xử lý nội bộ tại `/manage/booking-requests`
+
+### Vận hành nội bộ
+- **Booking online**: xem request mới, request cần dời lịch, convert sang lịch hẹn
+- **Điều phối lịch**: tạo lịch nhanh, check-in, no-show, hủy lịch, mở phiếu
+- **Thanh toán**: chọn khách đang check-in, thêm dịch vụ nhanh, tạo bill, mở link hóa đơn
+- **Ca làm**: mở ca, đóng ca, xem ca đang mở, cảnh báo ca mở quá lâu
+
+### Thiết lập
+- **Dịch vụ**: thêm/sửa dịch vụ, VAT, ảnh, lookbook, active/inactive
+- **Tài nguyên**: quản lý ghế / bàn / phòng
+- **Nhân sự**: đổi vai trò, sửa tên, quản lý mã mời (OWNER)
+- **Tài khoản**: hồ sơ cá nhân, đổi mật khẩu
+
+### Báo cáo
+- **Báo cáo doanh thu**: lọc theo ngày/tuần/tháng/tùy chỉnh, theo nhân viên, export Excel
+- **Sổ thuế**: mẫu S1a-HKD, xuất Excel/PDF
+
+## 2. Các route chính
+
+### Public
+- `/` Landing page
+- `/login` Đăng nhập / tạo tài khoản
+- `/receipt/[token]` Xem hóa đơn công khai
+
+### Manage
+- `/manage` Điều hướng theo vai trò
+- `/manage/booking-requests` Booking online
+- `/manage/appointments` Điều phối lịch
+- `/manage/checkout` Thanh toán
+- `/manage/shifts` Ca làm
+- `/manage/services` Dịch vụ
+- `/manage/resources` Tài nguyên
+- `/manage/team` Nhân sự
+- `/manage/account` Hồ sơ & bảo mật
+- `/manage/reports` Báo cáo
+- `/manage/tax-books` Sổ thuế
+
+## 3. Cài đặt local
 
 ```bash
-cd nails-app
-cp .env.example .env.local
+cd /root/.openclaw/workspace/nails-app
 npm install
 npm run dev
 ```
 
-Mở: http://localhost:3000
+Mở:
+- http://localhost:3000
 
-## 2) Kết nối Supabase
+### Build production
+```bash
+npm run build
+npm run start
+```
 
-Điền vào `.env.local`:
+## 4. Biến môi trường
+
+Tạo file `.env.local`:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+NEXT_PUBLIC_APP_URL=...
 RESEND_API_KEY=...
 RECEIPT_LINK_EXPIRE_DAYS=30
 TELEGRAM_BOT_TOKEN=...
 TELEGRAM_BOOKING_CHAT_ID=...
-SUPABASE_SERVICE_ROLE_KEY=...
-NEXT_PUBLIC_APP_URL=...
 APPOINTMENT_OVERDUE_MINUTES=15
 ```
 
-## 3) Khởi tạo DB schema
+## 5. Khởi tạo database
 
-- Mở Supabase SQL Editor
-- Chạy **một file duy nhất**: `supabase/deploy.sql`
-- (Khuyến nghị) chạy thêm: `supabase/smoke_checkout_integrity.sql` để kiểm tra nhanh toàn vẹn checkout
+Mở Supabase SQL Editor và chạy:
 
-## 4) Những gì đã có trong starter
+### Bắt buộc
+- `supabase/deploy.sql`
 
-- UI MVP nhiều màn:
-  - `/login` (Supabase Auth)
-  - `/` Dashboard
-  - `/appointments`
-  - `/services`
-  - `/checkout`
-  - `/reports`
-  - `/team`
-- Điều hướng mượt hơn nhờ auth-cache + data-cache (stale nhanh, refresh khi cần)
-- Reports nâng cao:
-  - Lọc theo khoảng ngày
-  - Export CSV
-  - Click vào ticket để xem detail
-- Supabase client stub: `src/lib/supabase.ts`
-- SQL schema hợp nhất (`supabase/deploy.sql`)
-- Mock data domain: `src/lib/mock-data.ts`
-- Roadmap triển khai: `ROADMAP.vi.md`
-
-## 5) Cảnh báo appointment overdue + scheduler
-
-### Apply DB patch
-
-Chạy thêm file này trong Supabase SQL Editor:
-
+### Các patch đang dùng thêm
 - `supabase/appointments_overdue_alerts.sql`
+- `supabase/booking_requests_tech_access.sql`
+- `supabase/add_profile_email.sql`
+- `supabase/remove_service_display_order.sql`
 
-File này thêm cột `appointments.overdue_alert_sent_at` để chống gửi trùng cảnh báo Telegram cho cùng một appointment quá giờ chưa check-in.
+### Script hỗ trợ dữ liệu
+- `supabase/update_services_from_priceboard.sql`
 
-### Route cảnh báo
+## 6. Ghi chú triển khai
 
-App đã có route:
+- App ưu tiên **mobile-first**, đặc biệt trong khu vực `/manage`
+- TECH flow hiện tập trung ở:
+  - `booking-requests`
+  - `appointments`
+  - `checkout`
+  - `shifts`
+- `reports` và `tax-books` thiên về quản lý/chủ tiệm hơn
 
-- `POST /api/telegram/appointments-overdue`
+## 7. Quy ước vai trò
 
-Route sẽ:
-- quét appointment đang `BOOKED`
-- đã quá `APPOINTMENT_OVERDUE_MINUTES` phút
-- chưa từng gửi cảnh báo overdue
-- gửi cảnh báo vào Telegram group
-- rồi đánh dấu `overdue_alert_sent_at`
+- **OWNER**: toàn quyền
+- **MANAGER**: quản lý vận hành và thiết lập, hạn chế một số mục tài chính
+- **RECEPTION**: lễ tân, điều phối, checkout
+- **TECH**: thợ, tập trung lịch hẹn, ca làm, checkout
+- **ACCOUNTANT**: checkout, báo cáo, sổ thuế
 
-### Scheduler gợi ý với OpenClaw cron
+## 8. Trạng thái hiện tại
 
-Ví dụ chạy mỗi 5 phút bằng Gateway scheduler:
+- Chỉ còn **1 folder app duy nhất** dưới workspace: `nails-app`
+- Build hiện tại pass sạch
+- Đã tối ưu mạnh cho mobile ở phần lớn màn manage
+- `reports` đã có thêm vòng tối ưu mobile, nhưng vẫn là màn nên polish tiếp nếu cần
+
+## 9. Lệnh hay dùng
 
 ```bash
-openclaw cron add \
-  --name "nails-app overdue appointment alerts" \
-  --cron "*/5 * * * *" \
-  --session isolated \
-  --message "POST https://chambeauty.io.vn/api/telegram/appointments-overdue và báo ngắn gọn kết quả" \
-  --no-deliver
+npm run dev
+npm run build
+npm run start
 ```
 
-Nếu anh muốn làm chuẩn hơn, em khuyên dùng một webhook/job ngoài app hoặc ping nội bộ có auth riêng, nhưng để chạy nhanh thì cron gọi route này là đủ ổn.
+## 10. Tài liệu quay video hướng dẫn
 
-## 6) Ưu tiên build tiếp theo
+Em đã tạo thêm file hướng dẫn chi tiết để anh quay video cho thợ và chủ tiệm:
 
-1. Auth + roles + RLS (OWNER/RECEPTION/TECH)
-2. Appointment -> Ticket -> Checkout flow
-3. Receipt link expire + PDF
-4. Email receipt qua Resend
-5. Offline mode A (pending sync)
-
----
-
-Nếu muốn, bước tiếp theo có thể generate luôn:
-- migration SQL đầy đủ hơn
-- RLS policies skeleton
-- API routes/Edge Functions mẫu cho `pricing_preview` + `checkout_close_ticket`
+- `GUIDE.vi.md`
