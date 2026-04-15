@@ -95,6 +95,12 @@ function statusBadge(status: string) {
   return "bg-neutral-100 text-neutral-700";
 }
 
+function statusLabel(status: string) {
+  if (status === "CHECKED_IN") return "Đã check-in";
+  if (status === "DONE") return "Đã xong";
+  return status;
+}
+
 function pickCustomerName(customers: AppointmentRow["customers"]) {
   if (Array.isArray(customers)) return customers[0]?.name ?? "-";
   return customers?.name ?? "-";
@@ -214,8 +220,8 @@ function AppointmentCard({ row, staffName, resourceName, onlineBooked, overdue, 
                   ? <span className="rounded-full bg-fuchsia-100 px-2 py-0.5 text-[11px] font-medium text-fuchsia-700">ĐÃ LÀM RẤT LÂU</span>
                   : staleCheckedIn
                     ? <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-700">ĐÃ LÀM LÂU</span>
-                    : <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${statusBadge(row.status)}`}>{row.status}</span>
-                : <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${statusBadge(row.status)}`}>{row.status}</span>}
+                    : <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${statusBadge(row.status)}`}>{statusLabel(row.status)}</span>
+                : <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${statusBadge(row.status)}`}>{statusLabel(row.status)}</span>}
               {overdue ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">QUÁ GIỜ</span> : null}
             </div>
           </div>
@@ -370,7 +376,7 @@ export default function OperationsPage() {
     const merged = statusFilter === "ALL"
       ? [...overdueRows, ...normalBookedRows, ...criticalRows, ...staleRows, ...freshCheckedInRows, ...rangedNonBookedRows]
 : statusFilter === "BOOKED"
-          ? rangedNonBookedRows.filter((r) => r.status === "BOOKED")
+          ? scopedRows.filter((r) => r.status === "BOOKED")
           : statusFilter === "STALE_CHECKED_IN"
             ? [...criticalRows, ...staleRows]
             : statusFilter === "CHECKED_IN"
@@ -380,8 +386,8 @@ export default function OperationsPage() {
     return [...merged].sort((a, b) => {
       const aRow = a as AppointmentRow & { checked_in_at?: string | null };
       const bRow = b as AppointmentRow & { checked_in_at?: string | null };
-      const aGroup = aRow.status === "CHECKED_IN" ? 1 : 0;
-      const bGroup = bRow.status === "CHECKED_IN" ? 1 : 0;
+      const aGroup = aRow.status === "DONE" || aRow.status === "CANCELLED" || aRow.status === "NO_SHOW" ? 2 : aRow.status === "CHECKED_IN" ? 1 : 0;
+      const bGroup = bRow.status === "DONE" || bRow.status === "CANCELLED" || bRow.status === "NO_SHOW" ? 2 : bRow.status === "CHECKED_IN" ? 1 : 0;
       if (aGroup !== bGroup) return aGroup - bGroup;
       const aTime = aRow.checked_in_at ? new Date(aRow.checked_in_at).getTime() : new Date(aRow.start_at).getTime();
       const bTime = bRow.checked_in_at ? new Date(bRow.checked_in_at).getTime() : new Date(bRow.start_at).getTime();

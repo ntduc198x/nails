@@ -481,12 +481,6 @@ export default function BookingRequestsPage() {
                 ) : null}
 
                 <div className="flex flex-wrap gap-1.5">
-                  {selectedRow.status === "NEW" ? (
-                    <button type="button" className="cursor-pointer rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed md:px-3.5 md:py-2.5 md:text-sm" disabled={submitting || !canHandleRequest} onClick={() => void onMarkNeedsReschedule(selectedRow.id)}>
-                      Đánh dấu cần dời
-                    </button>
-                  ) : null}
-
                   {selectedRow.status !== "CONVERTED" && selectedRow.status !== "CANCELLED" ? (
                     <button type="button" className="cursor-pointer rounded-2xl bg-[var(--color-primary)] px-3 py-2 text-xs font-semibold text-white shadow-sm ring-1 ring-[var(--color-primary)]/20 transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60 md:px-3.5 md:py-2.5 md:text-sm" disabled={submitting || !bookingAt || !capacityAllowed || !canHandleRequest} onClick={() => void onConvert()}>
                       {submitting ? "Đang convert..." : selectedRow.status === "NEEDS_RESCHEDULE" ? "Chốt giờ & tạo lịch" : "Tạo lịch"}
