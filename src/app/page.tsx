@@ -346,7 +346,7 @@ export default function LandingPage() {
         <div className="landing-hero__right" />
       </section>
 
-      <section id="about" className="landing-about">
+      <section id="about" className="landing-about landing-mobile-secondary">
         <div className="landing-bg-text">CHAM BEAUTY</div>
         <div className="landing-about__container">
           <div className="landing-about__content">
@@ -454,10 +454,13 @@ export default function LandingPage() {
                 <option value="Gỡ móng & Chăm sóc">Gỡ móng & Chăm sóc</option>
               </select>
             </div>
-            <div className="landing-form-group full-width landing-form-group--optional">
-              <label>Thợ chính (Nếu có)</label>
-              <input type="text" placeholder="VD: Thợ Loan" value={preferredStaff} onChange={(e) => setPreferredStaff(e.target.value)} />
-            </div>
+            <details className="landing-form-more full-width">
+              <summary>Thêm tuỳ chọn</summary>
+              <div className="landing-form-more__content">
+                <div className="landing-form-group landing-form-group--optional">
+                  <label>Thợ chính (Nếu có)</label>
+                  <input type="text" placeholder="VD: Thợ Loan" value={preferredStaff} onChange={(e) => setPreferredStaff(e.target.value)} />
+                </div>
 
             <div className="landing-form-group pk-group pk-date-group">
               <label>Ngày hẹn *</label>
@@ -557,10 +560,12 @@ export default function LandingPage() {
               </div>
             </div>
 
-            <div className="landing-form-group full-width landing-form-group--optional">
-              <label>Ghi chú thêm</label>
-              <textarea placeholder="Mô tả mong muốn hoặc lưu ý đặc biệt..." value={note} onChange={(e) => setNote(e.target.value)} />
-            </div>
+                <div className="landing-form-group landing-form-group--optional">
+                  <label>Ghi chú thêm</label>
+                  <textarea placeholder="Mô tả mong muốn hoặc lưu ý đặc biệt..." value={note} onChange={(e) => setNote(e.target.value)} />
+                </div>
+              </div>
+            </details>
             <button type="submit" className="btn-gold full-width landing-submit-link" disabled={submitting}>
               {submitting ? "Đang gửi..." : "Gửi yêu cầu đặt lịch"}
             </button>
