@@ -1,6 +1,7 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
+import { getRoleLabel } from "@/lib/role-labels";
 import { ManageAlert } from "@/components/manage-alert";
 import { ManageDateTimePicker } from "@/components/manage-datetime-picker";
 import { MobileSectionHeader } from "@/components/manage-mobile";
@@ -359,7 +360,7 @@ export default function BookingRequestsPage() {
               <div>
                 <h3 className="text-sm font-semibold text-neutral-900 md:text-base">{selectionMeta}</h3>
               </div>
-              {role ? <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[10px] font-medium text-neutral-600 md:px-3 md:text-[11px]">{role}</span> : null}
+              {role ? <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[10px] font-medium text-neutral-600 md:px-3 md:text-[11px]">{getRoleLabel(role)}</span> : null}
             </div>
 
             {!selectedRow ? (

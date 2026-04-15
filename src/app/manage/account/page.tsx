@@ -2,6 +2,7 @@
 
 import { AppShell } from "@/components/app-shell";
 import { getOrCreateRole, type AppRole } from "@/lib/auth";
+import { getRoleLabel } from "@/lib/role-labels";
 import { supabase } from "@/lib/supabase";
 import { useEffect, useState } from "react";
 
@@ -12,11 +13,6 @@ type ProfileRow = {
   org_id?: string | null;
   default_branch_id?: string | null;
 };
-
-function roleLabel(role: AppRole) {
-  if (role === "TECH") return "THỢ";
-  return role;
-}
 
 function InlineField({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -185,7 +181,7 @@ export default function AccountPage() {
               </div>
               <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-2.5 py-2">
                 <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500">Vai trò</div>
-                <div className="mt-1 text-[13px] font-semibold text-neutral-900 md:text-sm">{roleLabel(role)}</div>
+                <div className="mt-1 text-[13px] font-semibold text-neutral-900 md:text-sm">{getRoleLabel(role)}</div>
               </div>
             </div>
           </section>

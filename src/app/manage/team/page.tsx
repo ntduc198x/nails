@@ -5,19 +5,13 @@ import { MobileCollapsible, MobileSectionHeader } from "@/components/manage-mobi
 import { ManageQuickNav, setupQuickNav } from "@/components/manage-quick-nav";
 import { getOrCreateRole, listUserRoles, type AppRole, updateUserDisplayName, updateUserRoleByRowId } from "@/lib/auth";
 import { generateInviteCode, listInviteCodes, revokeInviteCode, type InviteCodeRow } from "@/lib/invite-codes";
+import { getRoleLabel } from "@/lib/role-labels";
 import { supabase } from "@/lib/supabase";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type UserRoleRow = { id: string; user_id: string; role: AppRole; display_name?: string; email?: string | null; phone?: string | null };
 
 const roleOptions: AppRole[] = ["MANAGER", "RECEPTION", "ACCOUNTANT", "TECH"];
-const roleLabels: Record<AppRole, string> = {
-  OWNER: "Boss",
-  MANAGER: "Quản lý",
-  RECEPTION: "Lễ tân",
-  ACCOUNTANT: "Kế toán",
-  TECH: "Kỹ thuật viên",
-};
 
 function FieldLabel({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return <label className={`text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-500 ${className}`}>{children}</label>;
@@ -176,7 +170,7 @@ export default function TeamPage() {
       <div className="space-y-4 pb-24 md:pb-0">
         <ManageQuickNav items={setupQuickNav("/manage/team")} />
 
-        <MobileSectionHeader title="Nhân sự" meta={<div className="manage-info-box">{refreshing ? "Đang làm mới..." : <>Vai trò: <b className="text-neutral-900">{roleLabels[myRole]}</b></>}</div>} />
+        <MobileSectionHeader title="Nhân sự" meta={<div className="manage-info-box">{refreshing ? "Đang làm mới..." : <>Vai trò: <b className="text-neutral-900">{getRoleLabel(myRole)}</b></>}</div>} />
 
         {error ? <div className="manage-error-box">{error}</div> : null}
 
@@ -191,7 +185,7 @@ export default function TeamPage() {
           <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
             {(["OWNER", ...roleOptions] as AppRole[]).map((role) => (
               <div key={role} className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
-                <div className="text-[10px] font-medium tracking-[0.08em] text-neutral-500">{roleLabels[role]}</div>
+                <div className="text-[10px] font-medium tracking-[0.08em] text-neutral-500">{getRoleLabel(role)}</div>
                 <div className="mt-1 text-sm font-semibold text-neutral-900">{roleStats.get(role) ?? 0}</div>
               </div>
             ))}
@@ -211,7 +205,7 @@ export default function TeamPage() {
                   <InlineField label="Vai trò">
                     <SelectInput value={inviteRole} onChange={(e) => setInviteRole(e.target.value as InviteCodeRow["allowed_role"])}>
                       {roleOptions.map((role) => (
-                        <option key={role} value={role}>{roleLabels[role]}</option>
+                        <option key={role} value={role}>{getRoleLabel(role)}</option>
                       ))}
                     </SelectInput>
                   </InlineField>
@@ -225,7 +219,7 @@ export default function TeamPage() {
                     <div key={invite.id} className="rounded-2xl border border-neutral-200 bg-white p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="text-[10px] tracking-[0.08em] text-neutral-400">{roleLabels[invite.allowed_role]}</div>
+                          <div className="text-[10px] tracking-[0.08em] text-neutral-400">{getRoleLabel(invite.allowed_role)}</div>
                           <div className="mt-1 font-mono text-sm font-semibold text-neutral-900">{invite.code}</div>
                         </div>
                       </div>
@@ -248,7 +242,7 @@ export default function TeamPage() {
                   <InlineField label="Vai trò">
                     <SelectInput value={inviteRole} onChange={(e) => setInviteRole(e.target.value as InviteCodeRow["allowed_role"])}>
                       {roleOptions.map((role) => (
-                        <option key={role} value={role}>{roleLabels[role]}</option>
+                        <option key={role} value={role}>{getRoleLabel(role)}</option>
                       ))}
                     </SelectInput>
                   </InlineField>
@@ -261,7 +255,7 @@ export default function TeamPage() {
                       <div key={invite.id} className="rounded-2xl border border-neutral-200 bg-white p-2.5">
                         <div className="flex items-start justify-between gap-2.5">
                           <div className="min-w-0">
-                            <div className="text-[10px] tracking-[0.08em] text-neutral-400">{roleLabels[invite.allowed_role]}</div>
+                            <div className="text-[10px] tracking-[0.08em] text-neutral-400">{getRoleLabel(invite.allowed_role)}</div>
                             <div className="mt-1 font-mono text-sm font-semibold text-neutral-900">{invite.code}</div>
                           </div>
                         </div>
@@ -306,7 +300,7 @@ export default function TeamPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <h4 className="text-sm font-semibold leading-5 text-neutral-900">{m.display_name || m.user_id}</h4>
-                          <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-700">{roleLabels[m.role]}</span>
+                          <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-700">{getRoleLabel(m.role)}</span>
                         </div>
                         <p className="mt-0.5 line-clamp-1 text-[11px] text-neutral-400">{m.email || m.user_id}</p>
                       </div>
@@ -347,7 +341,7 @@ export default function TeamPage() {
                         <div className="min-w-[180px]">
                           <SelectInput value={m.role} onChange={(e) => void onChangeRole(m.id, e.target.value as AppRole)} className="py-2 text-xs">
                             {roleOptions.map((r) => (
-                              <option key={r} value={r}>{roleLabels[r]}</option>
+                              <option key={r} value={r}>{getRoleLabel(r)}</option>
                             ))}
                           </SelectInput>
                         </div>

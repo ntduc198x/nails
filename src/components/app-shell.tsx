@@ -2,6 +2,7 @@
 
 import { countNewBookingRequests } from "@/lib/booking-requests";
 import { getOrCreateRole, type AppRole } from "@/lib/auth";
+import { getRoleLabel } from "@/lib/role-labels";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -200,12 +201,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     router.replace("/login");
   }
 
-  function roleLabel(role: AppRole) {
-  if (role === "TECH") return "THỢ";
-  return role;
-}
-
-function renderItemLabel(label: string, href: string) {
+  function renderItemLabel(label: string, href: string) {
     const isBookingRequests = href === "/manage/booking-requests";
     return (
       <span className="inline-flex items-center gap-2">
@@ -287,7 +283,7 @@ function renderItemLabel(label: string, href: string) {
           <div className="hidden items-center gap-2 md:flex">
             <div className="rounded-2xl border px-4 py-2 text-right text-xs" style={{ borderColor: "var(--color-border)", background: "#fff8cf" }}>
               <p style={{ color: "var(--color-text-secondary)" }}>{email || "No session"}</p>
-              <p className="font-semibold">{roleLabel(role)}</p>
+              <p className="font-semibold">{getRoleLabel(role)}</p>
             </div>
             <Link href="/manage/account" className="btn btn-outline px-3 py-2 text-xs">Hồ sơ</Link>
             <button onClick={onLogout} className="btn btn-outline px-3 py-2 text-xs">Đăng xuất</button>
@@ -313,7 +309,7 @@ function renderItemLabel(label: string, href: string) {
               <div className="rounded-2xl border bg-white p-3 text-xs" style={{ borderColor: "var(--color-border)" }}>
                 <div className="rounded-2xl border px-4 py-3" style={{ borderColor: "var(--color-border)", background: "#fff8cf" }}>
                   <p style={{ color: "var(--color-text-secondary)" }}>{email || "No session"}</p>
-                  <p className="font-semibold">{roleLabel(role)}</p>
+                  <p className="font-semibold">{getRoleLabel(role)}</p>
                 </div>
                 <div className="mt-2 grid gap-2">
                   <Link href="/manage/account" className="rounded-xl border px-3 py-2 text-sm font-medium hover:bg-[#faf7f2]" style={{ borderColor: "var(--color-border)" }} onClick={() => setMobileOpen(false)}>

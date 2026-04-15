@@ -6,6 +6,7 @@ import { MobileCollapsible, MobileSectionHeader, MobileStickyActions } from "@/c
 import { ManageQuickNav, operationsQuickNav } from "@/components/manage-quick-nav";
 import { getCurrentSessionRole, listUserRoles, type AppRole } from "@/lib/auth";
 import { ensureOrgContext } from "@/lib/domain";
+import { getRoleLabel } from "@/lib/role-labels";
 import { supabase } from "@/lib/supabase";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -102,7 +103,7 @@ function ShiftRowCard({
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-neutral-900">{name}</p>
           <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-neutral-500">
-            <span>{role}</span>
+            <span>{getRoleLabel(role)}</span>
             <span>•</span>
             <span>{formatDuration(clockIn, clockOut)}</span>
           </div>
