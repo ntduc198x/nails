@@ -68,6 +68,7 @@ export default function CheckoutPage() {
   const customerSectionRef = useRef<HTMLDivElement | null>(null);
   const serviceSectionRef = useRef<HTMLDivElement | null>(null);
   const mobileSummaryRef = useRef<HTMLDivElement | null>(null);
+  const receiptAlertRef = useRef<HTMLDivElement | null>(null);
 
   const range = useMemo(() => {
     const now = new Date();
@@ -189,6 +190,7 @@ export default function CheckoutPage() {
       const result = await createCheckout({ customerName, paymentMethod, lines: valid, appointmentId: appointmentId ?? undefined, idempotencyKey });
       setLastReceipt(result.receiptToken || null);
       setReceiptLink(result.receiptToken && typeof window !== "undefined" ? `${window.location.origin}/receipt/${result.receiptToken}` : null);
+      requestAnimationFrame(() => receiptAlertRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
       if (result.deduped) setDedupeNotice("Đã chặn tạo bill trùng do thao tác bấm thanh toán lặp nhanh.");
       setCustomerName(""); setAppointmentId(null); setPaymentMethod("CASH"); setLines([{ serviceId: "", qty: 1 }]);
       await load();
@@ -213,7 +215,7 @@ export default function CheckoutPage() {
         <MobileSectionHeader title="Thanh toán" meta={<div className="manage-info-box">{statusMeta}</div>} />
 
         {error ? <ManageAlert tone="error">Lỗi: {error}</ManageAlert> : null}
-        {lastReceipt ? <ManageAlert tone="info">Tạo hóa đơn thành công. Mã công khai: <code>{lastReceipt}</code>{receiptLink ? <> · <a className="underline" href={receiptLink} target="_blank" rel="noreferrer">Mở link hóa đơn</a></> : null}</ManageAlert> : null}
+        {lastReceipt ? <div ref={receiptAlertRef}><ManageAlert tone="info">Tạo hóa đơn thành công. Mã công khai: <code>{lastReceipt}</code>{receiptLink ? <> · <a className="underline" href={receiptLink} target="_blank" rel="noreferrer">Mở link hóa đơn</a></> : null}</ManageAlert></div> : null}
         {dedupeNotice ? <ManageAlert tone="warn">{dedupeNotice}</ManageAlert> : null}
         {role === "TECH" && techShiftOpen === false ? (
           <ManageAlert tone="warn">
@@ -251,31 +253,8 @@ export default function CheckoutPage() {
 
         <form onSubmit={onSubmit} className="grid min-w-0 gap-4 overflow-x-hidden xl:grid-cols-[minmax(0,1.2fr)_380px]">
           <div className="min-w-0 space-y-4 overflow-x-hidden">
-            <div ref={customerSectionRef} className="card min-w-0 space-y-3 overflow-x-hidden p-4">
+<div ref={customerSectionRef} className="card min-w-0 space-y-3 overflow-x-hidden p-4">
               <h3 className="text-base font-semibold text-neutral-900">Chọn khách</h3>
-
-              {checkedInAppointments.length > 0 ? (
-                <div className="space-y-2 md:hidden">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Khách đang check-in</div>
-                  <div className="flex min-w-0 flex-wrap gap-2 overflow-x-hidden">
-                    {checkedInAppointments.slice(0, 6).map((a) => {
-                      const customer = Array.isArray(a.customers) ? a.customers[0]?.name : a.customers?.name;
-                      const active = appointmentId === a.id;
-                      return (
-                        <button
-                          key={a.id}
-                          type="button"
-                          onClick={() => onSelectCheckedInAppointment(a.id)}
-                          className={`cursor-pointer rounded-full border px-3 py-2 text-left text-xs font-medium transition ${active ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white" : "border-neutral-300 bg-neutral-800 text-white border-neutral-300"}`}
-                        >
-                          <span className="block truncate">{customer ?? "Khách"}</span>
-                          <span className={`block text-[10px] ${active ? "text-white/80" : "text-neutral-400"}`}>{new Date(a.start_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : null}
 
               {checkedInAppointments.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
@@ -287,7 +266,7 @@ export default function CheckoutPage() {
                           key={a.id}
                           type="button"
                           onClick={() => onSelectCheckedInAppointment(a.id)}
-                          className={`cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium transition ${active ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white" : "border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700"}`}
+                          className={`cursor-pointer rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${active ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]" : "border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700"}`}
                         >
                           {customer ?? "Khách"} · {new Date(a.start_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
                       </button>
@@ -296,13 +275,9 @@ export default function CheckoutPage() {
                 </div>
               ) : null}
 
-              <div className="grid min-w-0 gap-2 md:grid-cols-3">
-                <div className="min-w-0 space-y-2 md:col-span-2">
-                  <input className="input w-full cursor-text py-2.5" placeholder="Tên khách" value={customerName} onChange={(e) => setCustomerName(e.target.value)} required />
-                </div>
-                <div className="min-w-0 space-y-2">
-                  <select className="input w-full cursor-pointer py-2.5" aria-label="Phương thức thanh toán" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as "CASH" | "TRANSFER")}><option value="CASH">Tiền mặt</option><option value="TRANSFER">Chuyển khoản</option></select>
-                </div>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setPaymentMethod("CASH")} className={`flex-1 rounded-lg border py-3 text-base font-semibold transition ${paymentMethod === "CASH" ? "border-[var(--color-primary)] bg-[var(--color-primary)]/20 text-[var(--color-primary)]" : "border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50"}`}>💵 Tiền mặt</button>
+                <button type="button" onClick={() => setPaymentMethod("TRANSFER")} className={`flex-1 rounded-lg border py-3 text-base font-semibold transition ${paymentMethod === "TRANSFER" ? "border-[var(--color-primary)] bg-[var(--color-primary)]/20 text-[var(--color-primary)]" : "border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50"}`}>💳 Chuyển khoản</button>
               </div>
 
             </div>
