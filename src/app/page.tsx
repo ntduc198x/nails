@@ -427,8 +427,8 @@ export default function LandingPage() {
         <div className="landing-section-header">
           <p>Lookbook</p>
           <div className="line" />
-          <h2>Mẫu móng được chọn lọc</h2>
-          <span className="landing-section-subcopy">Ưu tiên các mẫu dễ ứng dụng, hợp xu hướng và lên tay sang.</span>
+          <h2>Mùa Hè Rực Rỡ</h2>
+          <span className="landing-section-subcopy">Xu hướng móng hè 2026 — lên tay sẵn sàng cho những lễ hội, vui chơi.</span>
         </div>
         <div className="landing-lookbook-filters" role="tablist" aria-label="Lọc lookbook">
           {LOOKBOOK_FILTERS.map((filter) => (
@@ -673,7 +673,7 @@ export default function LandingPage() {
         </div>
         <div className="landing-footer-bottom">
           <span className="landing-footer-bottom-logo">Chạm Beauty</span>
-          <span>&copy; 2025 Chạm Beauty. All rights reserved.</span>
+          <span>&copy; 2026 Chạm Beauty. All rights reserved.</span>
         </div>
       </footer>
 

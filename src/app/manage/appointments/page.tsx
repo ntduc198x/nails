@@ -487,23 +487,21 @@ export default function OperationsPage() {
 
         <>
           <section ref={formRef} className="manage-surface space-y-2.5 md:space-y-4">
-            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-neutral-900 md:text-lg">Tạo lịch nhanh</h3>
-              </div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-sm font-semibold text-neutral-900 md:text-lg">Tạo lịch nhanh</h3>
                 {currentConflict ? <span className="w-fit rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">Có xung đột</span> : null}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowDetailList(true);
-                    requestAnimationFrame(() => listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
-                  }}
-                  className="cursor-pointer rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
-                >
-                  Danh sách lịch
-                </button>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDetailList(true);
+                  requestAnimationFrame(() => listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+                }}
+                className="cursor-pointer rounded-2xl border border-neutral-300 bg-neutral-800 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-neutral-700"
+              >
+                Danh sách lịch
+              </button>
             </div>
 
             <form onSubmit={onSubmit} className="grid gap-2.5 lg:grid-cols-[1.3fr_0.7fr]">

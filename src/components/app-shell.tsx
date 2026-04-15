@@ -13,7 +13,7 @@ const navGroups = [
     label: "Vận hành",
     href: "/manage/appointments",
     items: [
-      { href: "/manage/booking-requests", label: "Booking online", desc: "Booking online từ landing page" },
+      { href: "/manage/booking-requests", label: "Web Booking", desc: "Booking từ landing page" },
       { href: "/manage/appointments", label: "Điều phối lịch", desc: "Lịch hẹn, check-in, mở phiếu, vận hành" },
       { href: "/manage/checkout", label: "Thanh toán", desc: "Ticket, thanh toán, hóa đơn" },
       { href: "/manage/shifts", label: "Ca làm", desc: "Chấm công và ca trong ngày" },
