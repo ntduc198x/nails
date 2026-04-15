@@ -959,12 +959,63 @@ img {
 .landing-booking-form-card {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 25px;
-  padding: 34px 32px;
-  border-radius: 32px;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 16px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.05) 100%);
   border: 1px solid rgba(197, 160, 101, 0.18);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
+}
+
+.landing-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 901px) {
+  .landing-booking-form-card {
+    gap: 10px;
+    padding: 18px 20px;
+  }
+
+  .landing-form-row--primary {
+    gap: 10px !important;
+  }
+
+  .landing-form-row--schedule {
+    gap: 10px !important;
+  }
+
+  .landing-form-group input,
+  .landing-form-group select,
+  .landing-form-group textarea {
+    padding: 8px 0;
+    font-size: 14px;
+  }
+
+  .pk-trigger {
+    padding: 8px 0;
+  }
+
+  .landing-form-group label {
+    font-size: 10px;
+    margin-bottom: 2px;
+  }
+
+  .landing-form-group {
+    gap: 0;
+  }
+
+  .landing-booking-summary {
+    margin-top: 0;
+    padding: 8px 0;
+  }
+
+  .landing-submit-link {
+    padding: 12px 24px;
+    margin-top: 4px;
+  }
 }
 
 .landing-booking-form-badge {

@@ -345,22 +345,22 @@ export async function listAppointments(opts?: { force?: boolean }) {
 
   let { data, error } = await supabase
     .from("appointments")
-    .select("id,start_at,end_at,status,staff_user_id,resource_id,customers(name,phone),booking_requests!booking_requests_appointment_id_fkey(id,source)")
+    .select("id,start_at,end_at,status,staff_user_id,resource_id,checked_in_at,customers(name,phone),booking_requests!booking_requests_appointment_id_fkey(id,source)")
     .eq("org_id", orgId)
     .gte("start_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
     .order("start_at", { ascending: true })
     .limit(300);
 
-  if (error && isMissingResourceSchema(error)) {
+  if (error && (error.message.includes("checked_in_at") || isMissingResourceSchema(error))) {
     resourceSchedulingSupported = false;
     const fallback = await supabase
       .from("appointments")
-      .select("id,start_at,end_at,status,customers(name,phone),booking_requests!booking_requests_appointment_id_fkey(id,source)")
+      .select("id,start_at,end_at,status,staff_user_id,resource_id,customers(name,phone),booking_requests!booking_requests_appointment_id_fkey(id,source)")
       .eq("org_id", orgId)
       .gte("start_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
       .order("start_at", { ascending: true })
       .limit(300);
-    data = (fallback.data ?? []).map((row) => ({ ...row, staff_user_id: null, resource_id: null }));
+    data = (fallback.data ?? []).map((row) => ({ ...row, staff_user_id: null, resource_id: null, checked_in_at: null }));
     error = fallback.error;
   }
 
@@ -491,9 +491,14 @@ export async function updateAppointmentStatus(appointmentId: string, status: "BO
   if (!supabase) throw new Error("Supabase chưa cấu hình");
   const { orgId } = await ensureOrgContext();
 
+  const updateData: Record<string, unknown> = { status };
+  if (status === "CHECKED_IN") {
+    updateData.checked_in_at = new Date().toISOString();
+  }
+
   const { error } = await supabase
     .from("appointments")
-    .update({ status })
+    .update(updateData)
     .eq("id", appointmentId)
     .eq("org_id", orgId);
 

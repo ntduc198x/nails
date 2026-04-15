@@ -227,9 +227,9 @@ export default function CheckoutPage() {
             <button
               type="button"
               onClick={() => requestAnimationFrame(() => customerSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }))}
-              className="cursor-pointer rounded-full border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-800 transition hover:bg-blue-100 active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2"
+              className="cursor-pointer rounded-full border border-neutral-300 bg-neutral-800 px-3 py-2 text-xs font-semibold text-white transition hover:bg-neutral-700 active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-neutral-300 focus:ring-offset-2"
             >
-              Khách CHECKED_IN: <b>{checkedInAppointments.length}</b>
+              Khách CHECKED_IN <b>({checkedInAppointments.length})</b>
             </button>
           </div>
 
@@ -266,7 +266,7 @@ export default function CheckoutPage() {
                           key={a.id}
                           type="button"
                           onClick={() => onSelectCheckedInAppointment(a.id)}
-                          className={`cursor-pointer rounded-full border px-3 py-2 text-left text-xs font-medium transition ${active ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white" : "border-neutral-200 bg-white text-neutral-700"}`}
+                          className={`cursor-pointer rounded-full border px-3 py-2 text-left text-xs font-medium transition ${active ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white" : "border-neutral-300 bg-neutral-800 text-white border-neutral-300"}`}
                         >
                           <span className="block truncate">{customer ?? "Khách"}</span>
                           <span className={`block text-[10px] ${active ? "text-white/80" : "text-neutral-400"}`}>{new Date(a.start_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</span>
@@ -278,28 +278,21 @@ export default function CheckoutPage() {
               ) : null}
 
               {checkedInAppointments.length > 0 ? (
-                <div className="hidden md:block space-y-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <label className="text-sm font-medium text-neutral-700">Khách đang CHECKED_IN</label>
-                    <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-medium text-blue-700">{checkedInAppointments.length}</span>
-                  </div>
-                  <div className="grid gap-2 lg:grid-cols-2 xl:grid-cols-3">
-                    {checkedInAppointments.map((a) => {
-                      const customer = Array.isArray(a.customers) ? a.customers[0]?.name : a.customers?.name;
-                      const active = appointmentId === a.id;
-                      return (
-                        <button
+                <div className="flex flex-wrap gap-2">
+                  {checkedInAppointments.map((a) => {
+                    const customer = Array.isArray(a.customers) ? a.customers[0]?.name : a.customers?.name;
+                    const active = appointmentId === a.id;
+                    return (
+<button
                           key={a.id}
                           type="button"
                           onClick={() => onSelectCheckedInAppointment(a.id)}
-                          className={`cursor-pointer rounded-2xl border px-3 py-2.5 text-left transition ${active ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]" : "border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700"}`}
+                          className={`cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium transition ${active ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white" : "border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700"}`}
                         >
-                          <span className="block truncate text-sm font-medium">{customer ?? "Khách"}</span>
-                          <span className={`mt-1 block text-xs ${active ? "text-[var(--color-primary)]/80" : "text-neutral-500"}`}>{new Date(a.start_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                          {customer ?? "Khách"} · {new Date(a.start_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+                      </button>
+                    );
+                  })}
                 </div>
               ) : null}
 

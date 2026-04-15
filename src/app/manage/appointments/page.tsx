@@ -129,16 +129,18 @@ function isOverdueBooked(row: AppointmentRow) {
   return new Date(row.start_at).getTime() < threshold;
 }
 
-function isStaleCheckedIn(row: AppointmentRow) {
+function isStaleCheckedIn(row: AppointmentRow & { checked_in_at?: string | null }) {
   if (row.status !== "CHECKED_IN") return false;
+  const checkedInTime = row.checked_in_at ? new Date(row.checked_in_at).getTime() : new Date(row.start_at).getTime();
   const threshold = Date.now() - STALE_CHECKED_IN_MINUTES * 60 * 1000;
-  return new Date(row.start_at).getTime() < threshold;
+  return checkedInTime < threshold;
 }
 
-function isCriticalCheckedIn(row: AppointmentRow) {
+function isCriticalCheckedIn(row: AppointmentRow & { checked_in_at?: string | null }) {
   if (row.status !== "CHECKED_IN") return false;
+  const checkedInTime = row.checked_in_at ? new Date(row.checked_in_at).getTime() : new Date(row.start_at).getTime();
   const threshold = Date.now() - CRITICAL_CHECKED_IN_MINUTES * 60 * 1000;
-  return new Date(row.start_at).getTime() < threshold;
+  return checkedInTime < threshold;
 }
 
 function FieldLabel({ children, className = "" }: { children: React.ReactNode; className?: string }) {
@@ -176,7 +178,7 @@ function ResourceChip({ active, disabled, label, onClick }: { active: boolean; d
   );
 }
 
-function AppointmentCard({ row, staffName, resourceName, onlineBooked, overdue, staleCheckedIn, criticalCheckedIn, updatingId, onEdit, onQuickStatus }: {
+function AppointmentCard({ row, staffName, resourceName, onlineBooked, overdue, staleCheckedIn, criticalCheckedIn, updatingId, onEdit, onQuickStatus, role }: {
   row: AppointmentRow;
   staffName: string;
   resourceName: string;
@@ -185,6 +187,7 @@ function AppointmentCard({ row, staffName, resourceName, onlineBooked, overdue, 
   staleCheckedIn: boolean;
   criticalCheckedIn: boolean;
   updatingId: string | null;
+  role: string | null;
   onEdit: () => void;
   onQuickStatus: (id: string, status: "CHECKED_IN" | "CANCELLED") => Promise<void>;
 }) {
@@ -226,7 +229,11 @@ function AppointmentCard({ row, staffName, resourceName, onlineBooked, overdue, 
           )}
           {row.status === "CHECKED_IN" && (
             <>
-              <button onClick={() => void onQuickStatus(row.id, "CANCELLED")} className="cursor-pointer rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60" disabled={!!updatingId}>{updatingId === row.id ? "Đang xử lý..." : "Cancel"}</button>
+              {role === "BOSS" ? (
+                <button onClick={() => void onQuickStatus(row.id, "CANCELLED")} className="cursor-pointer rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60" disabled={!!updatingId}>{updatingId === row.id ? "Đang xử lý..." : "Cancel"}</button>
+              ) : (
+                <span className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-400">Không thể hủy</span>
+              )}
               {criticalCheckedIn ? <button type="button" className="cursor-pointer rounded-xl border border-fuchsia-300 bg-fuchsia-100 px-3 py-2 text-sm font-semibold text-fuchsia-800 transition hover:bg-fuchsia-200 disabled:cursor-not-allowed disabled:opacity-60" disabled={!!updatingId}>Đóng bill ngay</button> : null}
             </>
           )}
@@ -346,10 +353,8 @@ export default function OperationsPage() {
 
     const merged = statusFilter === "ALL"
       ? [...overdueRows, ...normalBookedRows, ...criticalRows, ...staleRows, ...freshCheckedInRows, ...rangedNonBookedRows]
-      : statusFilter === "BOOKED"
-        ? [...overdueRows, ...normalBookedRows]
-        : statusFilter === "OVERDUE"
-          ? overdueRows
+: statusFilter === "BOOKED"
+          ? rangedNonBookedRows.filter((r) => r.status === "BOOKED")
           : statusFilter === "STALE_CHECKED_IN"
             ? [...criticalRows, ...staleRows]
             : statusFilter === "CHECKED_IN"
@@ -357,15 +362,14 @@ export default function OperationsPage() {
               : rangedNonBookedRows.filter((r) => r.status === statusFilter);
 
     return [...merged].sort((a, b) => {
-      const overdueRank = Number(isOverdueBooked(b)) - Number(isOverdueBooked(a));
-      if (overdueRank !== 0) return overdueRank;
-      const criticalRank = Number(isCriticalCheckedIn(b)) - Number(isCriticalCheckedIn(a));
-      if (criticalRank !== 0) return criticalRank;
-      const staleRank = Number(isStaleCheckedIn(b)) - Number(isStaleCheckedIn(a));
-      if (staleRank !== 0) return staleRank;
-      const byRank = rankStatus(a.status) - rankStatus(b.status);
-      if (byRank !== 0) return byRank;
-      return new Date(a.start_at).getTime() - new Date(b.start_at).getTime();
+      const aRow = a as AppointmentRow & { checked_in_at?: string | null };
+      const bRow = b as AppointmentRow & { checked_in_at?: string | null };
+      const aGroup = aRow.status === "CHECKED_IN" ? 1 : 0;
+      const bGroup = bRow.status === "CHECKED_IN" ? 1 : 0;
+      if (aGroup !== bGroup) return aGroup - bGroup;
+      const aTime = aRow.checked_in_at ? new Date(aRow.checked_in_at).getTime() : new Date(aRow.start_at).getTime();
+      const bTime = bRow.checked_in_at ? new Date(bRow.checked_in_at).getTime() : new Date(bRow.start_at).getTime();
+      return aTime - bTime;
     });
   }, [scopedRows, statusFilter, filterRange]);
 
@@ -456,7 +460,12 @@ export default function OperationsPage() {
       setUpdatingId(id);
       setError(null);
       await updateAppointmentStatus(id, status);
-      await load({ force: true });
+      const now = new Date().toISOString();
+      setRows((prev) => prev.map((r) => {
+        if (r.id !== id) return r;
+        if (status === "CHECKED_IN") return { ...r, status, checked_in_at: now };
+        return { ...r, status };
+      }));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Cập nhật lịch hẹn thất bại");
     } finally {
@@ -573,12 +582,10 @@ export default function OperationsPage() {
                   <div className="text-sm font-semibold text-neutral-900">Bộ lọc lịch</div>
                   <div className="rounded-full bg-white px-3 py-1 text-xs font-medium text-neutral-700">{filteredRows.length} lịch</div>
                 </div>
-                <div className="mt-3 grid gap-2 lg:grid-cols-6">
+                <div className="mt-3 grid gap-2 lg:grid-cols-5">
                   <button type="button" onClick={() => setStatusFilter("ALL")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "ALL" ? "bg-neutral-900 text-white" : "border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"}`}>Tất cả</button>
                   <button type="button" onClick={() => setStatusFilter("BOOKED")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "BOOKED" ? "bg-amber-500 text-white" : "border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"}`}>Booked</button>
-                  <button type="button" onClick={() => setStatusFilter("OVERDUE")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "OVERDUE" ? "bg-red-600 text-white" : "border border-red-200 bg-red-50 text-red-800 hover:bg-red-100"}`}>Quá giờ</button>
-                  <button type="button" onClick={() => setStatusFilter("STALE_CHECKED_IN")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "STALE_CHECKED_IN" ? "bg-violet-600 text-white" : "border border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100"}`}>Check-in lâu</button>
-                  <button type="button" onClick={() => setStatusFilter("CHECKED_IN")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "CHECKED_IN" ? "bg-blue-600 text-white" : "border border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100"}`}>Chờ thanh toán</button>
+                  <button type="button" onClick={() => setStatusFilter("CHECKED_IN")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "CHECKED_IN" ? "bg-blue-600 text-white" : "border border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100"}`}>Đã check-in</button>
                   <button type="button" onClick={() => setStatusFilter("DONE")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "DONE" ? "bg-emerald-600 text-white" : "border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"}`}>Đã xong</button>
                 </div>
                 <div className="mt-3 grid gap-3 md:grid-cols-[180px_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-center">
@@ -612,7 +619,7 @@ export default function OperationsPage() {
                       const overdue = isOverdueBooked(a);
                       const staleCheckedIn = isStaleCheckedIn(a);
                       const criticalCheckedIn = isCriticalCheckedIn(a);
-                      return <AppointmentCard key={`desktop-${a.id}`} row={a} staffName={staff} resourceName={resource} onlineBooked={isOnlineBooked(a)} overdue={overdue} staleCheckedIn={staleCheckedIn} criticalCheckedIn={criticalCheckedIn} updatingId={updatingId} onEdit={() => { setEditingId(a.id); setCustomerName(customer); setAutoTime(false); setBookingAt(rebaseDateTimeToToday(a.start_at)); setStaffUserId(a.staff_user_id ?? ""); setResourceId(a.resource_id ?? ""); requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }} onQuickStatus={onQuickStatus} />;
+                      return <AppointmentCard key={`desktop-${a.id}`} row={a} staffName={staff} resourceName={resource} onlineBooked={isOnlineBooked(a)} overdue={overdue} staleCheckedIn={staleCheckedIn} criticalCheckedIn={criticalCheckedIn} updatingId={updatingId} role={role} onEdit={() => { setEditingId(a.id); setCustomerName(customer); setAutoTime(false); setBookingAt(rebaseDateTimeToToday(a.start_at)); setStaffUserId(a.staff_user_id ?? ""); setResourceId(a.resource_id ?? ""); requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }} onQuickStatus={onQuickStatus} />;
                     })}
                   </div>
                 )}
@@ -625,9 +632,7 @@ export default function OperationsPage() {
                   <div className="grid grid-cols-2 gap-2">
                     <button type="button" onClick={() => openFilteredDetails("ALL")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "ALL" ? "bg-neutral-900 text-white" : "border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"}`}>Tất cả</button>
                     <button type="button" onClick={() => openFilteredDetails("BOOKED")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "BOOKED" ? "bg-amber-500 text-white" : "border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"}`}>Booked</button>
-                    <button type="button" onClick={() => openFilteredDetails("OVERDUE")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "OVERDUE" ? "bg-red-600 text-white" : "border border-red-200 bg-red-50 text-red-800 hover:bg-red-100"}`}>Quá giờ</button>
-                    <button type="button" onClick={() => openFilteredDetails("STALE_CHECKED_IN")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "STALE_CHECKED_IN" ? "bg-violet-600 text-white" : "border border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100"}`}>Check-in lâu</button>
-                    <button type="button" onClick={() => openFilteredDetails("CHECKED_IN")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "CHECKED_IN" ? "bg-blue-600 text-white" : "border border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100"}`}>Chờ thanh toán</button>
+                    <button type="button" onClick={() => openFilteredDetails("CHECKED_IN")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "CHECKED_IN" ? "bg-blue-600 text-white" : "border border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100"}`}>Đã check-in</button>
                     <button type="button" onClick={() => openFilteredDetails("DONE")} className={`cursor-pointer rounded-2xl px-3 py-2 text-sm font-medium transition ${statusFilter === "DONE" ? "bg-emerald-600 text-white" : "border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"}`}>Đã xong</button>
                   </div>
                   <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-500">{`${filterRange.from.toLocaleDateString("vi-VN")} → ${filterRange.to.toLocaleDateString("vi-VN")}`}</div>
@@ -649,11 +654,11 @@ export default function OperationsPage() {
               </MobileCollapsible>
             </div>
 
-            <MobileCollapsible
-              summary={<div className="flex items-center justify-between gap-3 pr-2"><span>Chi tiết lịch</span><span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[10px] font-medium text-neutral-700">{filteredRows.length}</span></div>}
-              open={showDetailList}
-              onToggle={setShowDetailList}
-            >
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-neutral-900">Chi tiết lịch</h3>
+                <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[10px] font-medium text-neutral-700">{filteredRows.length}</span>
+              </div>
               {loading ? <p className="text-sm text-neutral-500">Đang tải lịch hẹn...</p> : filteredRows.length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 bg-neutral-50 px-4 py-8 text-center text-sm text-neutral-500">Chưa có lịch hẹn nào trong bộ lọc hiện tại.</div> : (
                 <div className="space-y-4">
                   {filteredRows.map((a) => {
@@ -663,11 +668,11 @@ export default function OperationsPage() {
                     const overdue = isOverdueBooked(a);
                     const staleCheckedIn = isStaleCheckedIn(a);
                     const criticalCheckedIn = isCriticalCheckedIn(a);
-                    return <AppointmentCard key={a.id} row={a} staffName={staff} resourceName={resource} onlineBooked={isOnlineBooked(a)} overdue={overdue} staleCheckedIn={staleCheckedIn} criticalCheckedIn={criticalCheckedIn} updatingId={updatingId} onEdit={() => { setEditingId(a.id); setCustomerName(customer); setAutoTime(false); setBookingAt(rebaseDateTimeToToday(a.start_at)); setStaffUserId(a.staff_user_id ?? ""); setResourceId(a.resource_id ?? ""); requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }} onQuickStatus={onQuickStatus} />;
+                    return <AppointmentCard key={a.id} row={a} staffName={staff} resourceName={resource} onlineBooked={isOnlineBooked(a)} overdue={overdue} staleCheckedIn={staleCheckedIn} criticalCheckedIn={criticalCheckedIn} updatingId={updatingId} role={role} onEdit={() => { setEditingId(a.id); setCustomerName(customer); setAutoTime(false); setBookingAt(rebaseDateTimeToToday(a.start_at)); setStaffUserId(a.staff_user_id ?? ""); setResourceId(a.resource_id ?? ""); requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }} onQuickStatus={onQuickStatus} />;
                   })}
                 </div>
               )}
-            </MobileCollapsible>
+            </div>
           </section>
 
           <MobileStickyActions>

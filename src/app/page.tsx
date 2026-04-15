@@ -510,17 +510,17 @@ export default function LandingPage() {
                 <input type="tel" placeholder="0909 xxx xxx" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
               </div>
             </div>
-            <div className="landing-form-group">
-              <label>Dịch vụ mong muốn</label>
-              <select value={selectedService} onChange={(e) => setSelectedService(e.target.value)}>
-                <option value="">Chọn dịch vụ</option>
-                {lookbookServices.map((service) => (
-                  <option key={service.title} value={service.title}>{service.title}</option>
-                ))}
-                <option value="Gỡ móng & Chăm sóc">Gỡ móng & Chăm sóc</option>
-              </select>
-            </div>
-            <div className="landing-form-row full-width landing-form-row--schedule">
+            <div className="landing-form-row">
+              <div className="landing-form-group">
+                <label>Dịch vụ mong muốn</label>
+                <select value={selectedService} onChange={(e) => setSelectedService(e.target.value)}>
+                  <option value="">Chọn dịch vụ</option>
+                  {lookbookServices.map((service) => (
+                    <option key={service.title} value={service.title}>{service.title}</option>
+                  ))}
+                  <option value="Gỡ móng & Chăm sóc">Gỡ móng & Chăm sóc</option>
+                </select>
+              </div>
               <div className="landing-form-group pk-group">
                 <label>Ngày hẹn *</label>
                 <button type="button" className={`pk-trigger ${dateOpen ? "active" : ""}`} onClick={openDate} aria-expanded={dateOpen}>
