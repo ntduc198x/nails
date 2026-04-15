@@ -415,13 +415,14 @@ img {
 }
 
 .landing-hero__subtitle {
-  font-size: 14px;
-  letter-spacing: 5px;
+  font-size: 18px;
+  letter-spacing: 6px;
   color: #a17a3c;
   text-transform: uppercase;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
   display: block;
-  font-weight: 600;
+  font-weight: 700;
+  text-shadow: 0 2px 4px rgba(161, 122, 60, 0.15);
 }
 
 .landing-hero__title {
