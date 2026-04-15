@@ -280,7 +280,7 @@ export default function LandingPage() {
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
         requestedService: selectedService || undefined,
-        preferredStaff: preferredStaff.trim() || undefined,
+        preferredStaff: undefined,
         note: note.trim() || undefined,
         requestedStartAt: startAt.toISOString(),
         requestedEndAt: endAt.toISOString(),
@@ -299,7 +299,6 @@ export default function LandingPage() {
       setCustomerName("");
       setCustomerPhone("");
       setSelectedService("");
-      setPreferredStaff("");
       setSelectedDate(null);
       setSelectedTime(null);
       setNote("");
@@ -436,13 +435,15 @@ export default function LandingPage() {
             }}
           >
             <div className="landing-booking-form-badge">ĐẶT LỊCH</div>
-            <div className="landing-form-group">
-              <label>Họ và tên *</label>
-              <input ref={bookingNameInputRef} type="text" placeholder="Nguyễn Thị A" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
-            </div>
-            <div className="landing-form-group">
-              <label>Số điện thoại *</label>
-              <input type="tel" placeholder="0909 xxx xxx" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
+            <div className="landing-form-row landing-form-row--primary full-width">
+              <div className="landing-form-group">
+                <label>Họ và tên *</label>
+                <input ref={bookingNameInputRef} type="text" placeholder="Nguyễn Thị A" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+              </div>
+              <div className="landing-form-group">
+                <label>Số điện thoại *</label>
+                <input type="tel" placeholder="0909 xxx xxx" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
+              </div>
             </div>
             <div className="landing-form-group">
               <label>Dịch vụ mong muốn</label>
@@ -454,118 +455,10 @@ export default function LandingPage() {
                 <option value="Gỡ móng & Chăm sóc">Gỡ móng & Chăm sóc</option>
               </select>
             </div>
-            <details className="landing-form-more full-width">
-              <summary>Thêm tuỳ chọn</summary>
-              <div className="landing-form-more__content">
-                <div className="landing-form-group landing-form-group--optional">
-                  <label>Thợ chính (Nếu có)</label>
-                  <input type="text" placeholder="VD: Thợ Loan" value={preferredStaff} onChange={(e) => setPreferredStaff(e.target.value)} />
-                </div>
-
-            <div className="landing-form-group pk-group pk-date-group">
-              <label>Ngày hẹn *</label>
-              <input type="hidden" value={selectedDate ? formatIsoDate(selectedDate) : ""} />
-              <button type="button" className={`pk-trigger ${dateOpen ? "active" : ""}`} onClick={openDate}>
-                <div className="pk-trigger-left">
-                  <span className="pk-trigger-icon">📅</span>
-                  <div className="pk-trigger-text">
-                    {!selectedDate ? (
-                      <span className="pk-placeholder">Chọn ngày hẹn...</span>
-                    ) : (
-                      <span className="pk-value">
-                        {formatDate(selectedDate)}
-                        <span className="pk-tag">{getRelativeDay(selectedDate, todayDate)}</span>
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <span className="pk-arrow">⌄</span>
-              </button>
-              <div className={`pk-dropdown ${dateOpen ? "open" : ""}`} onClick={(e) => e.stopPropagation()}>
-                <div className="pk-cal-header">
-                  <button type="button" className="pk-cal-nav" onClick={goPrevMonth}>‹</button>
-                  <span className="pk-cal-title">{MONTHS_VI[viewMonth]} {viewYear}</span>
-                  <div className="pk-cal-navs">
-                    <button type="button" className="pk-cal-nav pk-cal-today-btn" onClick={() => pickDate(new Date(todayDate))}>Hôm nay</button>
-                    <button type="button" className="pk-cal-nav" onClick={goNextMonth}>›</button>
-                  </div>
-                </div>
-                <div className="pk-cal-weekdays">
-                  {WEEKDAYS_VI.map((day) => <span key={day}>{day}</span>)}
-                </div>
-                <div className="pk-cal-days">
-                  {calendarCells.map((cell, index) => {
-                    const isToday = sameDay(cell.date ?? null, todayDate);
-                    const isSelected = sameDay(cell.date ?? null, selectedDate);
-                    return (
-                      <button
-                        key={`${cell.label}-${index}`}
-                        type="button"
-                        className={`pk-cal-day ${!cell.current ? "other" : ""} ${isToday ? "today" : ""} ${isSelected ? "selected" : ""}`.trim()}
-                        disabled={!cell.current}
-                        onClick={() => cell.date && pickDate(cell.date)}
-                      >
-                        {cell.label}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="pk-quick-dates">
-                  {QUICK_DATES.map((item) => {
-                    const quickDate = new Date(todayDate);
-                    quickDate.setDate(todayDate.getDate() + item.offset);
-                    return (
-                      <button
-                        key={item.label}
-                        type="button"
-                        className={`pk-qd-btn ${sameDay(selectedDate, quickDate) ? "active" : ""}`}
-                        onClick={() => pickDate(quickDate)}
-                      >
-                        {item.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+            <div className="landing-form-group full-width landing-form-group--optional">
+              <label>Ghi chú thêm</label>
+              <textarea placeholder="Mô tả mong muốn hoặc lưu ý đặc biệt..." value={note} onChange={(e) => setNote(e.target.value)} />
             </div>
-
-            <div className="landing-form-group pk-group pk-time-group">
-              <label>Giờ hẹn *</label>
-              <input type="hidden" value={selectedTime ?? ""} />
-              <button type="button" className={`pk-trigger ${timeOpen ? "active" : ""}`} onClick={openTime}>
-                <div className="pk-trigger-left">
-                  <span className="pk-trigger-icon">🕘</span>
-                  <div className="pk-trigger-text">
-                    {!selectedTime ? <span className="pk-placeholder">Chọn giờ...</span> : <span className="pk-value">{selectedTime}</span>}
-                  </div>
-                </div>
-                <span className="pk-arrow">⌄</span>
-              </button>
-              <div className={`pk-dropdown ${timeOpen ? "open" : ""}`} onClick={(e) => e.stopPropagation()}>
-                <div className="pk-time-grid">
-                  {TIME_SLOTS.map((slot) => (
-                    <button
-                      key={slot}
-                      type="button"
-                      className={`pk-time-slot ${selectedTime === slot ? "selected" : ""}`}
-                      onClick={() => {
-                        setSelectedTime(slot);
-                        setTimeOpen(false);
-                      }}
-                    >
-                      {slot}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-                <div className="landing-form-group landing-form-group--optional">
-                  <label>Ghi chú thêm</label>
-                  <textarea placeholder="Mô tả mong muốn hoặc lưu ý đặc biệt..." value={note} onChange={(e) => setNote(e.target.value)} />
-                </div>
-              </div>
-            </details>
             <button type="submit" className="btn-gold full-width landing-submit-link" disabled={submitting}>
               {submitting ? "Đang gửi..." : "Gửi yêu cầu đặt lịch"}
             </button>

@@ -1529,7 +1529,7 @@ img {
   .landing-services-grid {
     display: grid;
     grid-auto-flow: column;
-    grid-auto-columns: minmax(68%, 1fr);
+    grid-auto-columns: minmax(58%, 1fr);
     gap: 16px;
     overflow-x: auto;
     scroll-snap-type: x mandatory;
@@ -1551,16 +1551,16 @@ img {
   }
 
   .landing-service-img-wrapper {
-    height: 176px;
+    height: 136px;
   }
 
   .landing-service-info {
-    padding: 14px 14px 14px;
+    padding: 12px 12px 12px;
   }
 
   .landing-service-info h3 {
-    font-size: 20px;
-    margin-bottom: 6px;
+    font-size: 18px;
+    margin-bottom: 4px;
   }
 
   .landing-service-info p {
@@ -1574,14 +1574,14 @@ img {
   }
 
   .landing-service-price {
-    margin-bottom: 14px;
-    font-size: 14px;
+    margin-bottom: 10px;
+    font-size: 13px;
   }
 
   .btn-service-book {
-    padding: 9px 18px;
-    font-size: 10px;
-    letter-spacing: 1.4px;
+    padding: 8px 14px;
+    font-size: 9px;
+    letter-spacing: 1.2px;
   }
 
   .landing-service-card:first-child {
@@ -1633,8 +1633,16 @@ img {
   }
 
   .landing-form-group.full-width,
-  .landing-submit-link.full-width {
+  .landing-submit-link.full-width,
+  .landing-form-row.full-width {
     grid-column: span 1;
+  }
+
+  .landing-form-row--primary {
+    display: grid;
+    grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr);
+    gap: 12px;
+    align-items: end;
   }
 
   .landing-form-group label {
@@ -1668,33 +1676,9 @@ img {
     display: none;
   }
 
-  .landing-form-more {
-    grid-column: span 1;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    padding-top: 4px;
-  }
-
-  .landing-form-more summary {
-    list-style: none;
-    cursor: pointer;
-    color: #d0d0d0;
-    font-size: 12px;
-    font-weight: 600;
-    padding: 8px 0 4px;
-  }
-
-  .landing-form-more summary::-webkit-details-marker {
-    display: none;
-  }
-
-  .landing-form-more__content {
-    display: grid;
-    gap: 10px;
-    padding-top: 6px;
-  }
-
   .pk-trigger {
-    padding: 10px 0;
+    padding: 8px 0;
+    min-height: 40px;
   }
 
   .pk-trigger-icon {
@@ -1715,15 +1699,18 @@ img {
   .pk-dropdown {
     left: 0;
     right: 0;
+    top: calc(100% + 4px);
     border-radius: 10px;
+    max-height: min(62vh, 440px);
+    overflow-y: auto;
   }
 
   .pk-cal-header {
-    padding: 10px 12px 6px;
+    padding: 8px 10px 4px;
   }
 
   .pk-cal-title {
-    font-size: 15px;
+    font-size: 14px;
   }
 
   .pk-cal-weekdays {
@@ -1736,11 +1723,11 @@ img {
   }
 
   .pk-cal-days {
-    padding: 0 8px 4px;
+    padding: 0 6px 2px;
   }
 
   .pk-cal-day {
-    font-size: 12px;
+    font-size: 11px;
     border-radius: 6px;
   }
 
@@ -1756,13 +1743,13 @@ img {
 
   .pk-time-grid {
     grid-template-columns: repeat(4, 1fr);
-    gap: 5px;
-    padding: 10px 12px 12px;
+    gap: 4px;
+    padding: 8px 10px 10px;
   }
 
   .pk-time-slot {
-    padding: 8px 4px;
-    font-size: 12px;
+    padding: 7px 2px;
+    font-size: 11px;
   }
 
   .landing-footer-main {
