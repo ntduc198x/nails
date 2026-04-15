@@ -82,6 +82,10 @@ function parseDecimal(value: string) {
   return Number(value.replace(/[^\d.]/g, "") || 0);
 }
 
+function isLookbookSample(row: Pick<ServiceRow, "name">) {
+  return row.name.trim().toLowerCase().startsWith("mẫu ");
+}
+
 function serviceToFormState(row: ServiceRow): ServiceFormState {
   return {
     name: row.name,
@@ -153,6 +157,11 @@ export default function ServicesPage() {
 
   const activeCount = useMemo(() => rows.filter((row) => row.active).length, [rows]);
   const featuredCount = useMemo(() => rows.filter((row) => row.featured_in_lookbook).length, [rows]);
+  const sampleCount = useMemo(() => rows.filter((row) => row.active && isLookbookSample(row)).length, [rows]);
+  const activeServiceCount = useMemo(() => rows.filter((row) => row.active && !isLookbookSample(row)).length, [rows]);
+
+  const activeServiceRows = useMemo(() => filteredRows.filter((row) => !isLookbookSample(row)), [filteredRows]);
+  const lookbookSampleRows = useMemo(() => filteredRows.filter((row) => isLookbookSample(row)), [filteredRows]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -364,14 +373,18 @@ export default function ServicesPage() {
             </button>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 md:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
             <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
-              <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-neutral-500">Tổng</div>
+              <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-neutral-500">Tổng active</div>
               <div className="mt-1 text-sm font-semibold text-neutral-900">{activeCount}</div>
             </div>
             <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
-              <div className="text-[10px] font-medium tracking-[0.04em] text-neutral-500">Lookbook</div>
-              <div className="mt-1 text-sm font-semibold text-neutral-900">{featuredCount}</div>
+              <div className="text-[10px] font-medium tracking-[0.04em] text-neutral-500">Dịch vụ</div>
+              <div className="mt-1 text-sm font-semibold text-neutral-900">{activeServiceCount}</div>
+            </div>
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
+              <div className="text-[10px] font-medium tracking-[0.04em] text-neutral-500">Mẫu lookbook</div>
+              <div className="mt-1 text-sm font-semibold text-neutral-900">{sampleCount}</div>
             </div>
             <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
               <div className="text-[10px] font-medium tracking-[0.04em] text-neutral-500">Thùng rác</div>
@@ -496,7 +509,7 @@ export default function ServicesPage() {
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
                 <h3 className="text-sm font-semibold text-neutral-900">Danh sách dịch vụ</h3>
-                <p className="text-xs text-neutral-500">Ưu tiên xem nhanh giá, thời lượng, trạng thái, hạn chế mở card dài.</p>
+                <p className="text-xs text-neutral-500">Tách riêng dịch vụ vận hành và mẫu lookbook để tránh nhầm khi chỉnh landing page.</p>
               </div>
               <div className="w-full md:w-[320px]">
                 <TextInput placeholder="Tìm tên hoặc mô tả" value={search} onChange={(e) => setSearch(e.target.value)} className="py-2.5 text-sm" />
@@ -510,101 +523,89 @@ export default function ServicesPage() {
                 {rows.length === 0 ? "Chưa có dịch vụ nào. Hãy tạo dịch vụ đầu tiên ở phía trên." : "Không có dịch vụ khớp bộ lọc hiện tại."}
               </div>
             ) : (
-              <div className="space-y-1.5">
-                {filteredRows.map((s) => {
-                  const isEditing = editingId === s.id;
-                  return (
-                    <div key={s.id} className="rounded-2xl border border-neutral-200 bg-white p-2.5">
-                      <div className="flex items-start justify-between gap-2.5">
-                        <div className="flex min-w-0 flex-1 items-start gap-2.5">
-                          {s.image_url ? <img src={s.image_url} alt={s.name} className="h-10 w-10 shrink-0 rounded-xl object-cover" /> : null}
-                          <div className="min-w-0 flex-1">
-                            {isEditing && editForm ? (
-                              <TextInput value={editForm.name} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, name: e.target.value } : prev))} className="max-w-xl py-1.5 text-[13px]" placeholder="Tên dịch vụ" />
+              <>
+                <div className="rounded-2xl border border-neutral-200 bg-neutral-50/70 p-3">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <h4 className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-600">Dịch vụ vận hành</h4>
+                    <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-medium text-neutral-700">{activeServiceRows.length}</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {activeServiceRows.map((s) => {
+                      const isEditing = editingId === s.id;
+                      return (
+                        <div key={s.id} className="rounded-2xl border border-neutral-200 bg-white p-2.5">
+                          <div className="flex items-start justify-between gap-2.5">
+                            <div className="flex min-w-0 flex-1 items-start gap-2.5">
+                              {s.image_url ? <img src={s.image_url} alt={s.name} className="h-10 w-10 shrink-0 rounded-xl object-cover" /> : null}
+                              <div className="min-w-0 flex-1">
+                                {isEditing && editForm ? (
+                                  <TextInput value={editForm.name} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, name: e.target.value } : prev))} className="max-w-xl py-1.5 text-[13px]" placeholder="Tên dịch vụ" />
+                                ) : (
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <h4 className="text-[13px] font-semibold leading-4.5 text-neutral-900 md:text-sm">{s.name}</h4>
+                                    {s.featured_in_lookbook ? <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px] font-semibold text-rose-700">Lookbook</span> : null}
+                                    <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${s.active ? "bg-emerald-100 text-emerald-700" : "bg-neutral-200 text-neutral-600"}`}>{s.active ? "Đang dùng" : "Tạm ẩn"}</span>
+                                  </div>
+                                )}
+                                {!isEditing ? <p className="mt-0.5 line-clamp-1 text-[10px] text-neutral-500">{s.short_description || "Chưa có mô tả ngắn."}</p> : null}
+                              </div>
+                            </div>
+                            {!canEdit ? null : isEditing ? (
+                              <div className="flex gap-1.5">
+                                <button className="cursor-pointer rounded-xl border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] font-medium text-red-700 disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => void moveToTrash(s)} disabled={submitting}>Xóa</button>
+                                <button className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-neutral-700" type="button" onClick={() => { setEditingId(null); setEditForm(null); }}>Huỷ</button>
+                                <button className="cursor-pointer rounded-xl bg-rose-500 px-2.5 py-1.5 text-[11px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => void saveEdit()} disabled={submitting}>{submitting ? "Đang lưu..." : "Lưu"}</button>
+                              </div>
                             ) : (
+                              <button className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-neutral-700" type="button" onClick={() => startEdit(s)}>Sửa</button>
+                            )}
+                          </div>
+                          {!isEditing ? (
+                            <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                              <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">{formatVnd(Number(s.base_price))}</div>
+                              <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">{s.duration_min}p</div>
+                              <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">VAT {Number(s.vat_rate) * 100}%</div>
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-3">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <h4 className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-800">Mẫu lookbook / trend</h4>
+                    <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-medium text-amber-800">{lookbookSampleRows.length}</span>
+                  </div>
+                  <p className="mb-2 text-xs text-amber-800/80">Những mục bắt đầu bằng “Mẫu ...” là item phục vụ landing/lookbook, không phải dịch vụ vận hành chính.</p>
+                  <div className="space-y-1.5">
+                    {lookbookSampleRows.map((s) => (
+                      <div key={s.id} className="rounded-2xl border border-amber-200 bg-white p-2.5">
+                        <div className="flex items-start justify-between gap-2.5">
+                          <div className="flex min-w-0 flex-1 items-start gap-2.5">
+                            {s.image_url ? <img src={s.image_url} alt={s.name} className="h-10 w-10 shrink-0 rounded-xl object-cover" /> : null}
+                            <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-1.5">
                                 <h4 className="text-[13px] font-semibold leading-4.5 text-neutral-900 md:text-sm">{s.name}</h4>
-                                {s.featured_in_lookbook ? <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px] font-semibold text-rose-700">Lookbook</span> : null}
-                                <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${s.active ? "bg-emerald-100 text-emerald-700" : "bg-neutral-200 text-neutral-600"}`}>
-                                  {s.active ? "Đang dùng" : "Tạm ẩn"}
-                                </span>
+                                <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-800">Mẫu lookbook</span>
+                                {s.featured_in_lookbook ? <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px] font-semibold text-rose-700">Landing</span> : null}
                               </div>
-                            )}
-                            {!isEditing ? <p className="mt-0.5 line-clamp-1 text-[10px] text-neutral-500">{s.short_description || "Chưa có mô tả ngắn."}</p> : null}
+                              <p className="mt-0.5 line-clamp-1 text-[10px] text-neutral-500">{s.short_description || "Chưa có mô tả ngắn."}</p>
+                            </div>
                           </div>
+                          {canEdit ? <button className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-neutral-700" type="button" onClick={() => startEdit(s)}>Sửa</button> : null}
                         </div>
-
-                        {!canEdit ? null : isEditing ? (
-                          <div className="flex gap-1.5">
-                            <button className="cursor-pointer rounded-xl border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] font-medium text-red-700 disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => void moveToTrash(s)} disabled={submitting}>
-                              Xóa
-                            </button>
-                            <button className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-neutral-700" type="button" onClick={() => {
-                              setEditingId(null);
-                              setEditForm(null);
-                            }}>
-                              Huỷ
-                            </button>
-                            <button className="cursor-pointer rounded-xl bg-rose-500 px-2.5 py-1.5 text-[11px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => void saveEdit()} disabled={submitting}>
-                              {submitting ? "Đang lưu..." : "Lưu"}
-                            </button>
-                          </div>
-                        ) : (
-                          <button className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-neutral-700" type="button" onClick={() => startEdit(s)}>
-                            Sửa
-                          </button>
-                        )}
-                      </div>
-
-                      {isEditing && editForm ? (
-                        <div className="mt-2 rounded-2xl bg-neutral-50 p-3">
-                          <div className="space-y-2">
-                            <TextArea value={editForm.shortDescription} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, shortDescription: e.target.value } : prev))} placeholder="Mô tả ngắn" className="min-h-[54px] text-[13px]" />
-
-                            <div className="grid gap-2 md:grid-cols-3">
-                              <TextInput inputMode="numeric" pattern="[0-9]*" value={editForm.priceInput} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, priceInput: e.target.value.replace(/\D/g, "") } : prev))} placeholder="Giá · 250000" className="text-[13px]" />
-                              <TextInput inputMode="numeric" pattern="[0-9]*" value={editForm.durationInput} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, durationInput: e.target.value.replace(/\D/g, "") } : prev))} placeholder="Phút · 45" className="text-[13px]" />
-                              <TextInput inputMode="decimal" value={editForm.vatInput} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, vatInput: e.target.value.replace(/[^\d.]/g, "") } : prev))} placeholder="VAT %" className="text-[13px]" />
-                            </div>
-
-                            <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
-                              <TextInput value={editForm.imageUrl} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, imageUrl: e.target.value } : prev))} placeholder="URL hoặc storage path" className="text-[13px]" />
-                              <label className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50">
-                                <input type="file" accept="image/*" className="hidden" onChange={(e) => void handleEditImageUpload(e.target.files?.[0])} />
-                                {uploadingEditImage ? "Đang upload..." : "Upload ảnh"}
-                              </label>
-                            </div>
-
-                            <div className="flex flex-wrap gap-2">
-                              <label className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs text-neutral-700">
-                                <input type="checkbox" className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-400" checked={editForm.featuredInLookbook} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, featuredInLookbook: e.target.checked } : prev))} />
-                                Lookbook
-                              </label>
-                              <label className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs text-neutral-700">
-                                <input type="checkbox" className="h-4 w-4 rounded border-neutral-300 text-rose-500 focus:ring-rose-400" checked={editForm.active} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, active: e.target.checked } : prev))} />
-                                Đang hoạt động
-                              </label>
-                            </div>
-
-                            {editForm.imageUrl ? (
-                              <div className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs text-neutral-600">
-                                <img src={editForm.imageUrl} alt="Preview" className="h-10 w-10 rounded-lg object-cover" />
-                                <div className="min-w-0 flex-1 truncate">Đã có ảnh preview</div>
-                              </div>
-                            ) : null}
-                          </div>
-                        </div>
-                      ) : (
                         <div className="mt-1.5 flex flex-wrap items-center gap-1">
                           <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">{formatVnd(Number(s.base_price))}</div>
                           <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">{s.duration_min}p</div>
                           <div className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-700">VAT {Number(s.vat_rate) * 100}%</div>
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
             )}
           </div>
 

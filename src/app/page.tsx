@@ -8,8 +8,12 @@ type LandingService = {
   title: string;
   description: string;
   price: string;
+  duration?: string;
   image: string;
   alt: string;
+  tag?: string;
+  vibe?: string;
+  ctaLabel?: string;
 };
 
 const fallbackServices: LandingService[] = [
@@ -17,6 +21,7 @@ const fallbackServices: LandingService[] = [
     title: "Luxury Gel",
     description: "Sơn gel cao cấp, bóng màu lên đến 3 tuần.",
     price: "350.000đ",
+    duration: "45 phút",
     image: "https://images.unsplash.com/photo-1604654894610-df63bc536371?q=80&w=800",
     alt: "Luxury Gel",
   },
@@ -24,6 +29,7 @@ const fallbackServices: LandingService[] = [
     title: "Nail Art Design",
     description: "Vẽ móng nghệ thuật, đẳng cấp phong cách Red Carpet.",
     price: "500.000đ",
+    duration: "60 phút",
     image: "https://images.unsplash.com/photo-1607779097040-26e80aa78e66?q=80&w=800",
     alt: "Nail Art",
   },
@@ -31,12 +37,15 @@ const fallbackServices: LandingService[] = [
     title: "Spa & Care",
     description: "Chăm sóc da tay, tẩy da chết và trị liệu dưỡng chất.",
     price: "400.000đ",
+    duration: "50 phút",
     image: "https://images.unsplash.com/photo-1519014816548-bf5fe059798b?q=80&w=800",
     alt: "Care",
   },
 ];
 
 const facebookPageUrl = "https://www.facebook.com/chambeautyyy";
+const instagramUrl = "https://www.instagram.com/cham.beautyy/";
+const tiktokUrl = "https://www.tiktok.com/@chm.beauty10";
 const messengerUrl = "https://m.me/chambeautyyy";
 const MONTHS_VI = ["Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6", "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12"];
 const WEEKDAYS_VI = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
@@ -48,6 +57,7 @@ const QUICK_DATES = [
   { label: "1 tuần", offset: 7 },
   { label: "2 tuần", offset: 14 },
 ];
+const LOOKBOOK_FILTERS = ["Tất cả", "Hot nhất", "Nhẹ nhàng", "Sang tiệc", "Cá tính"] as const;
 const TIME_SLOTS = Array.from({ length: 25 }, (_, index) => {
   if (index === 24) return "21:00";
   const hour = 9 + Math.floor(index / 2);
@@ -74,6 +84,25 @@ function getRelativeDay(date: Date, today: Date) {
   if (diff === 2) return "Mốt";
   return WEEKDAYS_VI[date.getDay()];
 }
+
+function enrichLookbookService(item: LandingService): LandingService {
+  const text = `${item.title} ${item.description}`.toLowerCase();
+
+  if (text.includes("mắt mèo") || text.includes("flash") || text.includes("ánh")) {
+    return { ...item, tag: "Hot", vibe: "Sang tiệc", ctaLabel: "Chọn mẫu này" };
+  }
+
+  if (text.includes("thạch") || text.includes("biab") || text.includes("nude") || text.includes("sữa")) {
+    return { ...item, tag: "Trend", vibe: "Nhẹ nhàng", ctaLabel: "Chọn mẫu này" };
+  }
+
+  if (text.includes("đính") || text.includes("charm") || text.includes("vẽ") || text.includes("ombre")) {
+    return { ...item, tag: "Nổi bật", vibe: "Cá tính", ctaLabel: "Chọn mẫu này" };
+  }
+
+  return { ...item, tag: "Chọn nhiều", vibe: "Hot nhất", ctaLabel: "Chọn mẫu này" };
+}
+
 
 export default function LandingPage() {
   const todayDate = useMemo(() => {
@@ -102,6 +131,9 @@ export default function LandingPage() {
   const lookbookScrollerRef = useRef<HTMLDivElement | null>(null);
   const [activeLookbookIndex, setActiveLookbookIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [activeLookbookFilter, setActiveLookbookFilter] = useState<(typeof LOOKBOOK_FILTERS)[number]>("Tất cả");
+
+  const hasScheduleSelection = Boolean(selectedDate || selectedTime);
 
   useEffect(() => {
     const onScroll = () => {
@@ -141,10 +173,11 @@ export default function LandingPage() {
           "https://images.unsplash.com/photo-1519014816548-bf5fe059798b?q=80&w=800",
         ];
 
-        setLookbookServices(rows.map((item, index) => ({
+        setLookbookServices(rows.map((item, index) => enrichLookbookService({
           title: item.name,
           description: item.short_description?.trim() || `Dịch vụ ${item.name} • thời lượng ${item.duration_min} phút.`,
-          price: formatVnd(Number(item.base_price)),
+          price: `${formatVnd(Number(item.base_price))}`,
+          duration: `${item.duration_min} phút`,
           image: item.image_url?.trim() || serviceImages[index % serviceImages.length],
           alt: item.name,
         })));
@@ -186,6 +219,11 @@ export default function LandingPage() {
       bookingNameInputRef.current?.focus({ preventScroll: true });
     }, 350);
   };
+
+  const visibleLookbookServices = useMemo(() => {
+    if (activeLookbookFilter === "Tất cả") return lookbookServices;
+    return lookbookServices.filter((service) => service.vibe === activeLookbookFilter || service.tag === activeLookbookFilter);
+  }, [activeLookbookFilter, lookbookServices]);
 
   const calendarCells = useMemo(() => {
     const firstDay = new Date(viewYear, viewMonth, 1).getDay();
@@ -335,12 +373,16 @@ export default function LandingPage() {
           <h1 className="landing-hero__title">CHẠM</h1>
           <h1 className="landing-hero__title landing-hero__title--filled">BEAUTY</h1>
           <p className="landing-hero__desc">
-            Nơi mỗi điểm nhấn là một sự chỉn chu tinh tế. Chúng tôi không chỉ làm móng, chúng tôi kiến tạo phong cách cho
-            đôi bàn tay của bạn.
+            Chạm Beauty theo đuổi vẻ đẹp tinh tế, gọn gàng và sang trọng — nơi mỗi bộ móng đều được chăm chút để hợp với phong cách riêng của bạn.
           </p>
-          <button type="button" className="btn-luxury" onClick={() => goToBooking()}>
-            Đặt Lịch Ngay
-          </button>
+          <div className="landing-hero__actions">
+            <button type="button" className="btn-luxury" onClick={() => goToBooking()}>
+              Đặt Lịch Ngay
+            </button>
+            <a href="#services" className="btn-luxury btn-luxury--secondary">
+              Xem mẫu móng
+            </a>
+          </div>
         </div>
         <div className="landing-hero__right" />
       </section>
@@ -384,27 +426,49 @@ export default function LandingPage() {
         <div className="landing-section-header">
           <p>Lookbook</p>
           <div className="line" />
-          <h2>Các dịch vụ nổi bật</h2>
+          <h2>Mẫu móng được chọn lọc</h2>
+          <span className="landing-section-subcopy">Ưu tiên các mẫu dễ ứng dụng, hợp xu hướng và lên tay sang.</span>
+        </div>
+        <div className="landing-lookbook-filters" role="tablist" aria-label="Lọc lookbook">
+          {LOOKBOOK_FILTERS.map((filter) => (
+            <button
+              key={filter}
+              type="button"
+              className={`landing-lookbook-filter ${activeLookbookFilter === filter ? "is-active" : ""}`}
+              onClick={() => setActiveLookbookFilter(filter)}
+            >
+              {filter}
+            </button>
+          ))}
         </div>
         <div ref={lookbookScrollerRef} className="landing-services-grid" role="list">
-          {lookbookServices.map((service) => (
+          {visibleLookbookServices.map((service) => (
             <div key={service.title} className="landing-service-card">
               <div className="landing-service-img-wrapper">
+                <span className="landing-service-badge">{service.tag ?? "Nổi bật"}</span>
                 <img src={service.image} alt={service.alt} />
               </div>
               <div className="landing-service-info">
-                <h3>{service.title}</h3>
-                <p>{service.description}</p>
-                <span className="landing-service-price">{service.price}</span>
-                <button type="button" className="btn-service-book" onClick={() => goToBooking(service.title)}>
-                  Đặt lịch ngay
-                </button>
+                <div className="landing-service-copy">
+                  <h3>{service.title}</h3>
+                  <div className="landing-service-meta">{service.vibe ?? "Hot nhất"}</div>
+                  <p>{service.description}</p>
+                </div>
+                <div className="landing-service-footer">
+                  <div className="landing-service-pricing">
+                    <span className="landing-service-price">{service.price}</span>
+                    {service.duration ? <span className="landing-service-duration">{service.duration}</span> : null}
+                  </div>
+                  <button type="button" className="btn-service-book" onClick={() => goToBooking(service.title)}>
+                    {service.ctaLabel ?? "Chọn mẫu này"}
+                  </button>
+                </div>
               </div>
             </div>
           ))}
         </div>
         <div className="landing-lookbook-dots" aria-hidden="true">
-          {lookbookServices.map((service, index) => (
+          {visibleLookbookServices.map((service, index) => (
             <span key={service.title} className={`landing-lookbook-dot ${index === activeLookbookIndex ? "is-active" : ""}`} />
           ))}
         </div>
@@ -455,6 +519,109 @@ export default function LandingPage() {
                 <option value="Gỡ móng & Chăm sóc">Gỡ móng & Chăm sóc</option>
               </select>
             </div>
+            <div className="landing-form-row full-width landing-form-row--schedule">
+              <div className="landing-form-group pk-group">
+                <label>Ngày hẹn *</label>
+                <button type="button" className={`pk-trigger ${dateOpen ? "active" : ""}`} onClick={openDate} aria-expanded={dateOpen}>
+                  <span className="pk-trigger-left">
+                    <span className="pk-trigger-icon">📅</span>
+                    <span className="pk-trigger-text">
+                      {selectedDate ? (
+                        <span className="pk-value">
+                          {formatDate(selectedDate)}
+                          <span className="pk-tag">{getRelativeDay(selectedDate, todayDate)}</span>
+                        </span>
+                      ) : (
+                        <span className="pk-placeholder">Chọn ngày</span>
+                      )}
+                    </span>
+                  </span>
+                  <span className="pk-arrow">▾</span>
+                </button>
+                <div className={`pk-dropdown ${dateOpen ? "open" : ""}`}>
+                  <div className="pk-cal-header">
+                    <div className="pk-cal-title">{MONTHS_VI[viewMonth]} {viewYear}</div>
+                    <div className="pk-cal-navs">
+                      <button type="button" className="pk-cal-nav" onClick={goPrevMonth}>‹</button>
+                      <button type="button" className="pk-cal-nav pk-cal-today-btn" onClick={() => pickDate(todayDate)}>Hôm nay</button>
+                      <button type="button" className="pk-cal-nav" onClick={goNextMonth}>›</button>
+                    </div>
+                  </div>
+                  <div className="pk-cal-weekdays">
+                    {WEEKDAYS_VI.map((day) => (
+                      <span key={day}>{day}</span>
+                    ))}
+                  </div>
+                  <div className="pk-cal-days">
+                    {calendarCells.map((cell, index) => {
+                      const isToday = sameDay(cell.date ?? null, todayDate);
+                      const isSelected = sameDay(cell.date ?? null, selectedDate);
+
+                      return cell.date ? (
+                        <button
+                          key={`${formatIsoDate(cell.date)}-${index}`}
+                          type="button"
+                          className={`pk-cal-day ${isToday ? "today" : ""} ${isSelected ? "selected" : ""}`}
+                          onClick={() => pickDate(cell.date!)}
+                        >
+                          {cell.label}
+                        </button>
+                      ) : (
+                        <span key={`empty-${index}`} className="pk-cal-day other">{cell.label}</span>
+                      );
+                    })}
+                  </div>
+                  <div className="pk-quick-dates">
+                    {QUICK_DATES.map((item) => {
+                      const nextDate = new Date(todayDate);
+                      nextDate.setDate(todayDate.getDate() + item.offset);
+                      const active = sameDay(nextDate, selectedDate);
+
+                      return (
+                        <button key={item.label} type="button" className={`pk-qd-btn ${active ? "active" : ""}`} onClick={() => pickDate(nextDate)}>
+                          {item.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+              <div className="landing-form-group pk-group">
+                <label>Giờ hẹn *</label>
+                <button type="button" className={`pk-trigger ${timeOpen ? "active" : ""}`} onClick={openTime} aria-expanded={timeOpen}>
+                  <span className="pk-trigger-left">
+                    <span className="pk-trigger-icon">🕘</span>
+                    <span className="pk-trigger-text">
+                      {selectedTime ? <span className="pk-value">{selectedTime}</span> : <span className="pk-placeholder">Chọn giờ</span>}
+                    </span>
+                  </span>
+                  <span className="pk-arrow">▾</span>
+                </button>
+                <div className={`pk-dropdown ${timeOpen ? "open" : ""}`}>
+                  <div className="pk-time-grid">
+                    {TIME_SLOTS.map((slot) => (
+                      <button
+                        key={slot}
+                        type="button"
+                        className={`pk-time-slot ${selectedTime === slot ? "selected" : ""}`}
+                        onClick={() => {
+                          setSelectedTime(slot);
+                          setTimeOpen(false);
+                        }}
+                      >
+                        {slot}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+            {hasScheduleSelection && (
+              <div className="landing-booking-summary full-width">
+                <span>{selectedDate ? `Ngày: ${formatDate(selectedDate)}` : "Ngày: chưa chọn"}</span>
+                <span>{selectedTime ? `Giờ: ${selectedTime}` : "Giờ: chưa chọn"}</span>
+              </div>
+            )}
             <div className="landing-form-group full-width landing-form-group--optional">
               <label>Ghi chú thêm</label>
               <textarea placeholder="Mô tả mong muốn hoặc lưu ý đặc biệt..." value={note} onChange={(e) => setNote(e.target.value)} />
@@ -492,8 +659,8 @@ export default function LandingPage() {
             <h4>Kết nối</h4>
             <div className="landing-footer-social-links">
               <a href={facebookPageUrl} target="_blank" rel="noreferrer" aria-label="Facebook">Facebook</a>
-              <a href="#" aria-label="Instagram">Instagram</a>
-              <a href="#" aria-label="TikTok">TikTok</a>
+              <a href={instagramUrl} target="_blank" rel="noreferrer" aria-label="Instagram">Instagram</a>
+              <a href={tiktokUrl} target="_blank" rel="noreferrer" aria-label="TikTok">TikTok</a>
             </div>
             <div className="landing-footer-hotline">
               <span>📞</span>
