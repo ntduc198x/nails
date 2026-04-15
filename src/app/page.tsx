@@ -132,6 +132,7 @@ export default function LandingPage() {
   const [activeLookbookIndex, setActiveLookbookIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [activeLookbookFilter, setActiveLookbookFilter] = useState<(typeof LOOKBOOK_FILTERS)[number]>("Tất cả");
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   const hasScheduleSelection = Boolean(selectedDate || selectedTime);
 
@@ -444,7 +445,7 @@ export default function LandingPage() {
         <div ref={lookbookScrollerRef} className="landing-services-grid" role="list">
           {visibleLookbookServices.map((service) => (
             <div key={service.title} className="landing-service-card">
-              <div className="landing-service-img-wrapper">
+              <div className="landing-service-img-wrapper" onClick={() => setLightboxImage(service.image)} style={{ cursor: "pointer" }}>
                 <span className="landing-service-badge">{service.tag ?? "Nổi bật"}</span>
                 <img src={service.image} alt={service.alt} />
               </div>
@@ -675,6 +676,15 @@ export default function LandingPage() {
           <span>&copy; 2025 Chạm Beauty. All rights reserved.</span>
         </div>
       </footer>
+
+      {lightboxImage && (
+        <div className="landing-lightbox" onClick={() => setLightboxImage(null)}>
+          <button type="button" className="landing-lightbox-close" onClick={() => setLightboxImage(null)}>
+            ✕
+          </button>
+          <img src={lightboxImage} alt="Xem chi tiết" className="landing-lightbox-img" />
+        </div>
+      )}
     </main>
   );
 }

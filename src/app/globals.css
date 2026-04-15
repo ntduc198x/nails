@@ -788,22 +788,99 @@ img {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 10px 18px;
-  border: 1px solid var(--primary-dark);
-  color: var(--primary-dark);
+  padding: 12px 22px;
+  border: none;
+  border-radius: 4px;
+  color: var(--white);
   text-decoration: none;
   font-size: 11px;
-  letter-spacing: 1.4px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
   text-transform: uppercase;
-  background: transparent;
-  transition: all 0.3s;
+  background: linear-gradient(135deg, #c9a66b 0%, #a68a4e 100%);
+  box-shadow: 0 4px 15px rgba(166, 138, 78, 0.3);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
   white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-service-book::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
 }
 
 .btn-service-book:hover {
-  background: var(--primary-dark);
-  color: var(--white);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(166, 138, 78, 0.4);
+  background: linear-gradient(135deg, #d4b37a 0%, #b8995e 100%);
+}
+
+.btn-service-book:hover::before {
+  left: 100%;
+}
+
+.btn-service-book:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 10px rgba(166, 138, 78, 0.3);
+}
+
+.landing-lightbox {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.9);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.2s ease;
+}
+
+.landing-lightbox-img {
+  max-width: 90%;
+  max-height: 90%;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.landing-lightbox-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  backdrop-filter: blur(10px);
+}
+
+.landing-lightbox-close:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(1.1);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .landing-booking {
@@ -918,7 +995,7 @@ img {
   border-bottom: 1px solid #444;
   color: var(--white);
   font-family: var(--font-montserrat), sans-serif;
-  font-size: 14px;
+  font-size: 16px;
   transition: border-color 0.3s, color 0.3s;
 }
 
@@ -1899,7 +1976,7 @@ img {
   .landing-form-group select,
   .landing-form-group textarea {
     padding: 10px 0;
-    font-size: 14px;
+    font-size: 16px;
   }
 
   .landing-form-group textarea {
