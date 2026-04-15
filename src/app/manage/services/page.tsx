@@ -338,7 +338,6 @@ export default function ServicesPage() {
         basePrice: Number(row.base_price),
         vatPercent: Number(row.vat_rate) * 100,
         active: false,
-        deletedAt: new Date().toISOString(),
       });
       await load({ force: true });
     } catch (err) {
