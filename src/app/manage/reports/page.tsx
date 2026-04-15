@@ -244,7 +244,7 @@ export default function ReportsPage() {
 
         <MobileSectionHeader title="Báo cáo" meta={<div className="manage-info-box">{refreshing ? "Đang làm mới..." : `${filteredTicketRows.length} bill`}</div>} />
 
-        <section className="manage-surface space-y-3 p-4">
+        <section className="manage-surface space-y-3 p-4 md:p-5">
           <div className="flex items-center justify-between gap-3">
             <h3 className="text-sm font-semibold text-neutral-900">Điều hướng nhanh</h3>
             <button className="cursor-pointer rounded-full border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700" onClick={exportExcel}>Xuất Excel</button>
@@ -269,39 +269,48 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          <div className="hidden md:grid md:items-center md:gap-2 md:grid-cols-[88px_180px_repeat(4,minmax(0,1fr))_auto]">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-500">Kiểu</div>
-            <select className="input py-2.5 text-sm" value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}>
-              <option value="day">Theo ngày</option>
-              <option value="week">Theo tuần</option>
-              <option value="month">Theo tháng</option>
-              <option value="custom">Tùy chỉnh</option>
-            </select>
+          <div className="hidden md:block">
+            <div className="grid gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-3 lg:grid-cols-[160px_minmax(0,1fr)_220px_auto] lg:items-end">
+              <div className="space-y-1">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-500">Kiểu báo cáo</div>
+                <select className="input py-2.5 text-sm" value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}>
+                  <option value="day">Theo ngày</option>
+                  <option value="week">Theo tuần</option>
+                  <option value="month">Theo tháng</option>
+                  <option value="custom">Tùy chỉnh</option>
+                </select>
+              </div>
 
-            <div className="grid grid-cols-2 gap-2 md:contents">
-              {rangeMode === "day" && <input className="input py-2.5 text-sm col-span-2 md:col-span-1" type="date" value={dayValue} onChange={(e) => setDayValue(e.target.value)} />}
-              {rangeMode === "week" && <input className="input py-2.5 text-sm col-span-2 md:col-span-1" type="date" value={weekAnchor} onChange={(e) => setWeekAnchor(e.target.value)} />}
-              {rangeMode === "month" && (
-                <>
-                  <select className="input py-2.5 text-sm" value={monthValue} onChange={(e) => setMonthValue(e.target.value)}>
-                    {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={String(m)}>{`Tháng ${m}`}</option>)}
-                  </select>
-                  <input className="input py-2.5 text-sm" type="number" value={yearValue} onChange={(e) => setYearValue(e.target.value)} />
-                </>
-              )}
-              {rangeMode === "custom" && (
-                <>
-                  <input className="input py-2.5 text-sm" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-                  <input className="input py-2.5 text-sm" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
-                </>
-              )}
-            </div>
+              <div className="space-y-1">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-500">Khoảng thời gian</div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {rangeMode === "day" && <input className="input py-2.5 text-sm md:col-span-2" type="date" value={dayValue} onChange={(e) => setDayValue(e.target.value)} />}
+                  {rangeMode === "week" && <input className="input py-2.5 text-sm md:col-span-2" type="date" value={weekAnchor} onChange={(e) => setWeekAnchor(e.target.value)} />}
+                  {rangeMode === "month" && (
+                    <>
+                      <select className="input py-2.5 text-sm" value={monthValue} onChange={(e) => setMonthValue(e.target.value)}>
+                        {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={String(m)}>{`Tháng ${m}`}</option>)}
+                      </select>
+                      <input className="input py-2.5 text-sm" type="number" value={yearValue} onChange={(e) => setYearValue(e.target.value)} />
+                    </>
+                  )}
+                  {rangeMode === "custom" && (
+                    <>
+                      <input className="input py-2.5 text-sm" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+                      <input className="input py-2.5 text-sm" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+                    </>
+                  )}
+                </div>
+              </div>
 
-            <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 md:contents">
-              <select className="input py-2.5 text-sm" value={staffFilter} onChange={(e) => setStaffFilter(e.target.value)}>
-                <option value="ALL">Tất cả nhân viên</option>
-                {staffRevenue.map((row) => <option key={row.staffUserId} value={row.staffUserId}>{row.staff}</option>)}
-              </select>
+              <div className="space-y-1">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-500">Nhân viên</div>
+                <select className="input py-2.5 text-sm" value={staffFilter} onChange={(e) => setStaffFilter(e.target.value)}>
+                  <option value="ALL">Tất cả nhân viên</option>
+                  {staffRevenue.map((row) => <option key={row.staffUserId} value={row.staffUserId}>{row.staff}</option>)}
+                </select>
+              </div>
+
               <button className="cursor-pointer rounded-2xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-medium text-neutral-700" onClick={() => void load()} disabled={refreshing}>{refreshing ? "Đang lọc..." : "Lọc"}</button>
             </div>
           </div>
@@ -360,9 +369,9 @@ export default function ReportsPage() {
         {breakdownError ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Phân tích nâng cao đang lỗi: {breakdownError}. Danh sách phiếu cơ bản vẫn hiển thị bình thường.</div> : null}
         {error ? <div className="manage-error-box">{error}</div> : null}
 
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_360px]">
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_380px]">
           <div className="space-y-4">
-            <div className="manage-surface space-y-2.5 p-3 md:p-4">
+            <div className="manage-surface space-y-3 p-4 md:p-5">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-sm font-semibold text-neutral-900">Phân tích doanh thu</h3>
                 <button className="cursor-pointer rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[11px] font-medium text-neutral-700 md:hidden" onClick={() => setMobileInsightsOpen((v) => !v)}>
@@ -382,7 +391,7 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            <div ref={ticketsSectionRef} className="manage-surface space-y-2.5 p-3 md:p-4">
+            <div ref={ticketsSectionRef} className="manage-surface space-y-3 p-4 md:p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-semibold text-neutral-900">Chi tiết bill</h3>
@@ -428,12 +437,24 @@ export default function ReportsPage() {
           </div>
 
           <div className="space-y-4">
+            <div className="hidden md:block manage-surface space-y-3 p-4 md:p-5">
+              <h3 className="text-sm font-semibold text-neutral-900">Theo phương thức thanh toán</h3>
+              <div className="space-y-2">
+                {(breakdown?.by_payment ?? []).length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">Chưa có dữ liệu thanh toán.</div> : (breakdown?.by_payment ?? []).map((p, idx) => <div key={`${p.method}-${idx}`} className="rounded-2xl border border-neutral-200 bg-white px-3 py-2.5 text-sm"><div className="flex items-center justify-between gap-2"><div><div className="font-medium text-neutral-900">{p.method}</div><div className="text-[11px] text-neutral-500">{p.count} bill</div></div><div className="font-semibold text-neutral-900">{formatVnd(Number(p.amount ?? 0))}</div></div></div>)}
+              </div>
+            </div>
             <MobileCollapsible summary="Theo phương thức thanh toán" defaultOpen={false}>
               <div className="space-y-2">
                 {(breakdown?.by_payment ?? []).length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">Chưa có dữ liệu thanh toán.</div> : (breakdown?.by_payment ?? []).map((p, idx) => <div key={`${p.method}-${idx}`} className="rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"><div className="flex items-center justify-between gap-2"><div><div className="font-medium text-neutral-900">{p.method}</div><div className="text-[11px] text-neutral-500">{p.count} bill</div></div><div className="font-semibold text-neutral-900">{formatVnd(Number(p.amount ?? 0))}</div></div></div>)}
               </div>
             </MobileCollapsible>
 
+            <div className="hidden md:block manage-surface space-y-3 p-4 md:p-5">
+              <h3 className="text-sm font-semibold text-neutral-900">Theo nhân viên (giờ làm)</h3>
+              <div className="space-y-2">
+                {staffHours.length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">Chưa có dữ liệu giờ làm trong kỳ này.</div> : staffHours.map((s, idx) => <div key={`${s.staff}-${idx}`} className="rounded-2xl border border-neutral-200 bg-white px-3 py-2.5 text-sm"><div className="flex items-center justify-between gap-2"><div><div className="line-clamp-1 font-medium text-neutral-900">{s.staff}</div><div className="text-[11px] text-neutral-500">{s.entries} ca</div></div><div className="font-semibold text-neutral-900">{s.minutes} phút</div></div></div>)}
+              </div>
+            </div>
             <MobileCollapsible summary="Theo nhân viên (giờ làm)" defaultOpen={false}>
               <div className="space-y-2">
                 {staffHours.length === 0 ? <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">Chưa có dữ liệu giờ làm trong kỳ này.</div> : staffHours.map((s, idx) => <div key={`${s.staff}-${idx}`} className="rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"><div className="flex items-center justify-between gap-2"><div><div className="line-clamp-1 font-medium text-neutral-900">{s.staff}</div><div className="text-[11px] text-neutral-500">{s.entries} ca</div></div><div className="font-semibold text-neutral-900">{s.minutes} phút</div></div></div>)}
