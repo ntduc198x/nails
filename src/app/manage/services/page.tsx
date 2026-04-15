@@ -396,24 +396,24 @@ export default function ServicesPage() {
               <p className="text-xs text-neutral-500">Form desktop luôn hiển thị</p>
             </div>
             <form onSubmit={onSubmit} className="space-y-3">
-              <div className="space-y-2 md:grid md:gap-2 md:grid-cols-[minmax(0,1.1fr)_180px_160px] md:space-y-0">
+              <div className="space-y-2 md:grid md:grid-cols-[minmax(0,1fr)_150px_120px_120px] md:gap-2 md:space-y-0">
                 <InlineField label="Tên" compact>
                   <TextInput placeholder="Luxury Gel" value={createForm.name} onChange={(e) => setCreateForm((prev) => ({ ...prev, name: e.target.value }))} required />
                 </InlineField>
                 <InlineField label="Giá" compact>
-                  <TextInput inputMode="numeric" pattern="[0-9]*" value={createForm.priceInput} onChange={(e) => setCreateForm((prev) => ({ ...prev, priceInput: e.target.value.replace(/\D/g, "") }))} required placeholder="Ví dụ: 250000" />
+                  <TextInput inputMode="numeric" pattern="[0-9]*" value={createForm.priceInput} onChange={(e) => setCreateForm((prev) => ({ ...prev, priceInput: e.target.value.replace(/\D/g, "") }))} required placeholder="250000" />
                 </InlineField>
                 <InlineField label="Phút" compact>
-                  <TextInput inputMode="numeric" pattern="[0-9]*" value={createForm.durationInput} onChange={(e) => setCreateForm((prev) => ({ ...prev, durationInput: e.target.value.replace(/\D/g, "") }))} required placeholder="Ví dụ: 60" />
-                </InlineField>
-              </div>
-
-              <div className="space-y-2 md:grid md:gap-2 md:grid-cols-[minmax(0,1fr)_140px] md:space-y-0">
-                <InlineField label="Ảnh" compact>
-                  <TextInput placeholder="URL hoặc storage path" value={createForm.imageUrl} onChange={(e) => setCreateForm((prev) => ({ ...prev, imageUrl: e.target.value }))} />
+                  <TextInput inputMode="numeric" pattern="[0-9]*" value={createForm.durationInput} onChange={(e) => setCreateForm((prev) => ({ ...prev, durationInput: e.target.value.replace(/\D/g, "") }))} required placeholder="45" />
                 </InlineField>
                 <InlineField label="VAT" compact>
                   <TextInput inputMode="decimal" value={createForm.vatInput} onChange={(e) => setCreateForm((prev) => ({ ...prev, vatInput: e.target.value.replace(/[^\d.]/g, "") }))} required placeholder="VAT %" />
+                </InlineField>
+              </div>
+
+              <div className="space-y-2 md:grid md:gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:space-y-0">
+                <InlineField label="Ảnh" compact>
+                  <TextInput placeholder="URL hoặc storage path" value={createForm.imageUrl} onChange={(e) => setCreateForm((prev) => ({ ...prev, imageUrl: e.target.value }))} />
                 </InlineField>
               </div>
 
@@ -453,8 +453,8 @@ export default function ServicesPage() {
               <form onSubmit={onSubmit} className="space-y-2.5">
                 <div className="grid grid-cols-[minmax(0,1fr)_96px_78px] gap-2">
                   <TextInput placeholder="Tên dịch vụ" value={createForm.name} onChange={(e) => setCreateForm((prev) => ({ ...prev, name: e.target.value }))} required />
-                  <TextInput inputMode="numeric" pattern="[0-9]*" value={createForm.priceInput} onChange={(e) => setCreateForm((prev) => ({ ...prev, priceInput: e.target.value.replace(/\D/g, "") }))} required placeholder="Giá VNĐ" />
-                  <TextInput inputMode="numeric" pattern="[0-9]*" value={createForm.durationInput} onChange={(e) => setCreateForm((prev) => ({ ...prev, durationInput: e.target.value.replace(/\D/g, "") }))} required placeholder="Phút" />
+                  <TextInput inputMode="numeric" pattern="[0-9]*" value={createForm.priceInput} onChange={(e) => setCreateForm((prev) => ({ ...prev, priceInput: e.target.value.replace(/\D/g, "") }))} required placeholder="250000" />
+                  <TextInput inputMode="numeric" pattern="[0-9]*" value={createForm.durationInput} onChange={(e) => setCreateForm((prev) => ({ ...prev, durationInput: e.target.value.replace(/\D/g, "") }))} required placeholder="45" />
                 </div>
 
                 <div className="grid grid-cols-[minmax(0,1fr)_84px] gap-2">
@@ -561,11 +561,10 @@ export default function ServicesPage() {
                       {isEditing && editForm ? (
                         <div className="mt-2 rounded-2xl bg-neutral-50 p-3">
                           <div className="space-y-2">
-                            <TextArea value={editForm.shortDescription} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, shortDescription: e.target.value } : prev))} placeholder="Mô tả ngắn" className="min-h-[54px] text-[13px]" />
-
-                            <div className="grid grid-cols-3 gap-2">
-                              <TextInput inputMode="numeric" pattern="[0-9]*" value={editForm.priceInput} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, priceInput: e.target.value.replace(/\D/g, "") } : prev))} placeholder="Giá" className="text-[13px]" />
-                              <TextInput inputMode="numeric" pattern="[0-9]*" value={editForm.durationInput} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, durationInput: e.target.value.replace(/\D/g, "") } : prev))} placeholder="Phút" className="text-[13px]" />
+                            <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_150px_120px_120px]">
+                              <TextArea value={editForm.shortDescription} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, shortDescription: e.target.value } : prev))} placeholder="Mô tả ngắn" className="min-h-[54px] text-[13px]" />
+                              <TextInput inputMode="numeric" pattern="[0-9]*" value={editForm.priceInput} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, priceInput: e.target.value.replace(/\D/g, "") } : prev))} placeholder="250000" className="text-[13px]" />
+                              <TextInput inputMode="numeric" pattern="[0-9]*" value={editForm.durationInput} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, durationInput: e.target.value.replace(/\D/g, "") } : prev))} placeholder="45" className="text-[13px]" />
                               <TextInput inputMode="decimal" value={editForm.vatInput} onChange={(e) => setEditForm((prev) => (prev ? { ...prev, vatInput: e.target.value.replace(/[^\d.]/g, "") } : prev))} placeholder="VAT %" className="text-[13px]" />
                             </div>
 
