@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
-import { ensureOrgContext, listAppointments, listResources } from "@/lib/domain";
+import { ensureOrgContext } from "@/lib/domain";
+import { getBookingWindowCapacitySnapshot, rebalanceOpenBookingRequests } from "@/lib/booking-capacity";
 
 export type BookingRequestStatus = "NEW" | "CONFIRMED" | "NEEDS_RESCHEDULE" | "CANCELLED" | "CONVERTED";
 
@@ -49,6 +50,7 @@ export async function listBookingRequests(status?: BookingRequestStatus) {
   if (!error) {
     const rows = (data ?? []) as BookingRequestRow[];
     const { expiredIds, rows: patchedRows } = patchExpiredRows(rows);
+    const rebalance = await rebalanceOpenBookingRequests({ orgId });
 
     if (expiredIds.length > 0) {
       await supabase
@@ -57,6 +59,19 @@ export async function listBookingRequests(status?: BookingRequestStatus) {
         .eq("org_id", orgId)
         .in("id", expiredIds)
         .eq("status", "NEW");
+    }
+
+    if (expiredIds.length > 0 || rebalance.changedCount > 0) {
+      const refresh = await supabase
+        .from("booking_requests")
+        .select(selectFields)
+        .eq("org_id", orgId)
+        .order("created_at", { ascending: true })
+        .limit(200);
+
+      if (!refresh.error) {
+        return patchExpiredRows((refresh.data ?? []) as BookingRequestRow[]).rows;
+      }
     }
 
     return patchedRows;
@@ -68,6 +83,7 @@ export async function listBookingRequests(status?: BookingRequestStatus) {
   if (!rpc.error && rpc.data) {
     const rows = (rpc.data ?? []) as BookingRequestRow[];
     const { expiredIds, rows: patchedRows } = patchExpiredRows(rows);
+    const rebalance = await rebalanceOpenBookingRequests({ orgId });
 
     if (expiredIds.length > 0) {
       await supabase
@@ -76,6 +92,19 @@ export async function listBookingRequests(status?: BookingRequestStatus) {
         .eq("org_id", orgId)
         .in("id", expiredIds)
         .eq("status", "NEW");
+    }
+
+    if (expiredIds.length > 0 || rebalance.changedCount > 0) {
+      const refresh = await supabase
+        .from("booking_requests")
+        .select(selectFields)
+        .eq("org_id", orgId)
+        .order("created_at", { ascending: true })
+        .limit(200);
+
+      if (!refresh.error) {
+        return patchExpiredRows((refresh.data ?? []) as BookingRequestRow[]).rows;
+      }
     }
 
     return patchedRows;
@@ -109,6 +138,7 @@ export async function updateBookingRequestStatus(id: string, status: BookingRequ
     .eq("org_id", orgId);
 
   if (error) throw error;
+  await rebalanceOpenBookingRequests({ orgId });
 }
 
 export async function deleteBookingRequest(id: string) {
@@ -122,6 +152,7 @@ export async function deleteBookingRequest(id: string) {
     .eq("org_id", orgId);
 
   if (error) throw error;
+  await rebalanceOpenBookingRequests({ orgId });
 }
 
 export async function checkAppointmentCapacity(input: {
@@ -129,29 +160,20 @@ export async function checkAppointmentCapacity(input: {
   startAt: string;
   endAt: string;
 }) {
-  const appointments = await listAppointments({ force: true }) as Array<{
-    id: string;
-    start_at: string;
-    end_at: string;
-    status: string;
-    customers?: { name?: string } | { name?: string }[] | null;
-  }>;
-
-  const activeResources = await listResources({ force: true, activeOnly: true }) as Array<{ id: string; active?: boolean }>;
-  const activeCapacity = activeResources.length;
-  const maxSimultaneous = activeCapacity > 0 ? activeCapacity : 1;
-
-  const overlaps = appointments.filter((row) => {
-    if (!["BOOKED", "CHECKED_IN", "IN_SERVICE"].includes(row.status)) return false;
-    return new Date(row.start_at).getTime() < new Date(input.endAt).getTime()
-      && new Date(row.end_at).getTime() > new Date(input.startAt).getTime();
+  const { orgId } = await ensureOrgContext();
+  await rebalanceOpenBookingRequests({ orgId });
+  const result = await getBookingWindowCapacitySnapshot({
+    orgId,
+    startAt: input.startAt,
+    endAt: input.endAt,
+    excludeBookingRequestId: input.bookingRequestId ?? null,
   });
 
   return {
-    overlaps,
-    overlapCount: overlaps.length,
-    allowed: overlaps.length < maxSimultaneous,
-    maxSimultaneous,
+    overlaps: result.overlaps,
+    overlapCount: result.overlapCount,
+    allowed: result.allowed,
+    maxSimultaneous: result.maxSimultaneous,
   };
 }
 
@@ -178,6 +200,9 @@ export async function convertBookingRequestToAppointment(input: {
       .join(" | ");
     throw new Error(message || "Không convert được booking request");
   }
+
+  const { orgId } = await ensureOrgContext();
+  await rebalanceOpenBookingRequests({ orgId });
 
   return data as { booking_request_id: string; appointment_id: string; status: string };
 }

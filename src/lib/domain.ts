@@ -1,4 +1,5 @@
 import { listUserRoles } from "@/lib/auth";
+import { rebalanceOpenBookingRequests } from "@/lib/booking-capacity";
 import { supabase } from "@/lib/supabase";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
@@ -503,6 +504,9 @@ export async function updateAppointmentStatus(appointmentId: string, status: "BO
     .eq("org_id", orgId);
 
   if (error) throw error;
+  if (status === "CANCELLED" || status === "DONE" || status === "NO_SHOW") {
+    await rebalanceOpenBookingRequests({ orgId });
+  }
   invalidateDataCaches();
 }
 

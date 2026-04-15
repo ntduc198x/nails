@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getBookingWindowCapacitySnapshot, rebalanceOpenBookingRequests } from "@/lib/booking-capacity";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
 const telegramChatId = process.env.TELEGRAM_BOOKING_CHAT_ID;
 const publicBaseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://chambeauty.io.vn";
-const MAX_SIMULTANEOUS_BOOKINGS = Number(process.env.BOOKING_MAX_SIMULTANEOUS ?? "2");
 const NEARBY_WARNING_MINUTES = Number(process.env.BOOKING_NEARBY_WARNING_MINUTES ?? "30");
 
 function getSupabase() {
@@ -25,21 +25,6 @@ function formatViDateTime(iso: string) {
     timeZone: "Asia/Ho_Chi_Minh",
     hour12: false,
   });
-}
-
-async function listAppointmentOverlaps(supabase: ReturnType<typeof getSupabase>, orgId: string, startAt: string, endAt: string) {
-  const { data, error } = await supabase
-    .from("appointments")
-    .select("id,start_at,end_at,status,customers(name)")
-    .eq("org_id", orgId)
-    .lt("start_at", endAt)
-    .gt("end_at", startAt)
-    .in("status", ["BOOKED", "CHECKED_IN", "IN_SERVICE"])
-    .order("start_at", { ascending: true })
-    .limit(10);
-
-  if (error) throw error;
-  return (data ?? []) as Array<{ id: string; start_at: string; end_at: string; status: string; customers?: { name?: string } | { name?: string }[] | null }>;
 }
 
 async function listNearbyAppointments(supabase: ReturnType<typeof getSupabase>, orgId: string, startAt: string) {
@@ -208,23 +193,28 @@ export async function POST(req: Request) {
       if (!bookingRow?.id) throw new Error("Không đọc được booking request sau khi claim.");
 
       const requestedEndAt = bookingRow.requested_end_at ?? addMinutes(bookingRow.requested_start_at, 60);
-      const appointmentOverlaps = await listAppointmentOverlaps(supabase, bookingRow.org_id, bookingRow.requested_start_at, requestedEndAt);
-      const overlapCount = appointmentOverlaps.length;
-      const hasConflict = overlapCount >= MAX_SIMULTANEOUS_BOOKINGS;
+      await rebalanceOpenBookingRequests({ client: supabase, orgId: bookingRow.org_id });
+      const snapshot = await getBookingWindowCapacitySnapshot({
+        client: supabase,
+        orgId: bookingRow.org_id,
+        startAt: bookingRow.requested_start_at,
+        endAt: requestedEndAt,
+        excludeBookingRequestId: bookingId,
+      });
+      const overlapCount = snapshot.overlapCount;
 
       const nearbyAppointments = await listNearbyAppointments(supabase, bookingRow.org_id, bookingRow.requested_start_at);
       const nearbyCount = nearbyAppointments.length;
-      const hasNearbyWarning = !hasConflict && nearbyCount >= MAX_SIMULTANEOUS_BOOKINGS;
+      const { data: refreshedBooking, error: refreshedBookingError } = await supabase
+        .from("booking_requests")
+        .select("status")
+        .eq("id", bookingId)
+        .maybeSingle();
 
-      if (hasConflict && bookingRow.status !== "NEEDS_RESCHEDULE") {
-        const { error: markConflictError } = await supabase
-          .from("booking_requests")
-          .update({ status: "NEEDS_RESCHEDULE" })
-          .eq("id", bookingId)
-          .eq("notified_at", claimedAt);
+      if (refreshedBookingError) throw refreshedBookingError;
 
-        if (markConflictError) throw markConflictError;
-      }
+      const hasConflict = refreshedBooking?.status === "NEEDS_RESCHEDULE" || !snapshot.allowed;
+      const hasNearbyWarning = !hasConflict && nearbyCount >= snapshot.maxSimultaneous;
 
       const sent = await sendTelegramBookingMessage({
         bookingId,
@@ -236,7 +226,7 @@ export async function POST(req: Request) {
         requestedStartAt: bookingRow.requested_start_at,
         conflict: hasConflict
           ? {
-              appointment: appointmentOverlaps.map((item) => ({ id: item.id, start_at: item.start_at, customers: item.customers })),
+              appointment: snapshot.overlaps.map((item) => ({ id: item.id, start_at: item.start_at, customers: item.customers })),
               overlapCount,
             }
           : null,
@@ -271,11 +261,12 @@ export async function POST(req: Request) {
           bookingId,
           conflict: hasConflict,
           overlapCount,
+          maxSimultaneous: snapshot.maxSimultaneous,
           nearbyWarning: hasNearbyWarning,
           nearbyCount,
           callbackData: sent.debug,
           bookingRow,
-          appointmentOverlaps,
+          capacitySnapshot: snapshot,
           nearbyAppointments,
           updatedRow: updateRes.data ?? null,
           updateError: updateRes.error ? {

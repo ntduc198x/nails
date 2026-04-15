@@ -24,9 +24,11 @@ type ResourceOption = { id: string; name: string; type: string };
 
 type OverlapRow = {
   id: string;
+  kind?: "appointment" | "booking_request";
   start_at: string;
   end_at: string;
-  status: string;
+  status?: string;
+  customer_name?: string;
   customers?: { name?: string } | { name?: string }[] | null;
 };
 
@@ -90,7 +92,7 @@ function QueueCard({
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-neutral-500 md:text-xs">
             <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[12px] font-extrabold tracking-[0.02em] text-emerald-800 md:text-xs">{row.customer_phone}</span>
             <span>•</span>
-            <span>{row.source === "landing_page" ? "Online" : row.source ?? "-"}</span>
+            <span>{row.source === "landing_page" ? "Web booking" : row.source ?? "-"}</span>
           </div>
         </div>
       </div>
@@ -323,7 +325,7 @@ export default function BookingRequestsPage() {
       <div className="space-y-5 pb-24 md:pb-0">
         <ManageQuickNav items={operationsQuickNav("/manage/booking-requests")} />
 
-        <MobileSectionHeader title="Booking online" meta={<div className="manage-info-box">{compactHeader}</div>} />
+        <MobileSectionHeader title="Web booking" meta={<div className="manage-info-box">{compactHeader}</div>} />
 
         {error ? <ManageAlert tone="error">{error}</ManageAlert> : null}
 
@@ -411,7 +413,7 @@ export default function BookingRequestsPage() {
                       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-neutral-500 md:text-xs">
                         <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[12px] font-extrabold tracking-[0.02em] text-emerald-800 md:text-xs">{selectedRow.customer_phone}</span>
                         <span>•</span>
-                        <span>{selectedRow.source === "landing_page" ? "Online" : selectedRow.source ?? "-"}</span>
+                        <span>{selectedRow.source === "landing_page" ? "Web booking" : selectedRow.source ?? "-"}</span>
                       </div>
                     </div>
                   </div>
