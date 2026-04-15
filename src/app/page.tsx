@@ -435,6 +435,7 @@ export default function LandingPage() {
               void handleSubmitBooking();
             }}
           >
+            <div className="landing-booking-form-badge">ĐẶT LỊCH</div>
             <div className="landing-form-group">
               <label>Họ và tên *</label>
               <input ref={bookingNameInputRef} type="text" placeholder="Nguyễn Thị A" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
@@ -453,7 +454,7 @@ export default function LandingPage() {
                 <option value="Gỡ móng & Chăm sóc">Gỡ móng & Chăm sóc</option>
               </select>
             </div>
-            <div className="landing-form-group">
+            <div className="landing-form-group full-width landing-form-group--optional">
               <label>Thợ chính (Nếu có)</label>
               <input type="text" placeholder="VD: Thợ Loan" value={preferredStaff} onChange={(e) => setPreferredStaff(e.target.value)} />
             </div>
@@ -556,7 +557,7 @@ export default function LandingPage() {
               </div>
             </div>
 
-            <div className="landing-form-group full-width">
+            <div className="landing-form-group full-width landing-form-group--optional">
               <label>Ghi chú thêm</label>
               <textarea placeholder="Mô tả mong muốn hoặc lưu ý đặc biệt..." value={note} onChange={(e) => setNote(e.target.value)} />
             </div>
