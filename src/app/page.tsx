@@ -99,6 +99,8 @@ export default function LandingPage() {
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
   const bookingFormRef = useRef<HTMLFormElement | null>(null);
   const bookingNameInputRef = useRef<HTMLInputElement | null>(null);
+  const lookbookScrollerRef = useRef<HTMLDivElement | null>(null);
+  const [activeLookbookIndex, setActiveLookbookIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -156,6 +158,22 @@ export default function LandingPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    const node = lookbookScrollerRef.current;
+    if (!node) return;
+
+    const onScroll = () => {
+      const cardWidth = node.clientWidth * 0.82 + 16;
+      if (!cardWidth) return;
+      const nextIndex = Math.round(node.scrollLeft / cardWidth);
+      setActiveLookbookIndex(Math.max(0, Math.min(lookbookServices.length - 1, nextIndex)));
+    };
+
+    node.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => node.removeEventListener("scroll", onScroll);
+  }, [lookbookServices.length]);
 
   const goToBooking = (service?: string) => {
     if (service) {
@@ -369,7 +387,7 @@ export default function LandingPage() {
           <div className="line" />
           <h2>Các dịch vụ nổi bật</h2>
         </div>
-        <div className="landing-services-grid" role="list">
+        <div ref={lookbookScrollerRef} className="landing-services-grid" role="list">
           {lookbookServices.map((service) => (
             <div key={service.title} className="landing-service-card">
               <div className="landing-service-img-wrapper">
@@ -384,6 +402,11 @@ export default function LandingPage() {
                 </button>
               </div>
             </div>
+          ))}
+        </div>
+        <div className="landing-lookbook-dots" aria-hidden="true">
+          {lookbookServices.map((service, index) => (
+            <span key={service.title} className={`landing-lookbook-dot ${index === activeLookbookIndex ? "is-active" : ""}`} />
           ))}
         </div>
       </section>
