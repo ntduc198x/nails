@@ -7,21 +7,57 @@ export type OrgContext = { orgId: string; branchId: string };
 
 const TTL = 30_000;
 
-let orgContextCache: { value: OrgContext; at: number } | null = null;
-let servicesCache: { value: unknown[]; at: number } | null = null;
-let resourcesCache: { value: unknown[]; at: number } | null = null;
-let appointmentsCache: { value: unknown[]; at: number } | null = null;
-let ticketsCache: { value: unknown[]; at: number } | null = null;
-let resourceSchedulingSupported: boolean | null = null;
-
-function isFresh(cache: { at: number } | null, ttl = TTL) {
-  return !!cache && Date.now() - cache.at < ttl;
+interface SessionCache<T> {
+  value: T;
+  at: number;
+  sessionId: string;
+  orgId: string;
 }
 
-function invalidateDataCaches() {
-  appointmentsCache = null;
-  ticketsCache = null;
-  resourcesCache = null;
+let orgContextCache: { value: OrgContext; at: number; sessionId: string } | null = null;
+let servicesCache: SessionCache<unknown[]> | null = null;
+let resourcesCache: SessionCache<unknown[]> | null = null;
+let appointmentsCache: SessionCache<unknown[]> | null = null;
+let ticketsCache: SessionCache<unknown[]> | null = null;
+let resourceSchedulingSupported: boolean | null = null;
+
+async function getCurrentSessionId(): Promise<string | null> {
+  if (!supabase) return null;
+  const { data } = await supabase.auth.getSession();
+  return data.session?.user?.id ?? null;
+}
+
+function isFresh(cache: { at: number; sessionId: string } | null, ttl = TTL): boolean {
+  if (!cache) return false;
+  return Date.now() - cache.at < ttl;
+}
+
+async function invalidateDataCaches() {
+  const sessionId = await getCurrentSessionId();
+  const currentOrgId = orgContextCache?.value.orgId;
+  if (sessionId && currentOrgId) {
+    if (appointmentsCache?.sessionId === sessionId && appointmentsCache?.orgId === currentOrgId) appointmentsCache = null;
+    if (ticketsCache?.sessionId === sessionId && ticketsCache?.orgId === currentOrgId) ticketsCache = null;
+    if (resourcesCache?.sessionId === sessionId && resourcesCache?.orgId === currentOrgId) resourcesCache = null;
+    if (servicesCache?.sessionId === sessionId && servicesCache?.orgId === currentOrgId) servicesCache = null;
+  }
+}
+
+async function invalidateAllCachesForSession() {
+  const sessionId = await getCurrentSessionId();
+  if (orgContextCache?.sessionId === sessionId) {
+    appointmentsCache = null;
+    ticketsCache = null;
+    resourcesCache = null;
+    servicesCache = null;
+    orgContextCache = null;
+  }
+}
+
+async function checkSessionChanged(): Promise<boolean> {
+  if (!orgContextCache) return false;
+  const sessionId = await getCurrentSessionId();
+  return sessionId !== orgContextCache.sessionId;
 }
 
 function isMissingResourceSchema(error: unknown) {
@@ -32,10 +68,15 @@ function isMissingResourceSchema(error: unknown) {
 export async function ensureOrgContext(opts?: { force?: boolean }): Promise<OrgContext> {
   if (!supabase) throw new Error("Supabase chưa cấu hình");
 
+  if (await checkSessionChanged()) {
+    await invalidateAllCachesForSession();
+  }
+
   if (!opts?.force && isFresh(orgContextCache, 5 * 60_000)) {
     return orgContextCache!.value;
   }
 
+  const sessionId = await getCurrentSessionId();
   const { data: orgs, error: orgErr } = await supabase.from("orgs").select("id").limit(1);
   if (orgErr) throw orgErr;
 
@@ -103,15 +144,18 @@ export async function ensureOrgContext(opts?: { force?: boolean }): Promise<OrgC
   }
 
   const ctx = { orgId, branchId };
-  orgContextCache = { value: ctx, at: Date.now() };
+  orgContextCache = { value: ctx, at: Date.now(), sessionId: sessionId ?? "" };
   return ctx;
 }
 
 export async function listServices(opts?: { force?: boolean }) {
   if (!supabase) return [];
-  if (!opts?.force && isFresh(servicesCache)) return servicesCache!.value;
-
   const { orgId } = await ensureOrgContext();
+  const sessionId = await getCurrentSessionId() ?? "";
+  if (!opts?.force && servicesCache?.sessionId === sessionId && servicesCache?.orgId === orgId && isFresh(servicesCache)) {
+    return servicesCache!.value;
+  }
+
   let { data, error } = await supabase
     .from("services")
     .select("id,name,short_description,image_url,featured_in_lookbook,duration_min,base_price,vat_rate,active")
@@ -141,15 +185,18 @@ export async function listServices(opts?: { force?: boolean }) {
   }
 
   const rows = data ?? [];
-  servicesCache = { value: rows, at: Date.now() };
+  servicesCache = { value: rows, at: Date.now(), sessionId, orgId };
   return rows;
 }
 
 export async function listResources(opts?: { force?: boolean; activeOnly?: boolean }) {
   if (!supabase) return [];
-  if (!opts?.force && isFresh(resourcesCache)) return resourcesCache!.value;
-
   const { orgId } = await ensureOrgContext();
+  const sessionId = await getCurrentSessionId() ?? "";
+  if (!opts?.force && resourcesCache?.sessionId === sessionId && resourcesCache?.orgId === orgId && isFresh(resourcesCache)) {
+    return resourcesCache!.value;
+  }
+
   let query = supabase
     .from("resources")
     .select("id,name,type,active")
@@ -164,14 +211,14 @@ export async function listResources(opts?: { force?: boolean; activeOnly?: boole
   if (error) {
     if (isMissingResourceSchema(error)) {
       resourceSchedulingSupported = false;
-      resourcesCache = { value: [], at: Date.now() };
+      resourcesCache = { value: [], at: Date.now(), sessionId, orgId };
       return [];
     }
     throw error;
   }
   const rows = data ?? [];
   resourceSchedulingSupported = true;
-  resourcesCache = { value: rows, at: Date.now() };
+  resourcesCache = { value: rows, at: Date.now(), sessionId, orgId };
   return rows;
 }
 
@@ -323,7 +370,8 @@ export async function createService(input: {
   if (error) throw error;
 
   if (servicesCache) {
-    servicesCache = { value: [...(servicesCache.value as unknown[]), data], at: Date.now() };
+    const sessionId = await getCurrentSessionId() ?? "";
+    servicesCache = { value: [...(servicesCache.value as unknown[]), data], at: Date.now(), sessionId, orgId };
   }
 
   return data;
@@ -362,9 +410,11 @@ export async function listStaffMembers() {
 
 export async function listAppointments(opts?: { force?: boolean }) {
   if (!supabase) return [];
-  if (!opts?.force && isFresh(appointmentsCache)) return appointmentsCache!.value;
-
   const { orgId } = await ensureOrgContext();
+  const sessionId = await getCurrentSessionId() ?? "";
+  if (!opts?.force && appointmentsCache?.sessionId === sessionId && appointmentsCache?.orgId === orgId && isFresh(appointmentsCache)) {
+    return appointmentsCache!.value;
+  }
 
   let { data, error } = await supabase
     .from("appointments")
@@ -389,7 +439,7 @@ export async function listAppointments(opts?: { force?: boolean }) {
 
   if (error) throw error;
   const rows = data ?? [];
-  appointmentsCache = { value: rows, at: Date.now() };
+  appointmentsCache = { value: rows, at: Date.now(), sessionId, orgId };
   return rows;
 }
 
@@ -637,10 +687,10 @@ export async function createCheckout(input: CheckoutInput) {
 
 export async function listRecentTickets(opts?: { force?: boolean; fromIso?: string; toIso?: string; limit?: number }) {
   if (!supabase) return [];
-  const useCache = !opts?.force && !opts?.fromIso && !opts?.toIso && isFresh(ticketsCache);
-  if (useCache) return ticketsCache!.value;
-
   const { orgId } = await ensureOrgContext();
+  const sessionId = await getCurrentSessionId() ?? "";
+  const useCache = !opts?.force && !opts?.fromIso && !opts?.toIso && ticketsCache?.sessionId === sessionId && ticketsCache?.orgId === orgId && isFresh(ticketsCache);
+  if (useCache) return ticketsCache!.value;
 
   let query = supabase
     .from("tickets")
@@ -657,7 +707,7 @@ export async function listRecentTickets(opts?: { force?: boolean; fromIso?: stri
   if (error) throw error;
   const rows = data ?? [];
   if (!opts?.fromIso && !opts?.toIso) {
-    ticketsCache = { value: rows, at: Date.now() };
+    ticketsCache = { value: rows, at: Date.now(), sessionId, orgId };
   }
   return rows;
 }
