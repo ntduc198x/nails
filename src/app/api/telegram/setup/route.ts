@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
-const publicBaseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://chambeauty.io.vn";
+const publicBaseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.chambeauty.io.vn";
 
 const BOT_COMMANDS = [
   { command: "start", description: "Bat dau su dung bot" },
@@ -22,7 +22,9 @@ export async function POST() {
 
   const webhookUrl = `${publicBaseUrl}/api/telegram/callback`;
   const results: Record<string, unknown> = {};
+  const errors: string[] = [];
 
+  // Set webhook
   try {
     const webhookRes = await fetch(
       `https://api.telegram.org/bot${telegramBotToken}/setWebhook`,
@@ -35,11 +37,18 @@ export async function POST() {
         }),
       }
     );
-    results.webhook = await webhookRes.json();
+    const webhookData = await webhookRes.json();
+    results.webhook = webhookData;
+    if (!webhookData.ok) {
+      errors.push(`Webhook error: ${JSON.stringify(webhookData)}`);
+    }
   } catch (e) {
-    results.webhook = { error: e instanceof Error ? e.message : String(e) };
+    const msg = e instanceof Error ? e.message : String(e);
+    results.webhook = { error: msg };
+    errors.push(`Webhook exception: ${msg}`);
   }
 
+  // Set commands
   try {
     const commandsRes = await fetch(
       `https://api.telegram.org/bot${telegramBotToken}/setMyCommands`,
@@ -49,16 +58,23 @@ export async function POST() {
         body: JSON.stringify({ commands: BOT_COMMANDS }),
       }
     );
-    results.commands = await commandsRes.json();
+    const commandsData = await commandsRes.json();
+    results.commands = commandsData;
+    if (!commandsData.ok) {
+      errors.push(`Commands error: ${JSON.stringify(commandsData)}`);
+    }
   } catch (e) {
-    results.commands = { error: e instanceof Error ? e.message : String(e) };
+    const msg = e instanceof Error ? e.message : String(e);
+    results.commands = { error: msg };
+    errors.push(`Commands exception: ${msg}`);
   }
 
   return NextResponse.json({
-    ok: true,
+    ok: errors.length === 0,
     webhookUrl,
     publicBaseUrl,
     results,
+    errors: errors.length > 0 ? errors : undefined,
   });
 }
 
