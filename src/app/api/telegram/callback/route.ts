@@ -230,7 +230,7 @@ async function handleMenuCallback(callback: { id: string; data?: string; from?: 
   switch (action) {
     case "admin":
       await handleManageCommand(chatId);
-      await sharedAnswerCallback(callback.id, "Đã mở menu quản trị");
+      await sharedAnswerCallback(callback.id);
       break;
     case "overview":
       await handleOverviewCommand(orgId, chatId);
@@ -252,15 +252,15 @@ async function handleMenuCallback(callback: { id: string; data?: string; from?: 
           ],
         },
       });
-      await sharedAnswerCallback(callback.id, "Đã mở menu báo cáo");
+      await sharedAnswerCallback(callback.id);
       break;
     case "crm":
       await handleCrmMenu(chatId);
-      await sharedAnswerCallback(callback.id, "Đã mở CRM");
+      await sharedAnswerCallback(callback.id);
       break;
     case "quickcreate":
       await handleQuickCreateMenu(chatId);
-      await sharedAnswerCallback(callback.id, "Đã mở tạo nhanh");
+      await sharedAnswerCallback(callback.id);
       break;
     case "lich":
       await handleLichCommand(orgId, chatId);
@@ -272,11 +272,11 @@ async function handleMenuCallback(callback: { id: string; data?: string; from?: 
       break;
     case "ca":
       await handleCaCommand(orgId, chatId);
-      await sharedAnswerCallback(callback.id, "Đã cập nhật ca làm");
+      await sharedAnswerCallback(callback.id);
       break;
     case "booking":
       await handleBookingCommand(orgId, chatId);
-      await sharedAnswerCallback(callback.id, "Đã cập nhật booking");
+      await sharedAnswerCallback(callback.id);
       break;
     default:
       await sharedAnswerCallback(callback.id, "Chức năng không hỗ trợ.");
@@ -561,7 +561,7 @@ async function handleCallback(callback: { id: string; data?: string; from?: { id
         throw new Error(`Telegram editMessageReplyMarkup failed: ${errText}`);
       }
 
-      await sharedAnswerCallback(callback.id, expanded ? "Đã mở menu xử lý" : "Đã thu gọn menu");
+      await sharedAnswerCallback(callback.id);
       return NextResponse.json({ ok: true, action: expanded ? "bookingmenu_show" : "bookingmenu_hide" });
     }
 

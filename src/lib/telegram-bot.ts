@@ -36,12 +36,15 @@ export async function sendTelegramMessage(chatId: string, text: string, opts?: {
   return (await res.json()) as { ok: boolean; result?: { message_id: number } };
 }
 
-export async function answerCallbackQuery(callbackQueryId: string, text: string) {
+export async function answerCallbackQuery(callbackQueryId: string, text?: string) {
   if (!telegramBotToken) return;
   await fetch(`https://api.telegram.org/bot${telegramBotToken}/answerCallbackQuery`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ callback_query_id: callbackQueryId, text }),
+    body: JSON.stringify({
+      callback_query_id: callbackQueryId,
+      ...(text ? { text } : {}),
+    }),
   });
 }
 
@@ -77,15 +80,22 @@ type TelegramConversationState = {
   timestamp: number;
 };
 
+type TelegramReplyPanelState = {
+  messageId: number;
+  timestamp: number;
+};
+
 type TelegramQuickCreateServiceSuggestion = {
   id: string;
   name: string;
 };
 
 const telegramConversationState = new Map<string, TelegramConversationState>();
+const telegramReplyPanelState = new Map<string, TelegramReplyPanelState>();
 const TELEGRAM_CONVERSATION_TTL_MS = 10 * 60 * 1000;
 let telegramConversationStorageFallbackLogged = false;
 const TELEGRAM_CONVERSATION_FALLBACK_FILE = path.join(process.cwd(), ".tmp", "telegram-conversations.json");
+const TELEGRAM_REPLY_PANEL_FALLBACK_FILE = path.join(process.cwd(), ".tmp", "telegram-reply-panels.json");
 const QUICK_CREATE_START_HOUR = 9;
 const QUICK_CREATE_END_HOUR = 21;
 const VIETNAM_MOBILE_PHONE_REGEX = /^(03|05|07|08|09)\d{8}$/;
@@ -105,6 +115,10 @@ export function isManagerOrOwner(role?: string): boolean {
 
 function getConversationKey(telegramUserId: number): string {
   return String(telegramUserId);
+}
+
+function getReplyPanelKey(chatId: string): string {
+  return chatId;
 }
 
 function getInMemoryConversationState(telegramUserId: number): TelegramConversationState | null {
@@ -147,6 +161,109 @@ async function readConversationFallbackFile(): Promise<Record<string, TelegramCo
 async function writeConversationFallbackFile(states: Record<string, TelegramConversationState>) {
   await ensureConversationFallbackDir();
   await fs.writeFile(TELEGRAM_CONVERSATION_FALLBACK_FILE, JSON.stringify(states, null, 2), "utf8");
+}
+
+function getInMemoryReplyPanelState(chatId: string): TelegramReplyPanelState | null {
+  const state = telegramReplyPanelState.get(getReplyPanelKey(chatId));
+  if (!state) return null;
+  if (Date.now() - state.timestamp > TELEGRAM_CONVERSATION_TTL_MS) {
+    telegramReplyPanelState.delete(getReplyPanelKey(chatId));
+    return null;
+  }
+  return state;
+}
+
+function setInMemoryReplyPanelState(chatId: string, messageId: number) {
+  telegramReplyPanelState.set(getReplyPanelKey(chatId), {
+    messageId,
+    timestamp: Date.now(),
+  });
+}
+
+function clearInMemoryReplyPanelState(chatId: string) {
+  telegramReplyPanelState.delete(getReplyPanelKey(chatId));
+}
+
+async function readReplyPanelFallbackFile(): Promise<Record<string, TelegramReplyPanelState>> {
+  try {
+    const raw = await fs.readFile(TELEGRAM_REPLY_PANEL_FALLBACK_FILE, "utf8");
+    return JSON.parse(raw) as Record<string, TelegramReplyPanelState>;
+  } catch (error) {
+    const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+    if (message.includes("enoent")) return {};
+    throw error;
+  }
+}
+
+async function writeReplyPanelFallbackFile(states: Record<string, TelegramReplyPanelState>) {
+  await ensureConversationFallbackDir();
+  await fs.writeFile(TELEGRAM_REPLY_PANEL_FALLBACK_FILE, JSON.stringify(states, null, 2), "utf8");
+}
+
+async function getFileReplyPanelState(chatId: string): Promise<TelegramReplyPanelState | null> {
+  const states = await readReplyPanelFallbackFile();
+  const key = getReplyPanelKey(chatId);
+  const state = states[key];
+  if (!state) return null;
+  if (Date.now() - state.timestamp > TELEGRAM_CONVERSATION_TTL_MS) {
+    delete states[key];
+    await writeReplyPanelFallbackFile(states);
+    return null;
+  }
+  return state;
+}
+
+async function setFileReplyPanelState(chatId: string, messageId: number) {
+  const states = await readReplyPanelFallbackFile();
+  states[getReplyPanelKey(chatId)] = {
+    messageId,
+    timestamp: Date.now(),
+  };
+  await writeReplyPanelFallbackFile(states);
+}
+
+async function clearFileReplyPanelState(chatId: string) {
+  const states = await readReplyPanelFallbackFile();
+  delete states[getReplyPanelKey(chatId)];
+  await writeReplyPanelFallbackFile(states);
+}
+
+async function getReplyPanelState(chatId: string): Promise<TelegramReplyPanelState | null> {
+  const inMemoryState = getInMemoryReplyPanelState(chatId);
+  if (inMemoryState) return inMemoryState;
+  return getFileReplyPanelState(chatId);
+}
+
+async function setReplyPanelState(chatId: string, messageId: number) {
+  setInMemoryReplyPanelState(chatId, messageId);
+  await setFileReplyPanelState(chatId, messageId);
+}
+
+async function clearReplyPanelState(chatId: string) {
+  clearInMemoryReplyPanelState(chatId);
+  await clearFileReplyPanelState(chatId);
+}
+
+async function deleteTrackedReplyPanel(chatId: string) {
+  const state = await getReplyPanelState(chatId);
+  if (!state?.messageId) return;
+  try {
+    await deleteTelegramMessage(chatId, state.messageId);
+  } catch {
+    // Ignore delete errors; the message may already be gone.
+  } finally {
+    await clearReplyPanelState(chatId);
+  }
+}
+
+async function sendManagedReplyPanel(chatId: string, text: string, replyMarkup: unknown) {
+  await deleteTrackedReplyPanel(chatId);
+  const response = await sendTelegramMessage(chatId, text, { reply_markup: replyMarkup });
+  const messageId = response.result?.message_id;
+  if (messageId) {
+    await setReplyPanelState(chatId, messageId);
+  }
+  return response;
 }
 
 async function getFileConversationState(telegramUserId: number): Promise<TelegramConversationState | null> {
@@ -503,31 +620,9 @@ export async function handleBookingCommand(orgId: string, chatId: string) {
   });
 }
 
-function getAdminMenuKeyboard() {
-  return {
-    inline_keyboard: [
-      [
-        { text: "📊 Tổng quan", callback_data: "menu:overview" },
-        { text: "📈 Báo cáo", callback_data: "menu:report" },
-      ],
-      [
-        { text: "CRM", callback_data: "menu:crm" },
-        { text: "📌 Booking", callback_data: "menu:booking" },
-      ],
-      [
-        { text: "🕐 Ca làm", callback_data: "menu:ca" },
-        { text: "⚡ Tạo nhanh", callback_data: "menu:quickcreate" },
-      ],
-    ],
-  };
-}
-
 function getCompactAdminReplyKeyboard() {
   return {
-    keyboard: [[{ text: "🧭 Mo menu quan tri" }]],
-    resize_keyboard: true,
-    is_persistent: true,
-    input_field_placeholder: "Chon menu quan tri...",
+    remove_keyboard: true,
   };
 }
 
@@ -546,10 +641,9 @@ function getAdminReplyKeyboard() {
         { text: "🕐 Ca lam" },
         { text: "⚡ Tao nhanh" },
       ],
-      [{ text: "🔽 Thu gon menu" }],
     ],
     resize_keyboard: true,
-    is_persistent: true,
+    is_persistent: false,
     input_field_placeholder: "Chon chuc nang quan tri...",
   };
 }
@@ -1165,13 +1259,16 @@ export async function handleTelegramConversationMessage(telegramUserId: number, 
 }
 
 export async function handleManageCommand(chatId: string) {
-  await sendTelegramMessage(chatId, "⚙️ <b>MENU QUAN TRI</b>\n\nMenu da duoc ghim duoi o nhap tin nhan. Chon chuc nang de thao tac:", {
-    reply_markup: getAdminReplyKeyboard(),
-  });
+  await sendManagedReplyPanel(
+    chatId,
+    "⚙️ <b>MENU QUAN TRI</b>\n\nChon chuc nang bang nut menu canh emoji de thao tac.",
+    getAdminReplyKeyboard(),
+  );
 }
 
 export async function handleCompactManageCommand(chatId: string) {
-  await sendTelegramMessage(chatId, "🧭 Menu quan tri da duoc thu gon. Bam nut duoi o nhap de mo lai.", {
+  await deleteTrackedReplyPanel(chatId);
+  await sendTelegramMessage(chatId, "🧭 Menu quan tri da duoc an. Bam icon menu canh emoji de mo lai khi can.", {
     reply_markup: getCompactAdminReplyKeyboard(),
   });
 }
@@ -1681,27 +1778,35 @@ export async function handleLinkCommand(telegramUserId: number, telegramUsername
 
   const role = data.role as string;
   const displayName = data.display_name as string;
-  await sendTelegramMessage(chatId, [
-    "✅ <b>LIEN KET THANH CONG!</b>",
-    "",
-    `Tai khoan: <b>${displayName}</b>`,
-    `Vai tro: <b>${role}</b>`,
-    "",
-    "Tu gio chi can bam nut trong chat la dung duoc.",
-  ].join("\n"), { reply_markup: getAdminReplyKeyboard() });
+  await sendManagedReplyPanel(
+    chatId,
+    [
+      "✅ <b>LIEN KET THANH CONG!</b>",
+      "",
+      `Tai khoan: <b>${displayName}</b>`,
+      `Vai tro: <b>${role}</b>`,
+      "",
+      "Tu gio chi can bam nut menu canh emoji la dung duoc.",
+    ].join("\n"),
+    getAdminReplyKeyboard(),
+  );
 }
 
 export async function handleStartCommand(telegramUserId: number, chatId: string) {
   const userInfo = await getTelegramUserRole(telegramUserId);
 
   if (userInfo.linked) {
-    await sendTelegramMessage(chatId, [
-      "👋 <b>Chao lai!</b>",
-      "",
-      `Da lien ket: <b>${userInfo.display_name}</b> (${userInfo.role})`,
-      "",
-      "Day la menu quan tri cua anh:",
-    ].join("\n"), { reply_markup: getAdminReplyKeyboard() });
+    await sendManagedReplyPanel(
+      chatId,
+      [
+        "👋 <b>Chao lai!</b>",
+        "",
+        `Da lien ket: <b>${userInfo.display_name}</b> (${userInfo.role})`,
+        "",
+        "Day la menu quan tri cua anh:",
+      ].join("\n"),
+      getAdminReplyKeyboard(),
+    );
   } else {
     await sendTelegramMessage(chatId, [
       "👋 <b>Chào bạn!</b>",
