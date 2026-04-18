@@ -10,14 +10,8 @@ const telegramWebhookSecret = getTelegramWebhookSecret();
 const publicBaseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.chambeauty.io.vn";
 
 const BOT_COMMANDS = [
-  { command: "start", description: "Bắt đầu sử dụng bot" },
-  { command: "link", description: "Liên kết tài khoản Nails App" },
-  { command: "manage", description: "Mở menu quản trị Telegram" },
-  { command: "me", description: "Xem trạng thái liên kết Telegram" },
-  { command: "lich", description: "Xem lịch hôm nay" },
-  { command: "doanhthu", description: "Doanh thu hôm nay" },
-  { command: "ca", description: "Ca làm đang mở" },
-  { command: "booking", description: "Booking chờ xử lý" },
+  { command: "manage", description: "Mở menu quản trị" },
+  { command: "help", description: "Xem hướng dẫn sử dụng" },
 ];
 
 export async function POST(req: Request) {

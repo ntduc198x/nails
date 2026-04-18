@@ -15,6 +15,7 @@ import {
   handleCaCommand,
   handleBookingCommand,
   handleManageCommand,
+  handleHelpCommand,
   handleCrmMenu,
   handleMeCommand,
   handleOverviewCommand,
@@ -366,12 +367,30 @@ async function handleMessage(message: { from?: { id: number; username?: string; 
   }
 
   const parts = text.split(/\s+/);
-  const command = parts[0]?.toLowerCase() ?? "";
+  const rawCommand = parts[0]?.toLowerCase() ?? "";
+  const command = rawCommand.startsWith("/") ? rawCommand.split("@")[0] : rawCommand;
   const args = parts.slice(1);
 
-  if (command === "/start") {
-    await handleStartCommand(telegramUserId, chatId);
-    return NextResponse.json({ ok: true, command: "start" });
+  if (command === "/start" || command === "/manage") {
+    const userInfo = await getTelegramUserRole(telegramUserId);
+
+    if (!userInfo.linked) {
+      await handleStartCommand(telegramUserId, chatId);
+      return NextResponse.json({ ok: true, command });
+    }
+
+    if (!isManagerOrOwner(userInfo.role)) {
+      await sendTelegramMessage(chatId, "❌ Chỉ OWNER hoặc MANAGER mới được dùng lệnh này.");
+      return NextResponse.json({ ok: true, command, error: "forbidden", role: userInfo.role });
+    }
+
+    await handleManageCommand(chatId);
+    return NextResponse.json({ ok: true, command: "manage" });
+  }
+
+  if (command === "/help") {
+    await handleHelpCommand(chatId);
+    return NextResponse.json({ ok: true, command: "help" });
   }
 
   if (command === "/link") {
@@ -384,7 +403,7 @@ async function handleMessage(message: { from?: { id: number; username?: string; 
     return NextResponse.json({ ok: true, command: "link" });
   }
 
-  if (["/manage", "/me", "/crm", "/lich", "/doanhthu", "/ca", "/booking"].includes(command)) {
+  if (["/me", "/crm", "/lich", "/doanhthu", "/ca", "/booking"].includes(command)) {
     const userInfo = await getTelegramUserRole(telegramUserId);
 
     if (!userInfo.linked) {
@@ -400,9 +419,6 @@ async function handleMessage(message: { from?: { id: number; username?: string; 
     const orgId = userInfo.org_id!;
 
     switch (command) {
-      case "/manage":
-        await handleManageCommand(chatId);
-        break;
       case "/crm":
         await handleCrmMenu(chatId);
         break;

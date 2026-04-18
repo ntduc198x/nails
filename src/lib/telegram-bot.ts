@@ -506,17 +506,17 @@ export async function handleBookingCommand(orgId: string, chatId: string) {
 function getAdminMenuKeyboard() {
   return {
     inline_keyboard: [
-      [{ text: "CRM", callback_data: "menu:crm" }],
       [
         { text: "📊 Tổng quan", callback_data: "menu:overview" },
         { text: "📈 Báo cáo", callback_data: "menu:report" },
       ],
       [
-        { text: "🕐 Ca làm", callback_data: "menu:ca" },
-        { text: "⚡ Tạo nhanh", callback_data: "menu:quickcreate" },
+        { text: "CRM", callback_data: "menu:crm" },
+        { text: "📌 Booking", callback_data: "menu:booking" },
       ],
       [
-        { text: "📌 Booking", callback_data: "menu:booking" },
+        { text: "🕐 Ca làm", callback_data: "menu:ca" },
+        { text: "⚡ Tạo nhanh", callback_data: "menu:quickcreate" },
       ],
     ],
   };
@@ -1649,24 +1649,8 @@ export async function handleLinkCommand(telegramUserId: number, telegramUsername
     `Tài khoản: <b>${displayName}</b>`,
     `Vai trò: <b>${role}</b>`,
     "",
-    "Chọn chức năng:",
-  ].join("\n"), { reply_markup: getMainMenuKeyboard() });
-}
-
-export function getMainMenuKeyboard() {
-  return {
-    inline_keyboard: [
-      [{ text: "CRM", callback_data: "menu:crm" }],
-      [
-        { text: "⚙️ Quản trị", callback_data: "menu:admin" },
-        { text: "📊 Tổng quan", callback_data: "menu:overview" },
-      ],
-      [
-        { text: "📈 Báo cáo", callback_data: "menu:report" },
-        { text: "📌 Booking", callback_data: "menu:booking" },
-      ],
-    ],
-  };
+    "Dùng /manage để mở menu quản trị.",
+  ].join("\n"), { reply_markup: getAdminMenuKeyboard() });
 }
 
 export async function handleStartCommand(telegramUserId: number, chatId: string) {
@@ -1678,8 +1662,8 @@ export async function handleStartCommand(telegramUserId: number, chatId: string)
       "",
       `Đã liên kết: <b>${userInfo.display_name}</b> (${userInfo.role})`,
       "",
-      "Chọn chức năng quản trị:",
-    ].join("\n"), { reply_markup: getMainMenuKeyboard() });
+      "Đây là menu quản trị của anh:",
+    ].join("\n"), { reply_markup: getAdminMenuKeyboard() });
   } else {
     await sendTelegramMessage(chatId, [
       "👋 <b>Chào bạn!</b>",
@@ -1692,4 +1676,16 @@ export async function handleStartCommand(telegramUserId: number, chatId: string)
       "Ví dụ: <code>/link 482910</code>",
     ].join("\n"));
   }
+}
+
+export async function handleHelpCommand(chatId: string) {
+  await sendTelegramMessage(chatId, [
+    "📘 <b>HƯỚNG DẪN SỬ DỤNG</b>",
+    "",
+    "• <code>/manage</code> — mở menu quản trị",
+    "• <code>/help</code> — xem hướng dẫn này",
+    "",
+    "Nếu đang ở group, anh có thể gõ dạng <code>/manage@chambeauty_bot</code> hoặc <code>/help@chambeauty_bot</code>.",
+    "Nếu chưa liên kết tài khoản thì dùng <code>/link MÃ_6_SỐ</code>.",
+  ].join("\n"));
 }
