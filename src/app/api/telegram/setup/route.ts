@@ -7,7 +7,24 @@ import {
 
 const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
 const telegramWebhookSecret = getTelegramWebhookSecret();
-const publicBaseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.chambeauty.io.vn";
+
+function resolveTelegramPublicBaseUrl(req: Request) {
+  const requestUrl = new URL(req.url);
+  const envBaseUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  const fallbackOrigin = requestUrl.origin;
+  const candidate = envBaseUrl || fallbackOrigin || "https://www.chambeauty.io.vn";
+  const resolved = new URL(candidate, fallbackOrigin);
+
+  // Telegram webhook should point to the canonical host to avoid 307 redirects.
+  if (
+    resolved.hostname === "chambeauty.io.vn" ||
+    requestUrl.hostname === "www.chambeauty.io.vn"
+  ) {
+    resolved.hostname = "www.chambeauty.io.vn";
+  }
+
+  return resolved.origin;
+}
 
 export async function POST(req: Request) {
   const auth = verifyTelegramInternalRequest(req);
@@ -22,6 +39,7 @@ export async function POST(req: Request) {
     );
   }
 
+  const publicBaseUrl = resolveTelegramPublicBaseUrl(req);
   const webhookUrl = `${publicBaseUrl}/api/telegram/callback`;
   const isLocalhostBaseUrl = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(publicBaseUrl);
   const results: Record<string, unknown> = {};
@@ -129,6 +147,7 @@ export async function GET(req: Request) {
   }
 
   try {
+    const publicBaseUrl = resolveTelegramPublicBaseUrl(req);
     const [webhookRes, commandsRes, meRes] = await Promise.all([
       fetch(`https://api.telegram.org/bot${telegramBotToken}/getWebhookInfo`),
       fetch(`https://api.telegram.org/bot${telegramBotToken}/getMyCommands`),
@@ -144,6 +163,7 @@ export async function GET(req: Request) {
       security: {
         webhookSecretConfigured: isTelegramWebhookSecretConfigured(),
       },
+      publicBaseUrl,
       webhook,
       commands,
       bot: me,
