@@ -50,6 +50,21 @@ function pickCustomerName(customers: { name?: string } | { name?: string }[] | n
   return customers?.name ?? "Khách";
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function isLocalUrl(url: string) {
+  return /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(url);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function sendTelegramBookingMessage(payload: {
   bookingId: string;
   customerName: string;
@@ -73,6 +88,7 @@ async function sendTelegramBookingMessage(payload: {
 
   const confirmData = `booking:confirm:${payload.bookingId}`;
   const cancelData = `booking:cancel:${payload.bookingId}`;
+  // Legacy helper kept temporarily while V2 notification rolls out.
 
   const lines = payload.conflict
     ? [
@@ -140,10 +156,109 @@ async function sendTelegramBookingMessage(payload: {
   };
 }
 
-export async function POST(req: Request) {
+async function sendTelegramBookingMessageV2(payload: {
+  bookingId: string;
+  customerName: string;
+  customerPhone: string;
+  requestedService?: string | null;
+  note?: string | null;
+  requestedStartAt: string;
+  conflict?: {
+    appointment?: Array<{ id: string; start_at: string; customers?: { name?: string } | { name?: string }[] | null }>;
+    overlapCount: number;
+  } | null;
+  nearbyWarning?: {
+    appointment?: Array<{ id: string; start_at: string; customers?: { name?: string } | { name?: string }[] | null }>;
+    nearbyCount: number;
+  } | null;
+}) {
+  if (!telegramBotToken || !telegramChatId) throw new Error("Thiếu TELEGRAM_BOT_TOKEN hoặc TELEGRAM_BOOKING_CHAT_ID");
+
+  const whenText = formatViDateTime(payload.requestedStartAt);
+  const confirmData = `booking:confirm:${payload.bookingId}`;
+  const cancelData = `booking:cancel:${payload.bookingId}`;
+  const rescheduleData = `booking:reschedule:${payload.bookingId}`;
+  const safeCustomerName = escapeHtml(payload.customerName);
+  const safePhone = escapeHtml(payload.customerPhone);
+  const safeService = escapeHtml(payload.requestedService || "-");
+  const safeNote = escapeHtml(payload.note || "-");
+
+  const lines = payload.conflict
+    ? [
+        "🔔 ═══════════════════",
+        "<b>⚠️ BOOKING MỚI BỊ TRÙNG LỊCH</b>",
+        "─────────────────────",
+        `👤 Khách: <b>${safeCustomerName}</b>`,
+        `📞 SĐT: <b>${safePhone}</b>`,
+        `💅 DV: ${safeService}`,
+        `🕐 Hẹn: ${whenText}`,
+        `📝 Ghi chú: ${safeNote}`,
+        "─────────────────────",
+        `⚠️ Trùng khung giờ với <b>${payload.conflict.overlapCount}</b> lịch hiện có`,
+        ...(payload.conflict.appointment ?? []).slice(0, 3).map((item) => `• ${escapeHtml(pickCustomerName(item.customers))} — ${formatViDateTime(item.start_at)}`),
+      ]
+    : [
+        "🔔 ═══════════════════",
+        "<b>🆕 BOOKING MỚI!</b>",
+        "─────────────────────",
+        `👤 Khách: <b>${safeCustomerName}</b>`,
+        `📞 SĐT: <b>${safePhone}</b>`,
+        `💅 DV: ${safeService}`,
+        `🕐 Hẹn: ${whenText}`,
+        `📝 Ghi chú: ${safeNote}`,
+        "─────────────────────",
+        payload.nearbyWarning
+          ? `⚠️ Cảnh báo sát lịch: có <b>${payload.nearbyWarning.nearbyCount}</b> khách trong khoảng ±${NEARBY_WARNING_MINUTES} phút`
+          : null,
+        ...(payload.nearbyWarning?.appointment ?? []).slice(0, 2).map((item) => `• ${escapeHtml(pickCustomerName(item.customers))} — ${formatViDateTime(item.start_at)}`),
+      ];
+
+  const res = await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: telegramChatId,
+      text: lines.filter(Boolean).join("\n"),
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: "✅ Xác nhận", callback_data: confirmData },
+            { text: "❌ Hủy", callback_data: cancelData },
+          ],
+          [{ text: "📅 Dời lịch", callback_data: rescheduleData }],
+        ],
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Telegram sendMessage failed: ${await res.text()}`);
+  }
+
+  return {
+    telegram: await res.json() as { ok: boolean; result?: { message_id: number; chat: { id: number | string } } },
+    debug: { confirmData, cancelData, rescheduleData },
+  };
+}
+
+export async function processTelegramBookingNotification(body: unknown) {
   try {
-    const body = await req.json();
-    const record = body?.record ?? body?.new ?? body?.payload?.record ?? body;
+    const payload =
+      typeof body === "object" && body !== null
+        ? (body as {
+            record?: unknown;
+            new?: unknown;
+            payload?: { record?: unknown } | null;
+          })
+        : null;
+
+    const recordCandidate = payload?.record ?? payload?.new ?? payload?.payload?.record ?? body;
+    const record =
+      typeof recordCandidate === "object" && recordCandidate !== null
+        ? (recordCandidate as { id?: string | number })
+        : null;
 
     if (!record?.id) {
       return NextResponse.json({ ok: false, error: "Missing booking record", debug: { bodyKeys: Object.keys(body ?? {}) } }, { status: 400 });
@@ -216,12 +331,11 @@ export async function POST(req: Request) {
       const hasConflict = refreshedBooking?.status === "NEEDS_RESCHEDULE" || !snapshot.allowed;
       const hasNearbyWarning = !hasConflict && nearbyCount >= snapshot.maxSimultaneous;
 
-      const sent = await sendTelegramBookingMessage({
+      const sent = await sendTelegramBookingMessageV2({
         bookingId,
         customerName: bookingRow.customer_name,
         customerPhone: bookingRow.customer_phone,
         requestedService: bookingRow.requested_service,
-        preferredStaff: bookingRow.preferred_staff,
         note: bookingRow.note,
         requestedStartAt: bookingRow.requested_start_at,
         conflict: hasConflict
@@ -291,4 +405,9 @@ export async function POST(req: Request) {
       { status: 500 },
     );
   }
+}
+
+export async function POST(req: Request) {
+  const body = await req.json();
+  return processTelegramBookingNotification(body);
 }

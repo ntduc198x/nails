@@ -70,7 +70,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="vi">
+    <html lang="vi" data-scroll-behavior="smooth">
       <body suppressHydrationWarning className={`${inter.variable} ${montserrat.variable} ${cormorant.variable} ${geistMono.variable} antialiased`}>
         {children}
       </body>

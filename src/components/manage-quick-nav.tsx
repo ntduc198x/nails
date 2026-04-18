@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 
 export type ManageQuickNavItem = {
   href: string;
@@ -20,6 +20,7 @@ export const setupQuickNav = (activeHref: string): ManageQuickNavItem[] => [
 ];
 
 export const reportsQuickNav = (activeHref: string): ManageQuickNavItem[] => [
+  { href: "/manage/customers", label: "CRM khách", accent: activeHref === "/manage/customers" || activeHref.startsWith("/manage/customers/") },
   { href: "/manage/reports", label: "Báo cáo", accent: activeHref === "/manage/reports" },
   { href: "/manage/tax-books", label: "Sổ thuế", accent: activeHref === "/manage/tax-books" },
 ];

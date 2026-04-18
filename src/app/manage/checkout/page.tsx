@@ -2,7 +2,7 @@
 
 import { AppShell } from "@/components/app-shell";
 import { ManageAlert } from "@/components/manage-alert";
-import { MobileCollapsible, MobileSectionHeader } from "@/components/manage-mobile";
+import { MobileSectionHeader } from "@/components/manage-mobile";
 import { ManageQuickNav, operationsQuickNav } from "@/components/manage-quick-nav";
 import { getCurrentSessionRole, type AppRole } from "@/lib/auth";
 import { createCheckout, hasOpenShift, listCheckedInAppointments, listRecentTickets, listServices } from "@/lib/domain";
@@ -11,8 +11,61 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type ServiceRow = { id: string; name: string; base_price: number; vat_rate: number; featured_in_lookbook?: boolean | null; active?: boolean | null };
 type TicketRow = { id: string; status: string; totals_json?: { grand_total?: number }; created_at: string; customers?: { name: string } | { name: string }[] | null; receipts?: { public_token: string; expires_at: string }[] };
-type CheckedInAppointment = { id: string; start_at: string; customers?: { name: string } | { name: string }[] | null };
+type CheckedInAppointment = {
+  id: string;
+  customer_id?: string | null;
+  start_at: string;
+  staff_user_id?: string | null;
+  resource_id?: string | null;
+  customers?:
+    | {
+        id?: string;
+        name?: string;
+        phone?: string;
+        customer_status?: string;
+        total_visits?: number;
+        total_spend?: number;
+        last_visit_at?: string | null;
+        last_service_summary?: string | null;
+        care_note?: string | null;
+        next_follow_up_at?: string | null;
+        follow_up_status?: string | null;
+      }
+    | Array<{
+        id?: string;
+        name?: string;
+        phone?: string;
+        customer_status?: string;
+        total_visits?: number;
+        total_spend?: number;
+        last_visit_at?: string | null;
+        last_service_summary?: string | null;
+        care_note?: string | null;
+        next_follow_up_at?: string | null;
+        follow_up_status?: string | null;
+      }>
+    | null;
+};
 type RangeMode = "day" | "week" | "month" | "custom";
+
+function MobileCollapsible({
+  summary,
+  children,
+}: {
+  summary: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-3 rounded-3xl border border-neutral-200 bg-white/95 p-4 shadow-[0_18px_60px_-28px_rgba(15,23,42,0.3)]">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-neutral-900">Chi tiet bill</h3>
+        <span className="text-xs text-neutral-500">{summary}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
 
 function mapCheckoutError(message: string) {
   if (message.includes("INVALID_SERVICES")) return "Dịch vụ không hợp lệ hoặc đã bị xóa.";
@@ -39,6 +92,32 @@ function normalizeText(value: string) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
+}
+
+function pickCheckedInCustomer(appointment: CheckedInAppointment | undefined | null) {
+  if (!appointment?.customers) return null;
+  return Array.isArray(appointment.customers) ? appointment.customers[0] ?? null : appointment.customers;
+}
+
+function formatCompactDate(value: string | null | undefined) {
+  if (!value) return "-";
+  return new Date(value).toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getSuggestedFollowUpDays(serviceNames: string[]) {
+  const normalized = serviceNames.map((item) => normalizeText(item));
+  if (normalized.some((name) => name.includes("extension") || name.includes("refill") || name.includes("mong up") || name.includes("dual form"))) {
+    return 18;
+  }
+  if (normalized.some((name) => name.includes("gel") || name.includes("biab"))) {
+    return 21;
+  }
+  return 30;
 }
 
 export default function CheckoutPage() {
@@ -125,6 +204,14 @@ export default function CheckoutPage() {
 
   const ticketSummary = useMemo(() => ({ count: tickets.length, total: tickets.reduce((sum, t) => sum + Number(t.totals_json?.grand_total ?? 0), 0) }), [tickets]);
   const selectedServices = useMemo(() => lines.map((line) => ({ ...line, service: services.find((service) => service.id === line.serviceId) ?? null })).filter((line) => line.service), [lines, services]);
+  const selectedAppointment = useMemo(() => checkedInAppointments.find((appointment) => appointment.id === appointmentId) ?? null, [appointmentId, checkedInAppointments]);
+  const selectedCustomerCrm = useMemo(() => pickCheckedInCustomer(selectedAppointment), [selectedAppointment]);
+  const suggestedFollowUpDays = useMemo(() => getSuggestedFollowUpDays(selectedServices.map((line) => line.service?.name ?? "")), [selectedServices]);
+  const suggestedFollowUpDate = useMemo(() => {
+    const next = new Date();
+    next.setDate(next.getDate() + suggestedFollowUpDays);
+    return next.toLocaleDateString("vi-VN");
+  }, [suggestedFollowUpDays]);
   const quickServices = useMemo(() => {
     const selectedNames = selectedServices.map((line) => normalizeText(line.service?.name ?? ""));
     const hasBaseGel = selectedNames.some((name) => name.includes("son gel") || name.includes("gel thach") || name.includes("biab"));
@@ -274,6 +361,21 @@ export default function CheckoutPage() {
                       </button>
                     );
                   })}
+                </div>
+              ) : null}
+
+              {selectedCustomerCrm ? (
+                <div className="rounded-2xl border border-violet-200 bg-violet-50 px-3 py-2.5 text-sm text-violet-950">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold">CRM</span>
+                    {selectedCustomerCrm.customer_status ? <span className="font-semibold">{selectedCustomerCrm.customer_status}</span> : null}
+                    {typeof selectedCustomerCrm.total_visits === "number" ? <span>{selectedCustomerCrm.total_visits} luot</span> : null}
+                    {typeof selectedCustomerCrm.total_spend === "number" ? <span>{selectedCustomerCrm.total_spend.toLocaleString("vi-VN")} VND</span> : null}
+                  </div>
+                  {selectedCustomerCrm.phone ? <div className="mt-1 text-xs text-violet-900">Phone: {selectedCustomerCrm.phone}</div> : null}
+                  {selectedCustomerCrm.last_service_summary ? <div className="mt-1 text-xs text-violet-900">Dich vu gan nhat: {selectedCustomerCrm.last_service_summary}</div> : null}
+                  {selectedCustomerCrm.care_note ? <div className="mt-1 text-xs text-violet-900">Ghi chu: {selectedCustomerCrm.care_note}</div> : null}
+                  {selectedCustomerCrm.next_follow_up_at ? <div className="mt-1 text-xs text-violet-900">Follow-up hien tai: {formatCompactDate(selectedCustomerCrm.next_follow_up_at)}</div> : null}
                 </div>
               ) : null}
 
@@ -519,6 +621,8 @@ export default function CheckoutPage() {
                 <div className="mt-1 text-base font-semibold text-neutral-900">{customerName || "Chưa chọn khách"}</div>
                 <div className="mt-2 text-sm text-neutral-500">Phương thức</div>
                 <div className="mt-1 font-medium text-neutral-900">{paymentMethod === "CASH" ? "Tiền mặt" : "Chuyển khoản"}</div>
+                <div className="mt-2 text-sm text-neutral-500">Gợi ý hẹn lại</div>
+                <div className="mt-1 font-medium text-neutral-900">{suggestedFollowUpDays} ngày • {suggestedFollowUpDate}</div>
               </div>
 
               <div className="space-y-2 rounded-xl border border-neutral-200 p-3">
@@ -589,7 +693,11 @@ export default function CheckoutPage() {
               )}
             </div>
 
-            <MobileCollapsible summary={`Lịch sử phiếu · ${tickets.length} bill`} defaultOpen={false}>
+<div className="min-w-0 space-y-3 overflow-x-hidden rounded-3xl border border-neutral-200 bg-white/95 p-4 shadow-[0_18px_60px_-28px_rgba(15,23,42,0.3)] md:hidden">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-neutral-900">Lịch sử phiếu</h3>
+                <span className="text-xs text-neutral-500">{tickets.length} bill</span>
+              </div>
               <div className="min-w-0 space-y-3 overflow-x-hidden">
                 <div className="grid grid-cols-2 gap-2">
                   <select className="input cursor-pointer py-2.5" value={rangeMode} onChange={(e) => setRangeMode(e.target.value as RangeMode)}>
@@ -638,7 +746,7 @@ export default function CheckoutPage() {
                   );
                 })}
               </div>
-            </MobileCollapsible>
+            </div>
           </div>
 
           <div className="hidden min-w-0 space-y-4 xl:block">
@@ -650,6 +758,8 @@ export default function CheckoutPage() {
                 <div className="mt-1 text-base font-semibold text-neutral-900">{customerName || "Chưa chọn khách"}</div>
                 <div className="mt-2 text-sm text-neutral-500">Phương thức</div>
                 <div className="mt-1 font-medium text-neutral-900">{paymentMethod === "CASH" ? "Tiền mặt" : "Chuyển khoản"}</div>
+                <div className="mt-2 text-sm text-neutral-500">Gợi ý hẹn lại</div>
+                <div className="mt-1 font-medium text-neutral-900">{suggestedFollowUpDays} ngày • {suggestedFollowUpDate}</div>
               </div>
 
               <div className="space-y-2">

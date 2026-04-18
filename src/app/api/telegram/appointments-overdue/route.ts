@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { verifyTelegramInternalRequest } from "@/lib/route-secrets";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -45,8 +46,13 @@ async function sendTelegramMessage(text: string) {
   return res.json() as Promise<{ ok: boolean }>;
 }
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
+    const auth = verifyTelegramInternalRequest(req);
+    if (!auth.ok) {
+      return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status });
+    }
+
     const supabase = getSupabase();
     const now = new Date();
     const cutoffIso = new Date(now.getTime() - APPOINTMENT_OVERDUE_MINUTES * 60 * 1000).toISOString();

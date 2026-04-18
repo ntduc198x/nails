@@ -1,4 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
+import { promises as fs } from "node:fs";
+import path from "node:path";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -60,6 +62,34 @@ export interface TelegramUserRole {
   org_id?: string;
 }
 
+type TelegramConversationStep =
+  | "report:custom"
+  | "quickcreate:name"
+  | "quickcreate:phone"
+  | "quickcreate:date"
+  | "quickcreate:date_custom"
+  | "quickcreate:time"
+  | "quickcreate:service";
+
+type TelegramConversationState = {
+  step: TelegramConversationStep;
+  data: Record<string, string>;
+  timestamp: number;
+};
+
+type TelegramQuickCreateServiceSuggestion = {
+  id: string;
+  name: string;
+};
+
+const telegramConversationState = new Map<string, TelegramConversationState>();
+const TELEGRAM_CONVERSATION_TTL_MS = 10 * 60 * 1000;
+let telegramConversationStorageFallbackLogged = false;
+const TELEGRAM_CONVERSATION_FALLBACK_FILE = path.join(process.cwd(), ".tmp", "telegram-conversations.json");
+const QUICK_CREATE_START_HOUR = 9;
+const QUICK_CREATE_END_HOUR = 21;
+const VIETNAM_MOBILE_PHONE_REGEX = /^(03|05|07|08|09)\d{8}$/;
+
 export async function getTelegramUserRole(telegramUserId: number): Promise<TelegramUserRole> {
   const supabase = getAdminSupabase();
   const { data, error } = await supabase.rpc("get_telegram_user_role", {
@@ -71,6 +101,169 @@ export async function getTelegramUserRole(telegramUserId: number): Promise<Teleg
 
 export function isManagerOrOwner(role?: string): boolean {
   return role === "OWNER" || role === "MANAGER";
+}
+
+function getConversationKey(telegramUserId: number): string {
+  return String(telegramUserId);
+}
+
+function getInMemoryConversationState(telegramUserId: number): TelegramConversationState | null {
+  const state = telegramConversationState.get(getConversationKey(telegramUserId));
+  if (!state) return null;
+  if (Date.now() - state.timestamp > TELEGRAM_CONVERSATION_TTL_MS) {
+    telegramConversationState.delete(getConversationKey(telegramUserId));
+    return null;
+  }
+  return state;
+}
+
+function setInMemoryConversationState(telegramUserId: number, step: TelegramConversationStep, data: Record<string, string> = {}) {
+  telegramConversationState.set(getConversationKey(telegramUserId), {
+    step,
+    data,
+    timestamp: Date.now(),
+  });
+}
+
+function clearInMemoryConversationState(telegramUserId: number) {
+  telegramConversationState.delete(getConversationKey(telegramUserId));
+}
+
+async function ensureConversationFallbackDir() {
+  await fs.mkdir(path.dirname(TELEGRAM_CONVERSATION_FALLBACK_FILE), { recursive: true });
+}
+
+async function readConversationFallbackFile(): Promise<Record<string, TelegramConversationState>> {
+  try {
+    const raw = await fs.readFile(TELEGRAM_CONVERSATION_FALLBACK_FILE, "utf8");
+    return JSON.parse(raw) as Record<string, TelegramConversationState>;
+  } catch (error) {
+    const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+    if (message.includes("enoent")) return {};
+    throw error;
+  }
+}
+
+async function writeConversationFallbackFile(states: Record<string, TelegramConversationState>) {
+  await ensureConversationFallbackDir();
+  await fs.writeFile(TELEGRAM_CONVERSATION_FALLBACK_FILE, JSON.stringify(states, null, 2), "utf8");
+}
+
+async function getFileConversationState(telegramUserId: number): Promise<TelegramConversationState | null> {
+  const states = await readConversationFallbackFile();
+  const key = getConversationKey(telegramUserId);
+  const state = states[key];
+  if (!state) return null;
+  if (Date.now() - state.timestamp > TELEGRAM_CONVERSATION_TTL_MS) {
+    delete states[key];
+    await writeConversationFallbackFile(states);
+    return null;
+  }
+  return state;
+}
+
+async function setFileConversationState(telegramUserId: number, step: TelegramConversationStep, data: Record<string, string> = {}) {
+  const states = await readConversationFallbackFile();
+  states[getConversationKey(telegramUserId)] = {
+    step,
+    data,
+    timestamp: Date.now(),
+  };
+  await writeConversationFallbackFile(states);
+}
+
+async function clearFileConversationState(telegramUserId: number) {
+  const states = await readConversationFallbackFile();
+  delete states[getConversationKey(telegramUserId)];
+  await writeConversationFallbackFile(states);
+}
+
+function shouldUseConversationFallback(error: unknown): boolean {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return message.includes("telegram_conversations") || message.includes("does not exist") || message.includes("schema cache");
+}
+
+function logConversationFallbackOnce(error: unknown) {
+  if (telegramConversationStorageFallbackLogged) return;
+  telegramConversationStorageFallbackLogged = true;
+  console.warn("[telegram] Falling back to in-memory conversation state.", error);
+}
+
+async function getConversationState(telegramUserId: number): Promise<TelegramConversationState | null> {
+  const supabase = getAdminSupabase();
+  try {
+    const { data, error } = await supabase
+      .from("telegram_conversations")
+      .select("step,data_json,expires_at")
+      .eq("telegram_user_id", telegramUserId)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data?.step) return null;
+
+    const expiresAtMs = data.expires_at ? new Date(data.expires_at as string).getTime() : 0;
+    if (!expiresAtMs || expiresAtMs <= Date.now()) {
+      await supabase.from("telegram_conversations").delete().eq("telegram_user_id", telegramUserId);
+      return null;
+    }
+
+    return {
+      step: data.step as TelegramConversationStep,
+      data: ((data.data_json as Record<string, string> | null) ?? {}),
+      timestamp: expiresAtMs - TELEGRAM_CONVERSATION_TTL_MS,
+    };
+  } catch (error) {
+    if (!shouldUseConversationFallback(error)) throw error;
+    logConversationFallbackOnce(error);
+    const memoryState = getInMemoryConversationState(telegramUserId);
+    if (memoryState) return memoryState;
+    return getFileConversationState(telegramUserId);
+  }
+}
+
+async function setConversationState(telegramUserId: number, step: TelegramConversationStep, data: Record<string, string> = {}) {
+  const supabase = getAdminSupabase();
+  try {
+    const expiresAt = new Date(Date.now() + TELEGRAM_CONVERSATION_TTL_MS).toISOString();
+    const { error } = await supabase
+      .from("telegram_conversations")
+      .upsert({
+        telegram_user_id: telegramUserId,
+        step,
+        data_json: data,
+        expires_at: expiresAt,
+      }, {
+        onConflict: "telegram_user_id",
+      });
+
+    if (error) throw error;
+  } catch (error) {
+    if (!shouldUseConversationFallback(error)) throw error;
+    logConversationFallbackOnce(error);
+    setInMemoryConversationState(telegramUserId, step, data);
+    await setFileConversationState(telegramUserId, step, data);
+  }
+}
+
+async function clearConversationState(telegramUserId: number) {
+  const supabase = getAdminSupabase();
+  try {
+    const { error } = await supabase
+      .from("telegram_conversations")
+      .delete()
+      .eq("telegram_user_id", telegramUserId);
+
+    if (error) throw error;
+  } catch (error) {
+    if (!shouldUseConversationFallback(error)) throw error;
+    logConversationFallbackOnce(error);
+    clearInMemoryConversationState(telegramUserId);
+    await clearFileConversationState(telegramUserId);
+  }
+}
+
+export async function cancelTelegramConversation(telegramUserId: number) {
+  await clearConversationState(telegramUserId);
 }
 
 export function formatVND(amount: number): string {
@@ -93,6 +286,15 @@ export function formatViDateTime(iso: string): string {
   });
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 export function formatViDate(iso: string): string {
   return new Date(iso).toLocaleDateString("vi-VN", {
     timeZone: "Asia/Ho_Chi_Minh",
@@ -100,6 +302,19 @@ export function formatViDate(iso: string): string {
     day: "2-digit",
     month: "2-digit",
   });
+}
+
+function formatViShortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+function getTicketGrandTotal(ticket: { totals_json?: { grand_total?: number } | null }): number {
+  return Number(ticket.totals_json?.grand_total ?? 0);
 }
 
 function pickCustomerName(customers: { name?: string } | { name?: string }[] | null | undefined): string {
@@ -173,61 +388,10 @@ export async function handleLichCommand(orgId: string, chatId: string) {
 }
 
 export async function handleDoanhthuCommand(orgId: string, chatId: string) {
-  const supabase = getAdminSupabase();
-  const now = new Date();
-  const todayStart = new Date(now);
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date(todayStart);
-  todayEnd.setDate(todayEnd.getDate() + 1);
-
-  const { data: todayTickets, error } = await supabase
-    .from("tickets")
-    .select("id,totals_json,payment_method")
-    .eq("org_id", orgId)
-    .eq("status", "CLOSED")
-    .gte("created_at", todayStart.toISOString())
-    .lt("created_at", todayEnd.toISOString());
-
-  if (error) throw error;
-
-  const tickets = todayTickets ?? [];
-  const revenue = tickets.reduce((sum, t) => sum + Number((t.totals_json as { grand_total?: number } | null)?.grand_total ?? 0), 0);
-  const cashRev = tickets.filter((t) => (t as { payment_method?: string }).payment_method === "CASH").reduce((sum, t) => sum + Number((t.totals_json as { grand_total?: number } | null)?.grand_total ?? 0), 0);
-  const transferRev = revenue - cashRev;
-
-  const weekStart = new Date(todayStart);
-  weekStart.setDate(weekStart.getDate() - 6);
-  const { data: weekTickets } = await supabase
-    .from("tickets")
-    .select("created_at,totals_json")
-    .eq("org_id", orgId)
-    .eq("status", "CLOSED")
-    .gte("created_at", weekStart.toISOString())
-    .lt("created_at", todayEnd.toISOString());
-
-  const weekBuckets = new Map<string, number>();
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(weekStart);
-    d.setDate(weekStart.getDate() + i);
-    weekBuckets.set(d.toISOString().slice(0, 10), 0);
-  }
-  for (const t of weekTickets ?? []) {
-    const key = String(t.created_at).slice(0, 10);
-    const target = weekBuckets.get(key);
-    if (target !== undefined) {
-      weekBuckets.set(key, target + Number((t.totals_json as { grand_total?: number } | null)?.grand_total ?? 0));
-    }
-  }
-
-  const yesterdayKey = new Date(now.getTime() - 86400000).toISOString().slice(0, 10);
-  const todayKey = todayStart.toISOString().slice(0, 10);
-  const yesterdayRev = weekBuckets.get(yesterdayKey) ?? 0;
-  const trend = yesterdayRev > 0 ? Math.round(((revenue - yesterdayRev) / yesterdayRev) * 100) : 0;
+  await handleRevenueReportCommand(orgId, chatId, "today");
+  /*
   const trendIcon = trend > 0 ? "↑" : trend < 0 ? "↓" : "→";
 
-  const trendLine = [...weekBuckets.entries()]
-    .slice(-7)
-    .map(([, v]) => (v > 0 ? `${formatVND(v)}` : "0"))
     .join(" → ");
 
   const lines = [
@@ -244,6 +408,7 @@ export async function handleDoanhthuCommand(orgId: string, chatId: string) {
   ];
 
   await sendTelegramMessage(chatId, lines.join("\n"));
+  */
 }
 
 export async function handleCaCommand(orgId: string, chatId: string) {
@@ -316,6 +481,12 @@ export async function handleBookingCommand(orgId: string, chatId: string) {
     `Mới: <b>${newCount}</b> | Cần dời: <b>${rescheduleCount}</b>`,
     "",
   ];
+  const keyboardRows = rows.map((b) => [
+    {
+      text: `🔎 ${b.customer_name} (${formatViTime(b.requested_start_at as string)})`,
+      callback_data: `booking:view:${b.id}`,
+    },
+  ]);
 
   for (const b of rows) {
     const statusIcon = b.status === "NEW" ? "🆕" : "🔄";
@@ -325,8 +496,1120 @@ export async function handleBookingCommand(orgId: string, chatId: string) {
   }
 
   lines.push("", `👉 ${publicBaseUrl}/manage/booking-requests`);
+  keyboardRows.push([{ text: "◀️ Quay lại", callback_data: "menu:admin" }]);
 
-  await sendTelegramMessage(chatId, lines.join("\n"));
+  await sendTelegramMessage(chatId, lines.join("\n"), {
+    reply_markup: { inline_keyboard: keyboardRows },
+  });
+}
+
+function getAdminMenuKeyboard() {
+  return {
+    inline_keyboard: [
+      [{ text: "CRM", callback_data: "menu:crm" }],
+      [
+        { text: "📊 Tong quan", callback_data: "menu:overview" },
+        { text: "📈 Bao cao", callback_data: "menu:report" },
+      ],
+      [
+        { text: "🕐 Ca lam", callback_data: "menu:ca" },
+        { text: "⚡ Tao nhanh", callback_data: "menu:quickcreate" },
+      ],
+      [
+        { text: "📌 Booking", callback_data: "menu:booking" },
+      ],
+    ],
+  };
+}
+
+function getQuickCreateKeyboard() {
+  return {
+    inline_keyboard: [
+      [{ text: "1️⃣ Tao lich moi", callback_data: "quickcreate:new" }],
+      [{ text: "2️⃣ Check-in nhanh", callback_data: "quickcreate:checkin" }],
+      [{ text: "◀️ Quay lai", callback_data: "menu:admin" }],
+    ],
+  };
+}
+
+function getQuickCreateConfirmKeyboard() {
+  return {
+    inline_keyboard: [
+      [
+        { text: "✅ Xac nhan tao lich", callback_data: "quickcreate:confirm" },
+        { text: "❌ Huy", callback_data: "quickcreate:cancel" },
+      ],
+      [{ text: "◀️ Quay lai", callback_data: "menu:quickcreate" }],
+    ],
+  };
+}
+
+function getQuickCreateDateKeyboard() {
+  return {
+    inline_keyboard: [
+      [
+        { text: "📅 Hom nay", callback_data: "quickcreate:date:today" },
+        { text: "📆 Mai", callback_data: "quickcreate:date:tomorrow" },
+      ],
+      [
+        { text: "🗓️ Mot", callback_data: "quickcreate:date:day_after_tomorrow" },
+        { text: "✍️ Tuy chon", callback_data: "quickcreate:date:custom" },
+      ],
+      [{ text: "◀️ Quay lai", callback_data: "menu:quickcreate" }],
+    ],
+  };
+}
+
+function getQuickCreateServiceKeyboard(services: TelegramQuickCreateServiceSuggestion[]) {
+  const serviceRows = [];
+
+  for (let index = 0; index < services.length; index += 2) {
+    serviceRows.push(
+      services.slice(index, index + 2).map((service) => ({
+        text: `💅 ${service.name}`,
+        callback_data: `quickcreate:service:${service.id}`,
+      })),
+    );
+  }
+
+  return {
+    inline_keyboard: [
+      ...serviceRows,
+      [{ text: "✍️ Tu nhap dich vu", callback_data: "quickcreate:service:custom" }],
+      [{ text: "◀️ Quay lai", callback_data: "menu:quickcreate" }],
+    ],
+  };
+}
+
+export function getReportMenuKeyboard() {
+  return {
+    inline_keyboard: [
+      [
+        { text: "📅 Hom nay", callback_data: "report:today" },
+        { text: "📆 Tuan nay", callback_data: "report:week" },
+      ],
+      [
+        { text: "🗓️ Thang nay", callback_data: "report:month" },
+        { text: "📊 Tuy chon", callback_data: "report:custom" },
+      ],
+      [{ text: "◀️ Quay lai", callback_data: "menu:admin" }],
+    ],
+  };
+}
+
+function getBackToAdminKeyboard() {
+  return {
+    inline_keyboard: [[{ text: "◀️ Quay lai", callback_data: "menu:admin" }]],
+  };
+}
+
+function getCrmMenuKeyboard() {
+  return {
+    inline_keyboard: [
+      [{ text: "Den han cham soc", callback_data: "crm:followups" }],
+      [{ text: "Khach co nguy co", callback_data: "crm:at_risk" }],
+      [{ text: "Quay lai", callback_data: "menu:admin" }],
+    ],
+  };
+}
+
+function getCrmBackKeyboard() {
+  return {
+    inline_keyboard: [[{ text: "Ve CRM", callback_data: "menu:crm" }]],
+  };
+}
+
+function getCustomerCrmWebUrl(customerId: string) {
+  return `${process.env.NEXT_PUBLIC_APP_URL || "https://chambeauty.io.vn"}/manage/customers/${customerId}`;
+}
+
+async function listTelegramCrmCustomers(orgId: string, mode: "followups" | "at_risk", limit = 8) {
+  const supabase = getAdminSupabase();
+  let query = supabase
+    .from("customers")
+    .select("id,full_name,name,phone,total_visits,total_spend,last_visit_at,last_service_summary,next_follow_up_at,customer_status,follow_up_status")
+    .eq("org_id", orgId)
+    .is("merged_into_customer_id", null);
+
+  if (mode === "followups") {
+    query = query
+      .not("next_follow_up_at", "is", null)
+      .neq("follow_up_status", "DONE")
+      .order("next_follow_up_at", { ascending: true })
+      .limit(limit);
+  } else {
+    query = query
+      .in("customer_status", ["AT_RISK", "LOST"])
+      .order("last_visit_at", { ascending: true, nullsFirst: true })
+      .limit(limit);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return data ?? [];
+}
+
+async function markTelegramCrmContacted(orgId: string, customerId: string) {
+  const supabase = getAdminSupabase();
+  const { data: customer, error: customerError } = await supabase
+    .from("customers")
+    .select("id,full_name,name")
+    .eq("org_id", orgId)
+    .eq("id", customerId)
+    .maybeSingle();
+
+  if (customerError) throw customerError;
+  if (!customer?.id) {
+    return { ok: false, message: "Khong tim thay khach." };
+  }
+
+  const { error: updateError } = await supabase
+    .from("customers")
+    .update({
+      last_contacted_at: new Date().toISOString(),
+      follow_up_status: "DONE",
+    })
+    .eq("org_id", orgId)
+    .eq("id", customerId);
+
+  if (updateError) throw updateError;
+
+  const { error: activityError } = await supabase
+    .from("customer_activities")
+    .insert({
+      org_id: orgId,
+      customer_id: customerId,
+      type: "TELEGRAM_CONTACT",
+      channel: "TELEGRAM",
+      content_summary: "Danh dau da lien he tu Telegram CRM",
+      created_by: null,
+    });
+
+  if (activityError) throw activityError;
+
+  return {
+    ok: true,
+    message: `Da danh dau da lien he: ${customer.full_name || customer.name || "Khach"}`,
+  };
+}
+
+function parseCustomReportDate(raw: string): Date | null {
+  const match = raw.trim().match(/^(\d{1,2})\/(\d{1,2})$/);
+  if (!match) return null;
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = new Date().getFullYear();
+  const date = new Date(year, month - 1, day);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
+
+function normalizeVietnamPhone(raw: string): string | null {
+  const digitsOnly = raw.replace(/\D/g, "");
+  if (!VIETNAM_MOBILE_PHONE_REGEX.test(digitsOnly)) return null;
+  return digitsOnly;
+}
+
+function parseQuickCreateDate(raw: string): { iso: string; label: string } | null {
+  const match = raw.trim().match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/);
+  if (!match) return null;
+
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = match[3] ? Number(match[3]) : new Date().getFullYear();
+  const date = new Date(year, month - 1, day);
+  if (Number.isNaN(date.getTime())) return null;
+  if (date.getDate() !== day || date.getMonth() !== month - 1 || date.getFullYear() !== year) return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  date.setHours(0, 0, 0, 0);
+  if (date < today) return null;
+
+  return {
+    iso: date.toISOString(),
+    label: `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}${match[3] ? `/${year}` : ""}`,
+  };
+}
+
+function getQuickCreatePresetDateLabel(offsetDays: number): { iso: string; label: string } {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + offsetDays);
+
+  const label = offsetDays === 0
+    ? "Hom nay"
+    : offsetDays === 1
+      ? "Ngay mai"
+      : "Ngay mot";
+
+  return {
+    iso: date.toISOString(),
+    label: `${label} (${formatViShortDate(date.toISOString())})`,
+  };
+}
+
+function parseQuickCreateTime(raw: string, baseDateIso: string): { iso: string; label: string } | null {
+  const match = raw.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  if (hour < QUICK_CREATE_START_HOUR || hour > QUICK_CREATE_END_HOUR) return null;
+  if (hour === QUICK_CREATE_END_HOUR && minute > 0) return null;
+
+  const date = new Date(baseDateIso);
+  date.setHours(hour, minute, 0, 0);
+  return {
+    iso: date.toISOString(),
+    label: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
+  };
+}
+
+async function getQuickCreateServiceSuggestions(orgId: string): Promise<TelegramQuickCreateServiceSuggestion[]> {
+  const supabase = getAdminSupabase();
+
+  const featuredResult = await supabase
+    .from("services")
+    .select("id,name")
+    .eq("org_id", orgId)
+    .eq("active", true)
+    .eq("featured_in_lookbook", true)
+    .order("name", { ascending: true })
+    .limit(6);
+
+  if (featuredResult.error) throw featuredResult.error;
+
+  const featuredRows = (featuredResult.data ?? []) as TelegramQuickCreateServiceSuggestion[];
+  if (featuredRows.length > 0) return featuredRows;
+
+  const fallbackResult = await supabase
+    .from("services")
+    .select("id,name")
+    .eq("org_id", orgId)
+    .eq("active", true)
+    .order("name", { ascending: true })
+    .limit(6);
+
+  if (fallbackResult.error) throw fallbackResult.error;
+  return (fallbackResult.data ?? []) as TelegramQuickCreateServiceSuggestion[];
+}
+
+async function promptQuickCreateServiceSelection(chatId: string, orgId: string) {
+  const suggestions = await getQuickCreateServiceSuggestions(orgId);
+
+  await sendTelegramMessage(
+    chatId,
+    [
+      "⚡ <b>TAO LICH MOI</b>",
+      "",
+      "Chon dich vu theo mau Lookbook ben duoi",
+      "hoac tu nhap dich vu mong muon.",
+    ].join("\n"),
+    {
+      reply_markup: suggestions.length > 0
+        ? getQuickCreateServiceKeyboard(suggestions)
+        : getBackToAdminKeyboard(),
+    },
+  );
+}
+
+export async function handleQuickCreateDateSelection(telegramUserId: number, chatId: string, dateMode: string) {
+  const state = await getConversationState(telegramUserId);
+  if (!state || state.step !== "quickcreate:date") {
+    return { ok: false, message: "Khong tim thay buoc chon ngay." };
+  }
+
+  if (dateMode === "custom") {
+    await setConversationState(telegramUserId, "quickcreate:date_custom", state.data);
+    await sendTelegramMessage(
+      chatId,
+      "⚡ <b>TAO LICH MOI</b>\n\nNhap ngay hen theo dinh dang <code>dd/mm</code> hoac <code>dd/mm/yyyy</code>.",
+      { parse_mode: "HTML", reply_markup: getBackToAdminKeyboard() },
+    );
+    return { ok: true, message: "Nhap ngay tuy chon" };
+  }
+
+  const presetDate = dateMode === "today"
+    ? getQuickCreatePresetDateLabel(0)
+    : dateMode === "tomorrow"
+      ? getQuickCreatePresetDateLabel(1)
+      : dateMode === "day_after_tomorrow"
+        ? getQuickCreatePresetDateLabel(2)
+        : null;
+
+  if (!presetDate) {
+    return { ok: false, message: "Lua chon ngay khong hop le." };
+  }
+
+  await setConversationState(telegramUserId, "quickcreate:time", {
+    ...state.data,
+    appointmentDateIso: presetDate.iso,
+    appointmentDateLabel: presetDate.label,
+  });
+  await sendTelegramMessage(
+    chatId,
+    `⚡ <b>TAO LICH MOI</b>\n\nNgay hen: <b>${escapeHtml(presetDate.label)}</b>\nNhap gio hen. VD: <code>14:30</code>\nChi nhan khung gio <b>09:00 - 21:00</b>.`,
+    { parse_mode: "HTML", reply_markup: getBackToAdminKeyboard() },
+  );
+  return { ok: true, message: "Da chon ngay hen" };
+}
+
+async function findOrCreateTelegramCustomer(orgId: string, customerName: string, customerPhone: string, requestedService: string) {
+  const supabase = getAdminSupabase();
+  const { data: existingCustomer, error: existingError } = await supabase
+    .from("customers")
+    .select("id,notes")
+    .eq("org_id", orgId)
+    .eq("name", customerName)
+    .eq("phone", customerPhone)
+    .limit(1)
+    .maybeSingle();
+
+  if (existingError) throw existingError;
+
+  const mergedNotes = [existingCustomer?.notes, requestedService ? `DV: ${requestedService}` : null]
+    .filter(Boolean)
+    .join(" | ");
+
+  if (existingCustomer?.id) {
+    const { error: updateError } = await supabase
+      .from("customers")
+      .update({ notes: mergedNotes || null })
+      .eq("id", existingCustomer.id);
+
+    if (updateError) throw updateError;
+    return existingCustomer.id;
+  }
+
+  const { data: createdCustomer, error: createError } = await supabase
+    .from("customers")
+    .insert({
+      org_id: orgId,
+      name: customerName,
+      phone: customerPhone,
+      notes: mergedNotes || null,
+    })
+    .select("id")
+    .single();
+
+  if (createError) throw createError;
+  return createdCustomer.id as string;
+}
+
+async function createTelegramQuickAppointment(orgId: string, customerName: string, customerPhone: string, startAt: string, requestedService: string) {
+  const supabase = getAdminSupabase();
+  const endAt = new Date(new Date(startAt).getTime() + 60 * 60 * 1000).toISOString();
+  const customerId = await findOrCreateTelegramCustomer(orgId, customerName, customerPhone, requestedService);
+
+  const { data: profileRow, error: profileError } = await supabase
+    .from("profiles")
+    .select("default_branch_id")
+    .eq("org_id", orgId)
+    .not("default_branch_id", "is", null)
+    .limit(1)
+    .maybeSingle();
+
+  if (profileError) throw profileError;
+
+  if (!profileRow?.default_branch_id) {
+    throw new Error("Chua tim thay branch mac dinh de tao lich.");
+  }
+
+  const { data: appointment, error: appointmentError } = await supabase
+    .from("appointments")
+    .insert({
+      org_id: orgId,
+      branch_id: profileRow.default_branch_id,
+      customer_id: customerId,
+      staff_user_id: null,
+      resource_id: null,
+      start_at: startAt,
+      end_at: endAt,
+      status: "BOOKED",
+    })
+    .select("id,start_at")
+    .single();
+
+  if (appointmentError) throw appointmentError;
+  return appointment;
+}
+
+export async function handleQuickCreateServiceSelection(telegramUserId: number, chatId: string, serviceIdOrMode: string) {
+  const state = await getConversationState(telegramUserId);
+  if (!state || state.step !== "quickcreate:service" || !state.data.orgId) {
+    return { ok: false, message: "Khong tim thay buoc chon dich vu." };
+  }
+
+  if (serviceIdOrMode === "custom") {
+    await sendTelegramMessage(chatId, "⚡ <b>TAO LICH MOI</b>\n\nNhap dich vu mong muon:", {
+      reply_markup: getBackToAdminKeyboard(),
+    });
+    return { ok: true, message: "Nhap dich vu mong muon" };
+  }
+
+  const supabase = getAdminSupabase();
+  const { data: serviceRow, error } = await supabase
+    .from("services")
+    .select("id,name")
+    .eq("org_id", state.data.orgId)
+    .eq("id", serviceIdOrMode)
+    .eq("active", true)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!serviceRow?.name) {
+    return { ok: false, message: "Khong tim thay dich vu da chon." };
+  }
+
+  await setConversationState(telegramUserId, "quickcreate:service", {
+    ...state.data,
+    requestedService: serviceRow.name,
+  });
+  await sendTelegramMessage(
+    chatId,
+    [
+      "⚡ <b>XAC NHAN TAO LICH</b>",
+      "",
+      `👤 Khach: <b>${escapeHtml(state.data.customerName || "-")}</b>`,
+      `📞 SDT: <b>${escapeHtml(state.data.customerPhone || "-")}</b>`,
+      `📅 Ngay hen: <b>${escapeHtml(state.data.appointmentDateLabel || "-")}</b>`,
+      `🕐 Gio hen: <b>${escapeHtml(state.data.appointmentTimeLabel || "-")}</b>`,
+      `💅 DV: <b>${escapeHtml(serviceRow.name)}</b>`,
+    ].join("\n"),
+    { reply_markup: getQuickCreateConfirmKeyboard() },
+  );
+
+  return { ok: true, message: "Da chon dich vu" };
+}
+
+export async function handleTelegramConversationMessage(telegramUserId: number, chatId: string, text: string) {
+  const state = await getConversationState(telegramUserId);
+  if (!state) return false;
+
+  const normalized = text.trim().toLowerCase();
+  if (normalized === "back" || normalized === "huy" || normalized === "/cancel") {
+    await clearConversationState(telegramUserId);
+    if (state.step === "report:custom") {
+      await sendTelegramMessage(chatId, "📈 <b>BAO CAO DOANH THU</b>\n\nChon khoang thoi gian:", {
+        reply_markup: getReportMenuKeyboard(),
+      });
+    } else {
+      await sendTelegramMessage(chatId, "⚡ <b>TAO NHANH</b>\n\nChon chuc nang:", {
+        reply_markup: getQuickCreateKeyboard(),
+      });
+    }
+    return true;
+  }
+
+  if (state.step === "report:custom") {
+    const parts = text.split("-").map((item) => item.trim());
+    if (parts.length !== 2) {
+      await sendTelegramMessage(chatId, "❌ Dinh dang khong dung.\n\nVD: <code>01/04 - 30/04</code>\n\nThu lai:", {
+        parse_mode: "HTML",
+      });
+      return true;
+    }
+
+    const startDate = parseCustomReportDate(parts[0]);
+    const endDate = parseCustomReportDate(parts[1]);
+    if (!startDate || !endDate) {
+      await sendTelegramMessage(chatId, "❌ Dinh dang ngay khong dung.\n\nVD: <code>01/04 - 30/04</code>\n\nThu lai:", {
+        parse_mode: "HTML",
+      });
+      return true;
+    }
+
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(23, 59, 59, 999);
+    await clearConversationState(telegramUserId);
+    await handleRevenueReportCommand(state.data.orgId, chatId, "custom", startDate, endDate);
+    return true;
+  }
+
+  if (state.step === "quickcreate:name") {
+    await setConversationState(telegramUserId, "quickcreate:phone", {
+      ...state.data,
+      customerName: text.trim(),
+    });
+    await sendTelegramMessage(chatId, "⚡ <b>TAO LICH MOI</b>\n\nSo dien thoai?", {
+      reply_markup: getBackToAdminKeyboard(),
+    });
+    return true;
+  }
+
+  if (state.step === "quickcreate:phone") {
+    const normalizedPhone = normalizeVietnamPhone(text.trim());
+    if (!normalizedPhone) {
+      await sendTelegramMessage(
+        chatId,
+        "❌ So dien thoai khong hop le.\n\nChi nhan so di dong Viet Nam <b>10 so</b>.\nVD: <code>0901234567</code>",
+        { parse_mode: "HTML" },
+      );
+      return true;
+    }
+
+    await setConversationState(telegramUserId, "quickcreate:date", {
+      ...state.data,
+      customerPhone: normalizedPhone,
+    });
+    await sendTelegramMessage(chatId, "⚡ <b>TAO LICH MOI</b>\n\nChon ngay hen:", {
+      parse_mode: "HTML",
+      reply_markup: getQuickCreateDateKeyboard(),
+    });
+    return true;
+  }
+
+  if (state.step === "quickcreate:date_custom") {
+    const parsedDate = parseQuickCreateDate(text);
+    if (!parsedDate) {
+      await sendTelegramMessage(
+        chatId,
+        "❌ Ngay hen khong hop le.\n\nNhap theo dinh dang <code>dd/mm</code> hoac <code>dd/mm/yyyy</code> va khong duoc nho hon hom nay.",
+        { parse_mode: "HTML" },
+      );
+      return true;
+    }
+
+    await setConversationState(telegramUserId, "quickcreate:time", {
+      ...state.data,
+      appointmentDateIso: parsedDate.iso,
+      appointmentDateLabel: parsedDate.label,
+    });
+    await sendTelegramMessage(
+      chatId,
+      `⚡ <b>TAO LICH MOI</b>\n\nNgay hen: <b>${escapeHtml(parsedDate.label)}</b>\nNhap gio hen. VD: <code>14:30</code>\nChi nhan khung gio <b>09:00 - 21:00</b>.`,
+      { parse_mode: "HTML", reply_markup: getBackToAdminKeyboard() },
+    );
+    return true;
+  }
+
+  if (state.step === "quickcreate:time") {
+    if (!state.data.appointmentDateIso) {
+      await clearConversationState(telegramUserId);
+      await handleQuickCreateMenu(chatId);
+      return true;
+    }
+
+    const parsedTime = parseQuickCreateTime(text, state.data.appointmentDateIso);
+    if (!parsedTime) {
+      await sendTelegramMessage(chatId, "❌ Gio hen khong hop le.\n\nChi nhan trong khung <b>09:00 - 21:00</b>.\nVD: <code>14:30</code>\n\nThu lai:", {
+        parse_mode: "HTML",
+      });
+      return true;
+    }
+
+    await setConversationState(telegramUserId, "quickcreate:service", {
+      ...state.data,
+      appointmentTimeIso: parsedTime.iso,
+      appointmentTimeLabel: parsedTime.label,
+    });
+    await promptQuickCreateServiceSelection(chatId, state.data.orgId);
+    return true;
+  }
+
+  if (state.step === "quickcreate:service") {
+    await setConversationState(telegramUserId, "quickcreate:service", {
+      ...state.data,
+      requestedService: text.trim(),
+    });
+    await sendTelegramMessage(
+      chatId,
+      [
+        "⚡ <b>XAC NHAN TAO LICH</b>",
+        "",
+        `👤 Khach: <b>${escapeHtml(state.data.customerName || "-")}</b>`,
+        `📞 SDT: <b>${escapeHtml(state.data.customerPhone || "-")}</b>`,
+        `📅 Ngay hen: <b>${escapeHtml(state.data.appointmentDateLabel || "-")}</b>`,
+        `🕐 Gio hen: <b>${escapeHtml(state.data.appointmentTimeLabel || "-")}</b>`,
+        `💅 DV: <b>${escapeHtml(text.trim() || "-")}</b>`,
+      ].join("\n"),
+      { reply_markup: getQuickCreateConfirmKeyboard() },
+    );
+    return true;
+  }
+
+  return false;
+}
+
+export async function handleManageCommand(chatId: string) {
+  await sendTelegramMessage(chatId, "⚙️ <b>MENU QUAN TRI</b>\n\nChon chuc nang:", {
+    reply_markup: getAdminMenuKeyboard(),
+  });
+}
+
+export async function handleCrmMenu(chatId: string) {
+  await sendTelegramMessage(chatId, "CRM <b>KHACH</b>\n\nChon che do quan tri CRM:", {
+    reply_markup: getCrmMenuKeyboard(),
+  });
+}
+
+export async function handleQuickCreateMenu(chatId: string) {
+  await sendTelegramMessage(chatId, "⚡ <b>TAO NHANH</b>\n\nChon chuc nang:", {
+    reply_markup: getQuickCreateKeyboard(),
+  });
+}
+
+export async function handleMeCommand(telegramUserId: number, chatId: string) {
+  const userInfo = await getTelegramUserRole(telegramUserId);
+  if (!userInfo.linked) {
+    await sendTelegramMessage(chatId, "❌ <b>Chua lien ket</b>\n\nVui long lien ket tai khoan trong Nails App.");
+    return;
+  }
+
+  await sendTelegramMessage(
+    chatId,
+    `✅ <b>Da lien ket</b>\n\nTai khoan: <b>${userInfo.display_name || "N/A"}</b>\nVai tro: <b>${userInfo.role || "N/A"}</b>\n\nDung /manage de vao quan tri.`,
+  );
+}
+
+export async function handleCrmFollowUpCommand(orgId: string, chatId: string) {
+  const rows = await listTelegramCrmCustomers(orgId, "followups");
+
+  if (!rows.length) {
+    await sendTelegramMessage(chatId, "CRM <b>FOLLOW-UP</b>\n\nChua co khach nao den han cham soc.", {
+      reply_markup: getCrmBackKeyboard(),
+    });
+    return;
+  }
+
+  const lines = ["CRM <b>FOLLOW-UP</b>", "", "Khach den han cham soc:"];
+  const inlineKeyboard: Array<Array<{ text: string; callback_data?: string; url?: string }>> = [];
+
+  for (const row of rows) {
+    const displayName = escapeHtml(String(row.full_name || row.name || "Khach"));
+    const phone = escapeHtml(String(row.phone || "Chua co SDT"));
+    const service = escapeHtml(String(row.last_service_summary || "-"));
+    const nextFollowUp = row.next_follow_up_at ? formatViDateTime(String(row.next_follow_up_at)) : "-";
+    lines.push(`â€¢ <b>${displayName}</b> â€” ${phone}`);
+    lines.push(`  Follow-up: ${nextFollowUp} | DV gan nhat: ${service}`);
+    inlineKeyboard.push([
+      { text: `Done ${String(row.full_name || row.name || "Khach").slice(0, 14)}`, callback_data: `crm:contacted:${row.id}` },
+      { text: "Ho so", url: getCustomerCrmWebUrl(String(row.id)) },
+    ]);
+  }
+
+  inlineKeyboard.push([{ text: "Ve CRM", callback_data: "menu:crm" }]);
+
+  await sendTelegramMessage(chatId, lines.join("\n"), {
+    reply_markup: { inline_keyboard: inlineKeyboard },
+  });
+}
+
+export async function handleCrmAtRiskCommand(orgId: string, chatId: string) {
+  const rows = await listTelegramCrmCustomers(orgId, "at_risk");
+
+  if (!rows.length) {
+    await sendTelegramMessage(chatId, "CRM <b>AT RISK</b>\n\nChua co khach nao o nhom AT_RISK/LOST.", {
+      reply_markup: getCrmBackKeyboard(),
+    });
+    return;
+  }
+
+  const lines = ["CRM <b>AT RISK</b>", "", "Khach can uu tien cham soc lai:"];
+  const inlineKeyboard: Array<Array<{ text: string; callback_data?: string; url?: string }>> = [];
+
+  for (const row of rows) {
+    const displayName = escapeHtml(String(row.full_name || row.name || "Khach"));
+    const phone = escapeHtml(String(row.phone || "Chua co SDT"));
+    const lastVisit = row.last_visit_at ? formatViDateTime(String(row.last_visit_at)) : "Chua co";
+    const status = escapeHtml(String(row.customer_status || "AT_RISK"));
+    lines.push(`â€¢ <b>${displayName}</b> â€” ${status}`);
+    lines.push(`  SDT: ${phone} | Lan ghe cuoi: ${lastVisit}`);
+    inlineKeyboard.push([
+      { text: `Done ${String(row.full_name || row.name || "Khach").slice(0, 14)}`, callback_data: `crm:contacted:${row.id}` },
+      { text: "Ho so", url: getCustomerCrmWebUrl(String(row.id)) },
+    ]);
+  }
+
+  inlineKeyboard.push([{ text: "Ve CRM", callback_data: "menu:crm" }]);
+
+  await sendTelegramMessage(chatId, lines.join("\n"), {
+    reply_markup: { inline_keyboard: inlineKeyboard },
+  });
+}
+
+export async function handleCrmContactedCommand(orgId: string, chatId: string, customerId: string) {
+  const result = await markTelegramCrmContacted(orgId, customerId);
+  await sendTelegramMessage(chatId, `${result.ok ? "OK" : "ERR"} <b>CRM</b>\n\n${escapeHtml(result.message)}`, {
+    reply_markup: getCrmBackKeyboard(),
+  });
+  return result;
+}
+
+export async function handleOverviewCommand(orgId: string, chatId: string) {
+  const supabase = getAdminSupabase();
+  const now = new Date();
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(todayStart);
+  todayEnd.setDate(todayEnd.getDate() + 1);
+  const yesterdayStart = new Date(todayStart);
+  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+
+  const [appointmentsRes, todayTicketsRes, yesterdayTicketsRes, openShiftsRes, newBookingsRes, rescheduleRes] = await Promise.all([
+    supabase.from("appointments").select("id,status,start_at").eq("org_id", orgId).gte("start_at", todayStart.toISOString()).lt("start_at", todayEnd.toISOString()),
+    supabase.from("tickets").select("totals_json").eq("org_id", orgId).eq("status", "CLOSED").gte("created_at", todayStart.toISOString()).lt("created_at", todayEnd.toISOString()),
+    supabase.from("tickets").select("totals_json").eq("org_id", orgId).eq("status", "CLOSED").gte("created_at", yesterdayStart.toISOString()).lt("created_at", todayStart.toISOString()),
+    supabase.from("time_entries").select("id").eq("org_id", orgId).is("clock_out", null),
+    supabase.from("booking_requests").select("id").eq("org_id", orgId).eq("status", "NEW"),
+    supabase.from("booking_requests").select("id").eq("org_id", orgId).eq("status", "NEEDS_RESCHEDULE"),
+  ]);
+
+  if (appointmentsRes.error) throw appointmentsRes.error;
+  if (todayTicketsRes.error) throw todayTicketsRes.error;
+  if (yesterdayTicketsRes.error) throw yesterdayTicketsRes.error;
+  if (openShiftsRes.error) throw openShiftsRes.error;
+  if (newBookingsRes.error) throw newBookingsRes.error;
+  if (rescheduleRes.error) throw rescheduleRes.error;
+
+  const appointments = appointmentsRes.data ?? [];
+  const todayTickets = todayTicketsRes.data ?? [];
+  const yesterdayTickets = yesterdayTicketsRes.data ?? [];
+  const openShifts = openShiftsRes.data ?? [];
+  const newBookings = newBookingsRes.data ?? [];
+  const rescheduleBookings = rescheduleRes.data ?? [];
+  const checkedIn = appointments.filter((a) => a.status === "CHECKED_IN").length;
+  const done = appointments.filter((a) => a.status === "DONE").length;
+  const booked = appointments.filter((a) => a.status === "BOOKED").length;
+  const todayRevenue = todayTickets.reduce((sum, t) => sum + Number((t.totals_json as { grand_total?: number } | null)?.grand_total ?? 0), 0);
+  const yesterdayRevenue = yesterdayTickets.reduce((sum, t) => sum + Number((t.totals_json as { grand_total?: number } | null)?.grand_total ?? 0), 0);
+
+  let revenueTrend = "";
+  if (yesterdayRevenue > 0) {
+    const trend = Math.round(((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 100);
+    const icon = trend > 0 ? "↑" : trend < 0 ? "↓" : "→";
+    revenueTrend = ` ${icon} ${Math.abs(trend)}%`;
+  }
+
+  const labelDate = new Date().toLocaleDateString("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    day: "2-digit",
+    month: "2-digit",
+  });
+  const lines = [
+    `<b>📊 TỔNG HÔM NAY (${labelDate})</b>`,
+    "",
+    `📋 Lịch: <b>${appointments.length}</b> | 🔴 Đang làm: <b>${checkedIn}</b> | ✅ Xong: <b>${done}</b> | 🟡 Chờ: <b>${booked}</b>`,
+    `💰 Doanh thu: <b>${formatVND(todayRevenue)}</b>${revenueTrend}`,
+    `🕐 Ca: <b>${openShifts.length}</b> người đang mở`,
+    "",
+    "─────────────────────",
+    `📌 Booking: <b>${newBookings.length}</b> mới, <b>${rescheduleBookings.length}</b> cần dời lịch`,
+  ];
+
+  await sendTelegramMessage(chatId, lines.join("\n"), { reply_markup: getBackToAdminKeyboard() });
+}
+
+export async function handleRevenueReportCommand(orgId: string, chatId: string, period: "today" | "week" | "month" | "custom", customStartDate?: Date, customEndDate?: Date) {
+  const supabase = getAdminSupabase();
+  const now = new Date();
+  let startDate: Date;
+  let endDate: Date;
+  let title: string;
+
+  if (period === "custom" && customStartDate && customEndDate) {
+    startDate = customStartDate;
+    endDate = customEndDate;
+    title = "📊 BAO CAO TUY CHON";
+  } else if (period === "today") {
+    startDate = new Date(now);
+    startDate.setHours(0, 0, 0, 0);
+    endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + 1);
+    title = "📅 BAO CAO HOM NAY";
+  } else if (period === "week") {
+    startDate = new Date(now);
+    startDate.setDate(now.getDate() - now.getDay());
+    startDate.setHours(0, 0, 0, 0);
+    endDate = new Date(now);
+    endDate.setHours(23, 59, 59, 999);
+    title = "📆 BAO CAO TUAN NAY";
+  } else {
+    startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    startDate.setHours(0, 0, 0, 0);
+    endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    title = "🗓️ BAO CAO THANG NAY";
+  }
+
+  const [{ data: tickets, error: ticketsError }, { data: payments, error: paymentsError }] = await Promise.all([
+    supabase
+      .from("tickets")
+      .select("id,totals_json,created_at")
+      .eq("org_id", orgId)
+      .eq("status", "CLOSED")
+      .gte("created_at", startDate.toISOString())
+      .lte("created_at", endDate.toISOString()),
+    supabase
+      .from("payments")
+      .select("ticket_id,method,amount,created_at,status")
+      .eq("org_id", orgId)
+      .eq("status", "PAID")
+      .gte("created_at", startDate.toISOString())
+      .lte("created_at", endDate.toISOString()),
+  ]);
+
+  if (ticketsError) throw ticketsError;
+  if (paymentsError) throw paymentsError;
+
+  const rows = tickets ?? [];
+  const paymentRows = payments ?? [];
+  const reportEndDate = new Date(endDate.getTime() - 1);
+  const revenue = rows.reduce((sum, t) => sum + getTicketGrandTotal(t as { totals_json?: { grand_total?: number } | null }), 0);
+  const cashRevenue = paymentRows
+    .filter((p) => p.method === "CASH")
+    .reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
+  const transferRevenue = paymentRows
+    .filter((p) => p.method === "TRANSFER")
+    .reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
+  const averageBill = rows.length > 0 ? Math.round(revenue / rows.length) : 0;
+  const totalDays = Math.max(1, Math.ceil((reportEndDate.getTime() - startDate.getTime() + 1) / 86400000));
+  const averagePerDay = Math.round(revenue / totalDays);
+  const highestBill = rows.reduce((max, row) => Math.max(max, getTicketGrandTotal(row as { totals_json?: { grand_total?: number } | null })), 0);
+
+  const paymentBreakdown = new Map<string, number>();
+  for (const payment of paymentRows) {
+    const method = String(payment.method ?? "OTHER");
+    paymentBreakdown.set(method, (paymentBreakdown.get(method) ?? 0) + Number(payment.amount ?? 0));
+  }
+
+  const dailyBuckets = new Map<string, number>();
+  const cursor = new Date(startDate);
+  while (cursor <= reportEndDate) {
+    dailyBuckets.set(cursor.toISOString().slice(0, 10), 0);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  for (const row of rows) {
+    const key = String(row.created_at).slice(0, 10);
+    const current = dailyBuckets.get(key);
+    if (current !== undefined) {
+      dailyBuckets.set(key, current + getTicketGrandTotal(row as { totals_json?: { grand_total?: number } | null }));
+    }
+  }
+
+  const peakDay = [...dailyBuckets.entries()].sort((a, b) => b[1] - a[1])[0];
+  const recentBills = [...rows]
+    .sort((a, b) => new Date(String(b.created_at)).getTime() - new Date(String(a.created_at)).getTime())
+    .slice(0, 5);
+
+  const lines = [
+    `<b>${title}</b>`,
+    `🗓️ Tu: <b>${formatViShortDate(startDate.toISOString())}</b> den <b>${formatViShortDate(reportEndDate.toISOString())}</b>`,
+    "",
+    `💰 Tong doanh thu: <b>${formatVND(revenue)}</b>`,
+    `🧾 So bill: <b>${rows.length}</b>`,
+    `💵 Trung binh: <b>${formatVND(averageBill)}</b>/bill`,
+    `📆 Trung binh/ngay: <b>${formatVND(averagePerDay)}</b>`,
+    `🏆 Bill cao nhat: <b>${formatVND(highestBill)}</b>`,
+    "",
+    `💵 Tien mat: ${formatVND(cashRevenue)}`,
+    `🏦 Chuyen khoan: ${formatVND(transferRevenue)}`,
+  ];
+
+  if (paymentBreakdown.size > 0) {
+    lines.push("", "<b>💳 Co cau thanh toan:</b>");
+    for (const [method, amount] of [...paymentBreakdown.entries()].sort((a, b) => b[1] - a[1])) {
+      const percent = revenue > 0 ? Math.round((amount / revenue) * 100) : 0;
+      lines.push(`• ${method}: ${formatVND(amount)} (${percent}%)`);
+    }
+  }
+
+  if (peakDay) {
+    lines.push("", `📈 Ngay cao nhat: <b>${formatViShortDate(peakDay[0])}</b> — <b>${formatVND(peakDay[1])}</b>`);
+  }
+
+  if (period === "today") {
+    lines.push("", "<b>🕐 5 bill gan nhat:</b>");
+    if (recentBills.length === 0) {
+      lines.push("• Chua co bill nao.");
+    } else {
+      for (const row of recentBills) {
+        lines.push(`• ${formatViDateTime(String(row.created_at))}: ${formatVND(getTicketGrandTotal(row as { totals_json?: { grand_total?: number } | null }))}`);
+      }
+    }
+  } else {
+    lines.push("", "<b>📊 Chi tiet theo ngay:</b>");
+    for (const [date, amount] of dailyBuckets.entries()) {
+      const dayLabel = new Date(date).toLocaleDateString("vi-VN", {
+        timeZone: "Asia/Ho_Chi_Minh",
+        weekday: "short",
+        day: "2-digit",
+        month: "2-digit",
+      });
+      lines.push(`• ${dayLabel}: ${formatVND(amount)}`);
+    }
+  }
+
+  await sendTelegramMessage(chatId, lines.join("\n"), { reply_markup: getBackToAdminKeyboard() });
+}
+
+export async function beginCustomReportConversation(telegramUserId: number, orgId: string, chatId: string) {
+  await setConversationState(telegramUserId, "report:custom", { orgId });
+  await sendTelegramMessage(
+    chatId,
+    "📊 <b>BAO CAO TUY CHON</b>\n\nNhap theo dinh dang:\n• <code>01/04 - 30/04</code>\n\nGo <code>back</code> hoac <code>/cancel</code> de huy.",
+    { parse_mode: "HTML", reply_markup: getBackToAdminKeyboard() },
+  );
+}
+
+export async function beginQuickCreateAppointmentConversation(telegramUserId: number, orgId: string, chatId: string) {
+  await setConversationState(telegramUserId, "quickcreate:name", { orgId });
+  await sendTelegramMessage(chatId, "⚡ <b>TAO LICH MOI</b>\n\nTen khach hang?", {
+    reply_markup: getBackToAdminKeyboard(),
+  });
+}
+
+export async function confirmQuickCreateAppointment(telegramUserId: number, chatId: string) {
+  const state = await getConversationState(telegramUserId);
+  if (!state || state.step !== "quickcreate:service") {
+    return { ok: false, message: "Khong tim thay du lieu tao lich." };
+  }
+
+  const appointment = await createTelegramQuickAppointment(
+    state.data.orgId,
+    state.data.customerName,
+    state.data.customerPhone,
+    state.data.appointmentTimeIso,
+    state.data.requestedService,
+  );
+
+  await clearConversationState(telegramUserId);
+  await sendTelegramMessage(
+    chatId,
+    [
+      "✅ <b>TAO LICH THANH CONG!</b>",
+      "",
+      `👤 Khach: <b>${escapeHtml(state.data.customerName || "-")}</b>`,
+      `📞 SDT: <b>${escapeHtml(state.data.customerPhone || "-")}</b>`,
+      `🕐 Gio hen: <b>${formatViDateTime(appointment.start_at as string)}</b>`,
+      `💅 DV: <b>${escapeHtml(state.data.requestedService || "-")}</b>`,
+      `🆔 Appointment: <code>${appointment.id}</code>`,
+    ].join("\n"),
+    { reply_markup: getBackToAdminKeyboard() },
+  );
+
+  return { ok: true, message: "Da tao lich moi!" };
+}
+
+export async function handleQuickCheckinMenu(orgId: string, chatId: string) {
+  const supabase = getAdminSupabase();
+  const now = new Date();
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(todayStart);
+  todayEnd.setDate(todayEnd.getDate() + 1);
+
+  const { data: appointments, error } = await supabase
+    .from("appointments")
+    .select("id,status,start_at,customers(name)")
+    .eq("org_id", orgId)
+    .eq("status", "BOOKED")
+    .gte("start_at", todayStart.toISOString())
+    .lt("start_at", todayEnd.toISOString())
+    .order("start_at", { ascending: true });
+
+  if (error) throw error;
+
+  const rows = appointments ?? [];
+  if (!rows.length) {
+    await sendTelegramMessage(chatId, "<b>✅ CHECK-IN NHANH</b>\n\nKhong co khach cho check-in hom nay.", {
+      reply_markup: getBackToAdminKeyboard(),
+    });
+    return;
+  }
+
+  const lines = ["<b>✅ CHECK-IN NHANH</b>", "", "Danh sach khach cho check-in:"];
+  const keyboardRows = rows.map((row) => [
+    {
+      text: `✅ ${pickCustomerName(row.customers as Parameters<typeof pickCustomerName>[0])} (${formatViTime(row.start_at as string)})`,
+      callback_data: `checkin:${row.id}`,
+    },
+  ]);
+  keyboardRows.push([{ text: "◀️ Quay lai", callback_data: "menu:admin" }]);
+
+  for (const row of rows) {
+    lines.push(`• <b>${pickCustomerName(row.customers as Parameters<typeof pickCustomerName>[0])}</b> — ${formatViTime(row.start_at as string)}`);
+  }
+
+  await sendTelegramMessage(chatId, lines.join("\n"), { reply_markup: { inline_keyboard: keyboardRows } });
+}
+
+export async function handleQuickCheckinAction(orgId: string, chatId: string, appointmentId: string) {
+  const supabase = getAdminSupabase();
+  const { data: appointment, error } = await supabase
+    .from("appointments")
+    .select("id,status,start_at,customers(name)")
+    .eq("org_id", orgId)
+    .eq("id", appointmentId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!appointment?.id) {
+    return { ok: false, message: "Khong tim thay lich." };
+  }
+
+  if (appointment.status === "CHECKED_IN" || appointment.status === "DONE") {
+    return { ok: false, message: "Lich nay da duoc xu ly." };
+  }
+
+  const { error: updateError } = await supabase
+    .from("appointments")
+    .update({ status: "CHECKED_IN" })
+    .eq("id", appointmentId);
+
+  if (updateError) throw updateError;
+
+  await sendTelegramMessage(
+    chatId,
+    `✅ <b>CHECK-IN THANH CONG!</b>\n\nDa check-in khach: <b>${pickCustomerName(appointment.customers as Parameters<typeof pickCustomerName>[0])}</b>\nGio hen: ${formatViDateTime(appointment.start_at as string)}`,
+    { reply_markup: getBackToAdminKeyboard() },
+  );
+
+  return { ok: true, message: "Da check-in!" };
+}
+
+export async function handleBookingDetailCommand(orgId: string, chatId: string, bookingId: string) {
+  const supabase = getAdminSupabase();
+  const manageUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://chambeauty.io.vn"}/manage/booking-requests`;
+  const isLocalManageUrl = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(manageUrl);
+  const { data: booking, error } = await supabase
+    .from("booking_requests")
+    .select("id,org_id,customer_name,customer_phone,requested_service,requested_start_at,status,note")
+    .eq("org_id", orgId)
+    .eq("id", bookingId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!booking?.id) {
+    await sendTelegramMessage(chatId, "❌ Khong tim thay booking.");
+    return;
+  }
+
+  const statusLabel = booking.status === "NEW" ? "🆕 Moi" : "🔄 Can doi lich";
+  const lines = [
+    "<b>📌 CHI TIET BOOKING</b>",
+    "",
+    `<b>Trang thai:</b> ${statusLabel}`,
+    `<b>Khach:</b> ${escapeHtml(booking.customer_name)}`,
+    `<b>SDT:</b> ${escapeHtml(booking.customer_phone || "-")}`,
+    `<b>Dich vu:</b> ${escapeHtml(booking.requested_service || "-")}`,
+    `<b>Gio hen:</b> ${formatViDateTime(booking.requested_start_at as string)}`,
+  ];
+  if (booking.note) lines.push(`<b>Ghi chu:</b> ${escapeHtml(booking.note)}`);
+
+  await sendTelegramMessage(chatId, lines.join("\n"), {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "✅ Xac nhan", callback_data: `booking:confirm:${booking.id}` },
+          { text: "❌ Huy", callback_data: `booking:cancel:${booking.id}` },
+        ],
+        [{ text: "📅 Doi lich", callback_data: `booking:reschedule:${booking.id}` }],
+        ...(!isLocalManageUrl ? [[{ text: "🔗 Quan tri", url: manageUrl }]] : []),
+        [{ text: "◀️ Quay lai", callback_data: "menu:booking" }],
+      ],
+    },
+  });
 }
 
 export async function handleLinkCommand(telegramUserId: number, telegramUsername: string | undefined, telegramFirstName: string | undefined, code: string, chatId: string) {
@@ -366,12 +1649,24 @@ export async function handleLinkCommand(telegramUserId: number, telegramUsername
     `Tài khoản: <b>${displayName}</b>`,
     `Vai trò: <b>${role}</b>`,
     "",
-    "Bạn có thể dùng các lệnh sau:",
-    "/lich — Lịch hôm nay",
-    "/doanhthu — Doanh thu hôm nay",
-    "/ca — Ca làm đang mở",
-    "/booking — Booking chờ xử lý",
-  ].join("\n"));
+    "Chọn chức năng:",
+  ].join("\n"), { reply_markup: getMainMenuKeyboard() });
+}
+
+export function getMainMenuKeyboard() {
+  return {
+    inline_keyboard: [
+      [{ text: "CRM", callback_data: "menu:crm" }],
+      [
+        { text: "⚙️ Quan tri", callback_data: "menu:admin" },
+        { text: "📊 Tong quan", callback_data: "menu:overview" },
+      ],
+      [
+        { text: "📈 Bao cao", callback_data: "menu:report" },
+        { text: "📌 Booking", callback_data: "menu:booking" },
+      ],
+    ],
+  };
 }
 
 export async function handleStartCommand(telegramUserId: number, chatId: string) {
@@ -383,12 +1678,8 @@ export async function handleStartCommand(telegramUserId: number, chatId: string)
       "",
       `Đã liên kết: <b>${userInfo.display_name}</b> (${userInfo.role})`,
       "",
-      "Dùng lệnh:",
-      "/lich — Lịch hôm nay",
-      "/doanhthu — Doanh thu hôm nay",
-      "/ca — Ca làm đang mở",
-      "/booking — Booking chờ xử lý",
-    ].join("\n"));
+      "Chọn chức năng quản trị:",
+    ].join("\n"), { reply_markup: getMainMenuKeyboard() });
   } else {
     await sendTelegramMessage(chatId, [
       "👋 <b>Chào bạn!</b>",

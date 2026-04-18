@@ -13,12 +13,43 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type AppointmentRow = {
   id: string;
+  customer_id?: string | null;
   start_at: string;
   end_at: string;
   status: string;
   staff_user_id?: string | null;
   resource_id?: string | null;
-  customers?: { name?: string; phone?: string } | { name?: string; phone?: string }[] | null;
+  checked_in_at?: string | null;
+  customers?:
+    | {
+        id?: string;
+        name?: string;
+        phone?: string;
+        customer_status?: string;
+        total_visits?: number;
+        total_spend?: number;
+        last_visit_at?: string | null;
+        last_service_summary?: string | null;
+        care_note?: string | null;
+        next_follow_up_at?: string | null;
+        follow_up_status?: string | null;
+        favorite_staff_user_id?: string | null;
+      }
+    | Array<{
+        id?: string;
+        name?: string;
+        phone?: string;
+        customer_status?: string;
+        total_visits?: number;
+        total_spend?: number;
+        last_visit_at?: string | null;
+        last_service_summary?: string | null;
+        care_note?: string | null;
+        next_follow_up_at?: string | null;
+        follow_up_status?: string | null;
+        favorite_staff_user_id?: string | null;
+      }>
+    | null;
   booking_requests?: { id?: string; source?: string | null } | { id?: string; source?: string | null }[] | null;
 };
 
@@ -111,6 +142,20 @@ function pickCustomerPhone(customers: AppointmentRow["customers"]) {
   return customers?.phone ?? "";
 }
 
+function pickCustomerRecord(customers: AppointmentRow["customers"]) {
+  return Array.isArray(customers) ? customers[0] ?? null : customers ?? null;
+}
+
+function formatCompactDate(value: string | null | undefined) {
+  if (!value) return "-";
+  return new Date(value).toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function pickBookingRequest(row: AppointmentRow) {
   return Array.isArray(row.booking_requests) ? row.booking_requests[0] ?? null : row.booking_requests ?? null;
 }
@@ -184,6 +229,23 @@ function ResourceChip({ active, disabled, label, onClick }: { active: boolean; d
   );
 }
 
+function CrmMiniCard({ customer, compact = false }: { customer: NonNullable<ReturnType<typeof pickCustomerRecord>>; compact?: boolean }) {
+  return (
+    <div className={`rounded-2xl border border-violet-200 bg-violet-50 text-violet-950 ${compact ? "mt-2 px-3 py-2 text-xs" : "px-3 py-2.5 text-sm"}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold">CRM</span>
+        {customer.customer_status ? <span className="font-semibold">{customer.customer_status}</span> : null}
+        {typeof customer.total_visits === "number" ? <span>{customer.total_visits} luot</span> : null}
+        {typeof customer.total_spend === "number" ? <span>{customer.total_spend.toLocaleString("vi-VN")} VND</span> : null}
+      </div>
+      {customer.last_visit_at ? <div className="mt-1">Lan gan nhat: {formatCompactDate(customer.last_visit_at)}</div> : null}
+      {customer.last_service_summary ? <div className="mt-1">Dich vu gan nhat: {customer.last_service_summary}</div> : null}
+      {customer.care_note ? <div className="mt-1">Ghi chu: {customer.care_note}</div> : null}
+      {customer.next_follow_up_at ? <div className="mt-1">Follow-up: {formatCompactDate(customer.next_follow_up_at)}</div> : null}
+    </div>
+  );
+}
+
 function AppointmentCard({ row, staffName, resourceName, onlineBooked, overdue, staleCheckedIn, criticalCheckedIn, updatingId, onEdit, onQuickStatus, role, confirmCancelId, setConfirmCancelId }: {
   row: AppointmentRow;
   staffName: string;
@@ -201,6 +263,7 @@ function AppointmentCard({ row, staffName, resourceName, onlineBooked, overdue, 
 }) {
   const customer = pickCustomerName(row.customers);
   const customerPhone = pickCustomerPhone(row.customers);
+  const customerRecord = pickCustomerRecord(row.customers);
 
   return (
     <div className={`rounded-2xl border bg-white p-3 shadow-sm ${overdue ? "border-amber-300 bg-amber-50/40" : criticalCheckedIn ? "border-fuchsia-300 bg-fuchsia-50/40" : staleCheckedIn ? "border-violet-300 bg-violet-50/40" : "border-neutral-200"}`}>
@@ -264,6 +327,8 @@ function AppointmentCard({ row, staffName, resourceName, onlineBooked, overdue, 
           ) : null}
         </div>
       </div>
+
+      {customerRecord ? <CrmMiniCard customer={customerRecord} compact /> : null}
     </div>
   );
 }
@@ -293,6 +358,7 @@ export default function OperationsPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [showDetailList, setShowDetailList] = useState(false);
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
+  const [prefilledCustomerId, setPrefilledCustomerId] = useState<string | null>(null);
   const formRef = useRef<HTMLElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
 
@@ -338,9 +404,30 @@ export default function OperationsPage() {
     void load({ force: true });
   }, [load]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const qs = new URLSearchParams(window.location.search);
+    const customer = qs.get("customer");
+    const customerId = qs.get("customerId");
+    if (customer) setCustomerName(customer);
+    if (customerId) setPrefilledCustomerId(customerId);
+  }, []);
+
   const scopedRows = useMemo(() => {
     return rows;
   }, [rows]);
+  const matchedFormCustomer = useMemo(() => {
+    if (prefilledCustomerId) {
+      const byId = scopedRows.find((row) => row.customer_id === prefilledCustomerId);
+      const direct = pickCustomerRecord(byId?.customers);
+      if (direct) return direct;
+    }
+
+    const normalized = customerName.trim().toLowerCase();
+    if (!normalized) return null;
+    const matched = scopedRows.find((row) => pickCustomerName(row.customers).trim().toLowerCase() === normalized);
+    return pickCustomerRecord(matched?.customers);
+  }, [customerName, prefilledCustomerId, scopedRows]);
 
   const filterRange = useMemo(() => {
     const nowDate = new Date();
@@ -427,6 +514,7 @@ export default function OperationsPage() {
   function resetForm() {
     const next = roundToNextSlot(new Date());
     setCustomerName("");
+    setPrefilledCustomerId(null);
     setAutoTime(true);
     setBookingAt(toInputValue(next));
     setStaffUserId(role === "TECH" ? myUserId : "");
@@ -559,6 +647,7 @@ export default function OperationsPage() {
                   <FieldLabel className="mb-0">Tên khách</FieldLabel>
                   <TextInput placeholder="Ví dụ: Nguyễn Thị A" value={customerName} onChange={(e) => setCustomerName(e.target.value)} required />
                 </div>
+                {matchedFormCustomer ? <CrmMiniCard customer={matchedFormCustomer} /> : null}
                 <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2.5">
                   <FieldLabel className="mb-0">Chế độ giờ</FieldLabel>
                   <SelectInput value={autoTime ? "auto" : "custom"} onChange={(e) => setAutoTime(e.target.value === "auto")}><option value="auto">Giờ tự động</option><option value="custom">Tùy chỉnh giờ</option></SelectInput>
@@ -585,6 +674,7 @@ export default function OperationsPage() {
                   <FieldLabel className="mb-0">Tên khách</FieldLabel>
                   <TextInput placeholder="Ví dụ: Nguyễn Thị A" value={customerName} onChange={(e) => setCustomerName(e.target.value)} required />
                 </div>
+                {matchedFormCustomer ? <CrmMiniCard customer={matchedFormCustomer} /> : null}
                 <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2.5">
                   <FieldLabel className="mb-0">Chế độ giờ</FieldLabel>
                   <SelectInput value={autoTime ? "auto" : "custom"} onChange={(e) => setAutoTime(e.target.value === "auto")}><option value="auto">Giờ tự động</option><option value="custom">Tùy chỉnh giờ</option></SelectInput>
@@ -656,7 +746,7 @@ export default function OperationsPage() {
                       const overdue = isOverdueBooked(a);
                       const staleCheckedIn = isStaleCheckedIn(a);
                       const criticalCheckedIn = isCriticalCheckedIn(a);
-                      return <AppointmentCard key={`desktop-${a.id}`} row={a} staffName={staff} resourceName={resource} onlineBooked={isOnlineBooked(a)} overdue={overdue} staleCheckedIn={staleCheckedIn} criticalCheckedIn={criticalCheckedIn} updatingId={updatingId} role={role} confirmCancelId={confirmCancelId} setConfirmCancelId={setConfirmCancelId} onEdit={() => { setEditingId(a.id); setCustomerName(customer); setAutoTime(false); setBookingAt(rebaseDateTimeToToday(a.start_at)); setStaffUserId(a.staff_user_id ?? ""); setResourceId(a.resource_id ?? ""); requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }} onQuickStatus={onQuickStatus} />;
+                      return <AppointmentCard key={`desktop-${a.id}`} row={a} staffName={staff} resourceName={resource} onlineBooked={isOnlineBooked(a)} overdue={overdue} staleCheckedIn={staleCheckedIn} criticalCheckedIn={criticalCheckedIn} updatingId={updatingId} role={role} confirmCancelId={confirmCancelId} setConfirmCancelId={setConfirmCancelId} onEdit={() => { setEditingId(a.id); setPrefilledCustomerId(a.customer_id ?? null); setCustomerName(customer); setAutoTime(false); setBookingAt(rebaseDateTimeToToday(a.start_at)); setStaffUserId(a.staff_user_id ?? ""); setResourceId(a.resource_id ?? ""); requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }} onQuickStatus={onQuickStatus} />;
                     })}
                   </div>
                 )}
@@ -705,7 +795,7 @@ export default function OperationsPage() {
                     const overdue = isOverdueBooked(a);
                     const staleCheckedIn = isStaleCheckedIn(a);
                     const criticalCheckedIn = isCriticalCheckedIn(a);
-                    return <AppointmentCard key={a.id} row={a} staffName={staff} resourceName={resource} onlineBooked={isOnlineBooked(a)} overdue={overdue} staleCheckedIn={staleCheckedIn} criticalCheckedIn={criticalCheckedIn} updatingId={updatingId} role={role} confirmCancelId={confirmCancelId} setConfirmCancelId={setConfirmCancelId} onEdit={() => { setEditingId(a.id); setCustomerName(customer); setAutoTime(false); setBookingAt(rebaseDateTimeToToday(a.start_at)); setStaffUserId(a.staff_user_id ?? ""); setResourceId(a.resource_id ?? ""); requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }} onQuickStatus={onQuickStatus} />;
+                    return <AppointmentCard key={a.id} row={a} staffName={staff} resourceName={resource} onlineBooked={isOnlineBooked(a)} overdue={overdue} staleCheckedIn={staleCheckedIn} criticalCheckedIn={criticalCheckedIn} updatingId={updatingId} role={role} confirmCancelId={confirmCancelId} setConfirmCancelId={setConfirmCancelId} onEdit={() => { setEditingId(a.id); setPrefilledCustomerId(a.customer_id ?? null); setCustomerName(customer); setAutoTime(false); setBookingAt(rebaseDateTimeToToday(a.start_at)); setStaffUserId(a.staff_user_id ?? ""); setResourceId(a.resource_id ?? ""); requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }} onQuickStatus={onQuickStatus} />;
                   })}
                 </div>
               )}

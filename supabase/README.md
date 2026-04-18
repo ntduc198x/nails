@@ -1,24 +1,41 @@
-# Supabase SQL layout
+﻿# Supabase SQL layout
 
 ## Canonical deploy
 
 - `deploy.sql`
-  - file deploy chuẩn duy nhất
-  - chứa schema, RLS, RPC, indexes, invite codes, landing booking, storage setup
+  - file deploy chuan duy nhat
+  - chua schema, RLS, RPC, indexes, invite codes, landing booking, storage setup
+  - da bao gom Telegram setup (`telegram_links`, `telegram_link_codes`, `telegram_conversations`, RPC cho Telegram)
+  - da bao gom cac cot runtime app dang dung nhu `appointments.checked_in_at` va `appointments.overdue_alert_sent_at`
 
-## Legacy
+## Split files
 
-Các file trong `legacy/` chỉ để tham chiếu lịch sử, backfill, smoke test, hoặc patch tạm.
-Không dùng như bộ deploy chuẩn mới.
+- `app_sessions.sql`
+  - setup session / single-device login
+- `telegram_links.sql`
+  - ban tach rieng cho Telegram link + RPC
+  - giu lai de patch chon loc khi khong muon chay lai `deploy.sql`
+- `telegram_conversations.sql`
+  - ban tach rieng cho Telegram conversation state
+  - giu lai de patch nhanh khi can
+- `lookbook_trend_seed.sql`
+  - seed mau lookbook
+- `update_services_from_priceboard.sql`
+  - seed/update bang gia thanh services
 
-## Ghi chú
+## Notes
 
-- `remove_dev_role.sql` đã được chạy xong và đã bỏ khỏi bộ chuẩn.
-- Nếu cần setup môi trường mới, ưu tiên chạy `deploy.sql`.
+- Neu can setup moi truong moi, uu tien chay `deploy.sql`.
+- Chi chay cac file split rieng khi can patch mot phan cu the.
 
-Thứ tự chạy:
-1	deploy.sql	Schema + RLS + RPC chính	Lần đầu setup
-2	app_sessions.sql	Single-device login	Sau deploy.sql
-3	telegram_links.sql	Telegram bot	Sau deploy.sql
-4	lookbook_trend_seed.sql	Seed mẫu lookbook	Khi cần
-5	update_services_from_priceboard.sql	Seed bảng giá	Khi cần
+## Recommended order
+
+1. `deploy.sql` - Schema + RLS + RPC + Telegram + runtime patches
+2. `app_sessions.sql` - Single-device login
+3. `lookbook_trend_seed.sql` - seed mau lookbook khi can
+4. `update_services_from_priceboard.sql` - seed bang gia khi can
+
+## Selective patch order
+
+1. `telegram_links.sql` - patch Telegram link + RPC
+2. `telegram_conversations.sql` - patch Telegram conversation state

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { countNewBookingRequests } from "@/lib/booking-requests";
 import { createAppSession, logoutWithSessionCleanup, validateAppSession } from "@/lib/app-session";
@@ -25,6 +25,7 @@ const navGroups = [
     label: "Thiết lập",
     href: "/manage/services",
     items: [
+      { href: "/manage/customers", label: "CRM khách", desc: "Hồ sơ khách, follow-up, chăm sóc lại" },
       { href: "/manage/services", label: "Dịch vụ", desc: "Menu dịch vụ và VAT" },
       { href: "/manage/resources", label: "Ghế/Bàn", desc: "Quản lý chair, table, room" },
       { href: "/manage/team", label: "Nhân sự", desc: "Role và nhân sự" },
@@ -45,7 +46,7 @@ function canAccess(role: AppRole, href: string) {
   if (role === "OWNER") return true;
   if (role === "MANAGER") return href !== "/manage/tax-books";
   if (role === "RECEPTION") {
-    return ["/manage", "/manage/booking-requests", "/manage/appointments", "/manage/resources", "/manage/checkout", "/manage/shifts"].includes(href);
+    return ["/manage", "/manage/booking-requests", "/manage/appointments", "/manage/resources", "/manage/checkout", "/manage/shifts", "/manage/customers"].includes(href);
   }
   if (role === "TECH") {
     return ["/manage", "/manage/booking-requests", "/manage/appointments", "/manage/checkout", "/manage/shifts"].includes(href);
@@ -240,10 +241,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
 
     return navGroups
-      .map((group) => ({
-        ...group,
-        items: group.items.filter((item) => canAccess(role, item.href)),
-      }))
+      .map((group) => {
+        const baseItems = group.items.filter((item) => {
+          if (group.href === "/manage/services" && item.href === "/manage/customers") return false;
+          return canAccess(role, item.href);
+        });
+
+        const items = group.href === "/manage/reports" && canAccess(role, "/manage/customers")
+          ? [
+              { href: "/manage/customers", label: "CRM khách", desc: "Hồ sơ khách, follow-up, chăm sóc lại" },
+              ...baseItems.filter((item) => item.href !== "/manage/customers"),
+            ]
+          : baseItems;
+
+        return {
+          ...group,
+          items,
+        };
+      })
       .filter((group) => group.items.length > 0);
   }, [role]);
 
@@ -427,7 +442,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </div>
                 <div className="mt-2 grid gap-2">
                   <Link href="/manage/account" className="rounded-xl border px-3 py-2 text-sm font-medium hover:bg-[#faf7f2]" style={{ borderColor: "var(--color-border)" }} onClick={() => setMobileOpen(false)}>
-                    Hồ sơ & bảo mật
+                    Hồ sơ & báº£o máº­t
                   </Link>
                   <button onClick={onLogout} className="rounded-xl border px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50" style={{ borderColor: "#fecaca" }}>
                     Đăng xuất
@@ -442,3 +457,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
+
+

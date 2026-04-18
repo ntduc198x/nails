@@ -65,7 +65,16 @@ async function checkSessionChanged(): Promise<boolean> {
 
 function isMissingResourceSchema(error: unknown) {
   const msg = error instanceof Error ? error.message : String(error ?? "");
-  return msg.includes("resource_id") || msg.includes("resources") || msg.includes("staff_user_id");
+  return msg.includes("resource_id")
+    || msg.includes("resources")
+    || msg.includes("staff_user_id")
+    || msg.includes("customer_status")
+    || msg.includes("total_visits")
+    || msg.includes("total_spend")
+    || msg.includes("last_service_summary")
+    || msg.includes("care_note")
+    || msg.includes("next_follow_up_at")
+    || msg.includes("follow_up_status");
 }
 
 export async function ensureOrgContext(opts?: { force?: boolean }): Promise<OrgContext> {
@@ -486,7 +495,7 @@ export async function listAppointments(opts?: { force?: boolean }) {
 
   let { data, error } = await supabase
     .from("appointments")
-    .select("id,start_at,end_at,status,staff_user_id,resource_id,checked_in_at,customers(name,phone),booking_requests!booking_requests_appointment_id_fkey(id,source)")
+    .select("id,customer_id,start_at,end_at,status,staff_user_id,resource_id,checked_in_at,customers(id,name,phone,customer_status,total_visits,total_spend,last_visit_at,last_service_summary,care_note,next_follow_up_at,follow_up_status,favorite_staff_user_id),booking_requests!booking_requests_appointment_id_fkey(id,source)")
     .eq("org_id", orgId)
     .gte("start_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
     .order("start_at", { ascending: true })
@@ -496,12 +505,12 @@ export async function listAppointments(opts?: { force?: boolean }) {
     resourceSchedulingSupported = false;
     const fallback = await supabase
       .from("appointments")
-      .select("id,start_at,end_at,status,staff_user_id,resource_id,customers(name,phone),booking_requests!booking_requests_appointment_id_fkey(id,source)")
+      .select("id,customer_id,start_at,end_at,status,staff_user_id,resource_id,customers(id,name,phone),booking_requests!booking_requests_appointment_id_fkey(id,source)")
       .eq("org_id", orgId)
       .gte("start_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
       .order("start_at", { ascending: true })
       .limit(300);
-    data = (fallback.data ?? []).map((row) => ({ ...row, staff_user_id: null, resource_id: null, checked_in_at: null }));
+    data = (fallback.data ?? []).map((row) => ({ ...row, staff_user_id: null, resource_id: null, checked_in_at: null })) as typeof data;
     error = fallback.error;
   }
 
@@ -618,7 +627,7 @@ export async function listCheckedInAppointments() {
 
   const { data, error } = await supabase
     .from("appointments")
-    .select("id,start_at,staff_user_id,resource_id,customers(name)")
+    .select("id,customer_id,start_at,staff_user_id,resource_id,customers(id,name,phone,customer_status,total_visits,total_spend,last_visit_at,last_service_summary,care_note,next_follow_up_at,follow_up_status)")
     .eq("org_id", orgId)
     .eq("status", "CHECKED_IN")
     .order("start_at", { ascending: true })

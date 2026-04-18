@@ -1,18 +1,31 @@
 import { NextResponse } from "next/server";
+import {
+  getTelegramWebhookSecret,
+  isTelegramWebhookSecretConfigured,
+  verifyTelegramInternalRequest,
+} from "@/lib/route-secrets";
 
 const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
+const telegramWebhookSecret = getTelegramWebhookSecret();
 const publicBaseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.chambeauty.io.vn";
 
 const BOT_COMMANDS = [
   { command: "start", description: "Bat dau su dung bot" },
   { command: "link", description: "Lien ket tai khoan Nails App" },
+  { command: "manage", description: "Mo menu quan tri Telegram" },
+  { command: "me", description: "Xem trang thai lien ket Telegram" },
   { command: "lich", description: "Xem lich hom nay" },
   { command: "doanhthu", description: "Doanh thu hom nay" },
   { command: "ca", description: "Ca lam dang mo" },
   { command: "booking", description: "Booking cho xu ly" },
 ];
 
-export async function POST() {
+export async function POST(req: Request) {
+  const auth = verifyTelegramInternalRequest(req);
+  if (!auth.ok) {
+    return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status });
+  }
+
   if (!telegramBotToken) {
     return NextResponse.json(
       { ok: false, error: "TELEGRAM_BOT_TOKEN is not configured" },
@@ -21,8 +34,19 @@ export async function POST() {
   }
 
   const webhookUrl = `${publicBaseUrl}/api/telegram/callback`;
+  const isLocalhostBaseUrl = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(publicBaseUrl);
   const results: Record<string, unknown> = {};
   const errors: string[] = [];
+
+  if (isLocalhostBaseUrl) {
+    return NextResponse.json({
+      ok: false,
+      webhookUrl,
+      publicBaseUrl,
+      warning: "Telegram khong the goi webhook vao localhost truc tiep. Dung route /api/telegram/dev de test local, hoac expose localhost bang tunnel nhu ngrok/cloudflared roi moi setWebhook.",
+      localTestRoute: `${publicBaseUrl}/api/telegram/dev`,
+    }, { status: 400 });
+  }
 
   // Set webhook
   try {
@@ -34,6 +58,7 @@ export async function POST() {
         body: JSON.stringify({
           url: webhookUrl,
           allowed_updates: ["message", "callback_query"],
+          ...(telegramWebhookSecret ? { secret_token: telegramWebhookSecret } : {}),
         }),
       }
     );
@@ -78,7 +103,12 @@ export async function POST() {
   });
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = verifyTelegramInternalRequest(req);
+  if (!auth.ok) {
+    return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status });
+  }
+
   if (!telegramBotToken) {
     return NextResponse.json(
       { ok: false, error: "TELEGRAM_BOT_TOKEN is not configured" },
@@ -99,6 +129,9 @@ export async function GET() {
 
     return NextResponse.json({
       ok: true,
+      security: {
+        webhookSecretConfigured: isTelegramWebhookSecretConfigured(),
+      },
       webhook,
       commands,
       bot: me,

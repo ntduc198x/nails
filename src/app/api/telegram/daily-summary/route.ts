@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
 import { getAdminSupabase, sendTelegramMessage, formatVND } from "@/lib/telegram-bot";
+import { verifyTelegramInternalRequest } from "@/lib/route-secrets";
 
 const telegramChatId = process.env.TELEGRAM_BOOKING_CHAT_ID;
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
+    const auth = verifyTelegramInternalRequest(req);
+    if (!auth.ok) {
+      return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status });
+    }
+
     if (!telegramChatId) {
       return NextResponse.json({ ok: false, error: "Thiếu TELEGRAM_BOOKING_CHAT_ID" }, { status: 500 });
     }

@@ -7,6 +7,7 @@ import { ManageDateTimePicker } from "@/components/manage-datetime-picker";
 import { MobileSectionHeader } from "@/components/manage-mobile";
 import { ManageQuickNav, operationsQuickNav } from "@/components/manage-quick-nav";
 import { getCurrentSessionRole, type AppRole } from "@/lib/auth";
+import { listCustomerCardsByPhones, type CustomerCrmSummary } from "@/lib/crm";
 import {
   BookingRequestRow,
   BookingRequestStatus,
@@ -68,12 +69,32 @@ function isExpiredBookingRequest(row: BookingRequestRow) {
   return !!row.requested_start_at && new Date(row.requested_start_at).getTime() < Date.now();
 }
 
+function normalizePhone(value: string | null | undefined) {
+  if (!value) return null;
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return null;
+  if (digits.startsWith("84") && digits.length >= 11) return `0${digits.slice(2)}`;
+  return digits;
+}
+
+function formatShortDateTime(value: string | null) {
+  if (!value) return "-";
+  return new Date(value).toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function QueueCard({
   row,
+  crm,
   active,
   onClick,
 }: {
   row: BookingRequestRow;
+  crm?: CustomerCrmSummary | null;
   active: boolean;
   onClick: () => void;
 }) {
@@ -99,6 +120,18 @@ function QueueCard({
 
       <div className="mt-2 grid gap-1 text-[11px] text-neutral-600 md:text-xs">
         <p className="truncate">{new Date(row.requested_start_at).toLocaleString("vi-VN")}</p>
+        {crm ? (
+          <div className="mt-1 rounded-2xl border border-violet-200 bg-violet-50 px-2.5 py-2 text-[11px] text-violet-900">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="rounded-full bg-violet-100 px-2 py-0.5 font-semibold">Khach cu</span>
+              <span>{crm.total_visits} luot</span>
+              <span>-</span>
+              <span>{crm.customer_status}</span>
+            </div>
+            <div className="mt-1 text-violet-800">Lan gan nhat: {formatShortDateTime(crm.last_visit_at)}</div>
+            {crm.last_service_summary ? <div className="mt-1 line-clamp-1 text-violet-800">Dich vu gan nhat: {crm.last_service_summary}</div> : null}
+          </div>
+        ) : null}
         <p className="truncate">{row.requested_service ?? "Không rõ dịch vụ"}</p>
       </div>
     </button>
@@ -120,6 +153,7 @@ function SelectInput(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
 
 export default function BookingRequestsPage() {
   const [rows, setRows] = useState<BookingRequestRow[]>([]);
+  const [crmCards, setCrmCards] = useState<CustomerCrmSummary[]>([]);
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
   const [resourceOptions, setResourceOptions] = useState<ResourceOption[]>([]);
   const [role, setRole] = useState<AppRole | null>(null);
@@ -164,9 +198,12 @@ export default function BookingRequestsPage() {
         listStaffMembers(),
         listResources(),
       ]);
+      const activeRequests = requests.filter((row) => row.status === "NEW" || row.status === "NEEDS_RESCHEDULE");
+      const cards = await listCustomerCardsByPhones(activeRequests.map((row) => row.customer_phone));
 
       setRole(currentRole);
-      setRows(requests.filter((row) => row.status === "NEW" || row.status === "NEEDS_RESCHEDULE"));
+      setRows(activeRequests);
+      setCrmCards(cards);
       setStaffOptions(staffs as StaffOption[]);
       setResourceOptions(resources as ResourceOption[]);
     } catch (e) {
@@ -184,6 +221,18 @@ export default function BookingRequestsPage() {
   const rescheduleRows = useMemo(() => rows.filter((row) => row.status === "NEEDS_RESCHEDULE"), [rows]);
   const newRows = useMemo(() => rows.filter((row) => row.status === "NEW"), [rows]);
   const selectedRow = useMemo(() => rows.find((row) => row.id === selectedId) ?? null, [rows, selectedId]);
+  const crmByPhone = useMemo(() => {
+    const map = new Map<string, CustomerCrmSummary>();
+    for (const row of crmCards) {
+      const phone = normalizePhone(row.phone);
+      if (phone) map.set(phone, row);
+    }
+    return map;
+  }, [crmCards]);
+  const selectedCustomerCrm = useMemo(() => {
+    if (!selectedRow) return null;
+    return crmByPhone.get(normalizePhone(selectedRow.customer_phone) ?? "") ?? null;
+  }, [crmByPhone, selectedRow]);
 
   useEffect(() => {
     if (!selectedRow) return;
@@ -361,7 +410,7 @@ export default function BookingRequestsPage() {
                   </div>
                 ) : (
                   newRows.map((row) => (
-                    <QueueCard key={row.id} row={row} active={selectedId === row.id} onClick={() => setSelectedId(row.id)} />
+                    <QueueCard key={row.id} row={row} crm={crmByPhone.get(normalizePhone(row.customer_phone) ?? "") ?? null} active={selectedId === row.id} onClick={() => setSelectedId(row.id)} />
                   ))
                 )}
               </div>
@@ -382,7 +431,7 @@ export default function BookingRequestsPage() {
                   </div>
                 ) : (
                   rescheduleRows.map((row) => (
-                    <QueueCard key={row.id} row={row} active={selectedId === row.id} onClick={() => setSelectedId(row.id)} />
+                    <QueueCard key={row.id} row={row} crm={crmByPhone.get(normalizePhone(row.customer_phone) ?? "") ?? null} active={selectedId === row.id} onClick={() => setSelectedId(row.id)} />
                   ))
                 )}
               </div>
@@ -428,6 +477,22 @@ export default function BookingRequestsPage() {
                       <p className="mt-1 truncate text-xs font-medium text-neutral-900 md:text-sm">{selectedRow.requested_service ?? "-"}</p>
                     </div>
                   </div>
+
+                  {selectedCustomerCrm ? (
+                    <div className="mt-2 rounded-2xl border border-violet-200 bg-violet-50 px-3 py-2.5 text-sm text-violet-950">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold">CRM</span>
+                        <span className="font-semibold">{selectedCustomerCrm.customer_status}</span>
+                        <span>-</span>
+                        <span>{selectedCustomerCrm.total_visits} luot</span>
+                        <span>-</span>
+                        <span>{selectedCustomerCrm.total_spend.toLocaleString("vi-VN")} VND</span>
+                      </div>
+                      <div className="mt-1 text-xs text-violet-900">Lan gan nhat: {formatShortDateTime(selectedCustomerCrm.last_visit_at)}</div>
+                      {selectedCustomerCrm.last_service_summary ? <div className="mt-1 text-xs text-violet-900">Dich vu gan nhat: {selectedCustomerCrm.last_service_summary}</div> : null}
+                      {selectedCustomerCrm.care_note ? <div className="mt-1 text-xs text-violet-900">Ghi chu: {selectedCustomerCrm.care_note}</div> : null}
+                    </div>
+                  ) : null}
 
                   {selectedRow.status === "NEEDS_RESCHEDULE" ? (
                     <p className={`mt-2 rounded-xl px-3 py-1.5 text-xs md:text-sm ${isExpiredBookingRequest(selectedRow) ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-900"}`}>

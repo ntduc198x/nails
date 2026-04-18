@@ -4,6 +4,7 @@ import { AppShell } from "@/components/app-shell";
 import { MobileCollapsible, MobileSectionHeader } from "@/components/manage-mobile";
 import { ManageQuickNav, reportsQuickNav } from "@/components/manage-quick-nav";
 import { listUserRoles } from "@/lib/auth";
+import { getCrmDashboardMetrics } from "@/lib/crm";
 import { formatVnd } from "@/lib/mock-data";
 import { getReportBreakdown, getStaffRevenueInRange, listTicketsInRange, listTimeEntriesInRange, type ReportTicketRow } from "@/lib/reporting";
 import Link from "next/link";
@@ -90,6 +91,7 @@ export default function ReportsPage() {
   const [breakdownError, setBreakdownError] = useState<string | null>(null);
   const [staffHours, setStaffHours] = useState<Array<{ staff: string; minutes: number; entries: number }>>([]);
   const [staffRevenue, setStaffRevenue] = useState<Array<{ staffUserId: string; staff: string; revenue: number; tickets: number }>>([]);
+  const [crmMetrics, setCrmMetrics] = useState({ newToday: 0, returningToday: 0, atRiskCount: 0, repeat30: 0 });
   const hasLoadedRef = useRef(false);
   const ticketsSectionRef = useRef<HTMLDivElement | null>(null);
 
@@ -128,15 +130,17 @@ export default function ReportsPage() {
       setRows(data);
 
       try {
-        const [summaryData, timeRows, teamRows, staffRevenueRows] = await Promise.all([
+        const [summaryData, timeRows, teamRows, staffRevenueRows, crm] = await Promise.all([
           getReportBreakdown(fromIso, toIso),
           listTimeEntriesInRange(fromIso, toIso),
           listUserRoles(),
           getStaffRevenueInRange(fromIso, toIso),
+          getCrmDashboardMetrics(),
         ]);
 
         setBreakdown(summaryData);
         setStaffRevenue(staffRevenueRows);
+        setCrmMetrics(crm);
 
         const team = (teamRows ?? []) as Array<{ user_id: string; display_name?: string; role?: string }>;
         const eligibleStaffIds = new Set(team.filter((r) => r.role !== "OWNER").map((r) => r.user_id));
@@ -267,6 +271,25 @@ export default function ReportsPage() {
             <div className="rounded-2xl bg-[var(--color-primary)] px-3 py-2.5 text-white">
               <div className="text-[10px] tracking-[0.04em] text-white/80">Doanh thu</div>
               <div className="mt-1 text-sm font-semibold">{formatVnd(summary.revenue)}</div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
+              <div className="text-[10px] tracking-[0.04em] text-neutral-500">Khách mới hôm nay</div>
+              <div className="mt-1 text-sm font-semibold text-neutral-900">{crmMetrics.newToday}</div>
+            </div>
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
+              <div className="text-[10px] tracking-[0.04em] text-neutral-500">Khách quay lại</div>
+              <div className="mt-1 text-sm font-semibold text-neutral-900">{crmMetrics.returningToday}</div>
+            </div>
+            <div className="rounded-2xl border border-orange-200 bg-orange-50 px-3 py-2.5">
+              <div className="text-[10px] tracking-[0.04em] text-orange-700">Có nguy cơ rời bỏ</div>
+              <div className="mt-1 text-sm font-semibold text-orange-900">{crmMetrics.atRiskCount}</div>
+            </div>
+            <div className="rounded-2xl border border-violet-200 bg-violet-50 px-3 py-2.5">
+              <div className="text-[10px] tracking-[0.04em] text-violet-700">Repeat 30 ngày</div>
+              <div className="mt-1 text-sm font-semibold text-violet-900">{crmMetrics.repeat30}%</div>
             </div>
           </div>
 
@@ -434,47 +457,45 @@ export default function ReportsPage() {
                 )}
               </div>
 
-              <div className="md:hidden">
-                <MobileCollapsible
-                  summary={<div className="flex items-center justify-between gap-3 pr-2"><span>Chi tiết bill</span><span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[10px] font-medium text-neutral-700">{filteredTicketRows.length}</span></div>}
-                  open={mobileTicketsOpen}
-                  onToggle={setMobileTicketsOpen}
-                >
-                  {loading ? (
-                    <div className="space-y-2"><div className="skeleton h-10 rounded-xl" /><div className="skeleton h-10 rounded-xl" /><div className="skeleton h-10 rounded-xl" /></div>
-                  ) : filteredTicketRows.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-8 text-sm text-neutral-500">Không có bill nào khớp bộ lọc hiện tại.</div>
-                  ) : (
-                    <div className="space-y-1.5">
-                      {mobileTicketRows.map((t) => (
-                        <div key={t.id} className="rounded-xl border border-neutral-200 bg-white p-1.5">
-                          <div className="flex items-start justify-between gap-1.5">
-                            <div className="min-w-0 flex-1">
-                              <div className="line-clamp-1 text-[13px] font-medium text-neutral-900">{t.staff_user_id ? (staffNameMap.get(t.staff_user_id) ?? t.staff_user_id.slice(0, 8)) : "-"}</div>
-                              <div className="mt-0.5 text-[10px] leading-4 text-neutral-500">{new Date(t.created_at).toLocaleString("vi-VN")}</div>
-                            </div>
-                            <div className="shrink-0 text-right text-[13px] font-semibold text-neutral-900">{formatVnd(Number(t.totals_json?.grand_total ?? 0))}</div>
+<div className="md:hidden space-y-3">
+                <div className="flex items-center justify-between gap-3 pr-2">
+                  <span className="text-sm font-semibold text-neutral-900">Chi tiết bill</span>
+                  <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[10px] font-medium text-neutral-700">{filteredTicketRows.length}</span>
+                </div>
+                {loading ? (
+                  <div className="space-y-2"><div className="skeleton h-10 rounded-xl" /><div className="skeleton h-10 rounded-xl" /><div className="skeleton h-10 rounded-xl" /></div>
+                ) : filteredTicketRows.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-8 text-sm text-neutral-500">Không có bill nào khớp bộ lọc hiện tại.</div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {mobileTicketRows.map((t) => (
+                      <div key={t.id} className="rounded-xl border border-neutral-200 bg-white p-1.5">
+                        <div className="flex items-start justify-between gap-1.5">
+                          <div className="min-w-0 flex-1">
+                            <div className="line-clamp-1 text-[13px] font-medium text-neutral-900">{t.staff_user_id ? (staffNameMap.get(t.staff_user_id) ?? t.staff_user_id.slice(0, 8)) : "-"}</div>
+                            <div className="mt-0.5 text-[10px] leading-4 text-neutral-500">{new Date(t.created_at).toLocaleString("vi-VN")}</div>
                           </div>
-                          <div className="mt-1 flex flex-wrap gap-1 text-[10px] text-neutral-700">
-                            <span className="rounded-full bg-neutral-100 px-2 py-0.5">{t.status}</span>
-                            <span className="rounded-full bg-neutral-100 px-2 py-0.5">{formatVnd(Number(t.totals_json?.subtotal ?? 0))}</span>
-                            <span className="rounded-full bg-neutral-100 px-2 py-0.5">VAT {formatVnd(Number(t.totals_json?.vat_total ?? 0))}</span>
-                            <Link className="rounded-full border border-neutral-200 bg-white px-2 py-0.5 font-medium text-neutral-800" href={`/manage/reports/${t.id}`}>Chi tiết</Link>
-                          </div>
+                          <div className="shrink-0 text-right text-[13px] font-semibold text-neutral-900">{formatVnd(Number(t.totals_json?.grand_total ?? 0))}</div>
                         </div>
-                      ))}
-                      {filteredTicketRows.length > mobileTicketRows.length ? (
-                        <button
-                          type="button"
-                          className="mt-2 w-full cursor-pointer rounded-2xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-medium text-neutral-700"
-                          onClick={() => setMobileTicketsLimit((v) => v + 12)}
-                        >
-                          Xem thêm {Math.min(12, filteredTicketRows.length - mobileTicketRows.length)} bill
-                        </button>
-                      ) : null}
-                    </div>
-                  )}
-                </MobileCollapsible>
+                        <div className="mt-1 flex flex-wrap gap-1 text-[10px] text-neutral-700">
+                          <span className="rounded-full bg-neutral-100 px-2 py-0.5">{t.status}</span>
+                          <span className="rounded-full bg-neutral-100 px-2 py-0.5">{formatVnd(Number(t.totals_json?.subtotal ?? 0))}</span>
+                          <span className="rounded-full bg-neutral-100 px-2 py-0.5">VAT {formatVnd(Number(t.totals_json?.vat_total ?? 0))}</span>
+                          <Link className="rounded-full border border-neutral-200 bg-white px-2 py-0.5 font-medium text-neutral-800" href={`/manage/reports/${t.id}`}>Chi tiết</Link>
+                        </div>
+                      </div>
+                    ))}
+                    {filteredTicketRows.length > mobileTicketRows.length ? (
+                      <button
+                        type="button"
+                        className="mt-2 w-full cursor-pointer rounded-2xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-medium text-neutral-700"
+                        onClick={() => setMobileTicketsLimit((v) => v + 12)}
+                      >
+                        Xem thêm {Math.min(12, filteredTicketRows.length - mobileTicketRows.length)} bill
+                      </button>
+                    ) : null}
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -1,186 +1,235 @@
-CREATE TABLE IF NOT EXISTS public.telegram_links (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  app_user_id UUID NOT NULL REFERENCES public.profiles(user_id) ON DELETE CASCADE,
-  telegram_user_id BIGINT NOT NULL,
-  telegram_username TEXT,
-  telegram_first_name TEXT,
-  verified_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+-- Split deploy for Telegram link + RPC setup.
+-- Kept in sync with the Telegram sections inside deploy.sql.
+
+create table if not exists public.telegram_links (
+  id uuid primary key default gen_random_uuid(),
+  app_user_id uuid not null references public.profiles(user_id) on delete cascade,
+  telegram_user_id bigint not null,
+  telegram_username text,
+  telegram_first_name text,
+  verified_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_telegram_links_app_user ON public.telegram_links(app_user_id);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_telegram_links_telegram_user ON public.telegram_links(telegram_user_id);
+create unique index if not exists idx_telegram_links_app_user on public.telegram_links(app_user_id);
+create unique index if not exists idx_telegram_links_telegram_user on public.telegram_links(telegram_user_id);
 
-ALTER TABLE public.telegram_links ENABLE ROW LEVEL SECURITY;
+alter table public.telegram_links enable row level security;
 
-DROP POLICY IF EXISTS "service role full access telegram" ON public.telegram_links;
-CREATE POLICY "service role full access telegram" ON public.telegram_links
-  FOR ALL TO service_role USING (true) WITH CHECK (true);
+drop policy if exists "service role full access telegram" on public.telegram_links;
+create policy "service role full access telegram" on public.telegram_links
+  for all to service_role using (true) with check (true);
 
-DROP POLICY IF EXISTS "users view own link" ON public.telegram_links;
-CREATE POLICY "users view own link" ON public.telegram_links
-  FOR SELECT USING (app_user_id = auth.uid());
+drop policy if exists "users view own link" on public.telegram_links;
+create policy "users view own link" on public.telegram_links
+  for select using (app_user_id = auth.uid());
 
-CREATE TABLE IF NOT EXISTS public.telegram_link_codes (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  app_user_id UUID NOT NULL REFERENCES public.profiles(user_id) ON DELETE CASCADE,
-  code TEXT NOT NULL,
-  expires_at TIMESTAMPTZ NOT NULL,
-  used_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+create table if not exists public.telegram_link_codes (
+  id uuid primary key default gen_random_uuid(),
+  app_user_id uuid not null references public.profiles(user_id) on delete cascade,
+  code text not null,
+  expires_at timestamptz not null,
+  used_at timestamptz,
+  created_at timestamptz not null default now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_telegram_link_codes_code ON public.telegram_link_codes(code);
+create index if not exists idx_telegram_link_codes_code on public.telegram_link_codes(code);
+create index if not exists idx_telegram_link_codes_app_user_created_at on public.telegram_link_codes(app_user_id, created_at desc);
 
-ALTER TABLE public.telegram_link_codes ENABLE ROW LEVEL SECURITY;
+alter table public.telegram_link_codes enable row level security;
 
-DROP POLICY IF EXISTS "service role full access link codes" ON public.telegram_link_codes;
-CREATE POLICY "service role full access link codes" ON public.telegram_link_codes
-  FOR ALL TO service_role USING (true) WITH CHECK (true);
+drop policy if exists "service role full access link codes" on public.telegram_link_codes;
+create policy "service role full access link codes" on public.telegram_link_codes
+  for all to service_role using (true) with check (true);
 
-DROP POLICY IF EXISTS "users view own codes" ON public.telegram_link_codes;
-CREATE POLICY "users view own codes" ON public.telegram_link_codes
-  FOR SELECT USING (app_user_id = auth.uid());
+drop policy if exists "users view own codes" on public.telegram_link_codes;
+create policy "users view own codes" on public.telegram_link_codes
+  for select using (app_user_id = auth.uid());
 
-CREATE OR REPLACE FUNCTION public.generate_telegram_link_code(p_user_id UUID)
-RETURNS JSONB AS $$
-DECLARE
-  v_code TEXT;
-  v_current_user_id UUID;
-BEGIN
+create or replace function public.generate_telegram_link_code(p_user_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_code text;
+  v_current_user_id uuid;
+begin
   v_current_user_id := auth.uid();
-  IF v_current_user_id IS NULL OR v_current_user_id <> p_user_id THEN
-    RAISE EXCEPTION 'Unauthorized';
-  END IF;
+  if v_current_user_id is null or v_current_user_id <> p_user_id then
+    raise exception 'Unauthorized';
+  end if;
 
-  DELETE FROM public.telegram_link_codes
-  WHERE app_user_id = p_user_id AND used_at IS NULL;
+  delete from public.telegram_link_codes
+  where app_user_id = p_user_id and used_at is null;
 
-  v_code := lpad(floor(random() * 1000000)::text, 6, '0');
+  loop
+    v_code := lpad(floor(random() * 1000000)::text, 6, '0');
+    exit when not exists (
+      select 1
+      from public.telegram_link_codes
+      where code = v_code
+        and used_at is null
+        and expires_at >= now()
+    );
+  end loop;
 
-  INSERT INTO public.telegram_link_codes (app_user_id, code, expires_at)
-  VALUES (p_user_id, v_code, now() + interval '5 minutes');
+  insert into public.telegram_link_codes (app_user_id, code, expires_at)
+  values (p_user_id, v_code, now() + interval '5 minutes');
 
-  RETURN jsonb_build_object('success', true, 'code', v_code);
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+  return jsonb_build_object('success', true, 'code', v_code);
+end;
+$$;
 
-CREATE OR REPLACE FUNCTION public.confirm_telegram_link(
-  p_code TEXT,
-  p_telegram_user_id BIGINT,
-  p_telegram_username TEXT DEFAULT NULL,
-  p_telegram_first_name TEXT DEFAULT NULL
+create or replace function public.confirm_telegram_link(
+  p_code text,
+  p_telegram_user_id bigint,
+  p_telegram_username text default null,
+  p_telegram_first_name text default null
 )
-RETURNS JSONB AS $$
-DECLARE
-  v_link_code RECORD;
-  v_app_user_id UUID;
-  v_role TEXT;
-  v_display_name TEXT;
-BEGIN
-  SELECT id, app_user_id, expires_at, used_at
-  INTO v_link_code
-  FROM public.telegram_link_codes
-  WHERE code = p_code
-  ORDER BY created_at DESC
-  LIMIT 1;
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_link_code record;
+  v_role text;
+  v_display_name text;
+begin
+  select id, app_user_id, expires_at, used_at
+  into v_link_code
+  from public.telegram_link_codes
+  where code = p_code
+    and used_at is null
+  order by created_at desc
+  limit 1;
 
-  IF v_link_code.id IS NULL THEN
-    RETURN jsonb_build_object('success', false, 'error', 'INVALID_CODE');
-  END IF;
+  if v_link_code.id is null then
+    if exists (
+      select 1
+      from public.telegram_link_codes
+      where code = p_code
+        and used_at is not null
+    ) then
+      return jsonb_build_object('success', false, 'error', 'CODE_USED');
+    end if;
 
-  IF v_link_code.used_at IS NOT NULL THEN
-    RETURN jsonb_build_object('success', false, 'error', 'CODE_USED');
-  END IF;
+    if exists (
+      select 1
+      from public.telegram_link_codes
+      where code = p_code
+        and used_at is null
+        and expires_at < now()
+    ) then
+      return jsonb_build_object('success', false, 'error', 'CODE_EXPIRED');
+    end if;
 
-  IF v_link_code.expires_at < now() THEN
-    RETURN jsonb_build_object('success', false, 'error', 'CODE_EXPIRED');
-  END IF;
+    return jsonb_build_object('success', false, 'error', 'INVALID_CODE');
+  end if;
 
-  DELETE FROM public.telegram_links
-  WHERE app_user_id = v_link_code.app_user_id;
+  if v_link_code.expires_at < now() then
+    return jsonb_build_object('success', false, 'error', 'CODE_EXPIRED');
+  end if;
 
-  DELETE FROM public.telegram_links
-  WHERE telegram_user_id = p_telegram_user_id;
+  delete from public.telegram_links
+  where app_user_id = v_link_code.app_user_id;
 
-  INSERT INTO public.telegram_links (app_user_id, telegram_user_id, telegram_username, telegram_first_name)
-  VALUES (v_link_code.app_user_id, p_telegram_user_id, p_telegram_username, p_telegram_first_name);
+  delete from public.telegram_links
+  where telegram_user_id = p_telegram_user_id;
 
-  UPDATE public.telegram_link_codes
-  SET used_at = now()
-  WHERE id = v_link_code.id;
+  insert into public.telegram_links (app_user_id, telegram_user_id, telegram_username, telegram_first_name)
+  values (v_link_code.app_user_id, p_telegram_user_id, p_telegram_username, p_telegram_first_name);
 
-  SELECT r.role, p.display_name
-  INTO v_role, v_display_name
-  FROM public.user_roles r
-  LEFT JOIN public.profiles p ON p.user_id = r.user_id
-  WHERE r.user_id = v_link_code.app_user_id
-  LIMIT 1;
+  update public.telegram_link_codes
+  set used_at = now()
+  where id = v_link_code.id;
 
-  RETURN jsonb_build_object(
+  select r.role, p.display_name
+  into v_role, v_display_name
+  from public.user_roles r
+  left join public.profiles p on p.user_id = r.user_id
+  where r.user_id = v_link_code.app_user_id
+  limit 1;
+
+  return jsonb_build_object(
     'success', true,
     'user_id', v_link_code.app_user_id,
     'role', v_role,
     'display_name', v_display_name
   );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+end;
+$$;
 
-CREATE OR REPLACE FUNCTION public.get_telegram_user_role(p_telegram_user_id BIGINT)
-RETURNS JSONB AS $$
-DECLARE
-  v_app_user_id UUID;
-  v_role TEXT;
-  v_display_name TEXT;
-  v_org_id UUID;
-BEGIN
-  SELECT tl.app_user_id
-  INTO v_app_user_id
-  FROM public.telegram_links tl
-  WHERE tl.telegram_user_id = p_telegram_user_id
-  LIMIT 1;
+create or replace function public.get_telegram_user_role(p_telegram_user_id bigint)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_app_user_id uuid;
+  v_role text;
+  v_display_name text;
+  v_org_id uuid;
+begin
+  select tl.app_user_id
+  into v_app_user_id
+  from public.telegram_links tl
+  where tl.telegram_user_id = p_telegram_user_id
+  limit 1;
 
-  IF v_app_user_id IS NULL THEN
-    RETURN jsonb_build_object('linked', false);
-  END IF;
+  if v_app_user_id is null then
+    return jsonb_build_object('linked', false);
+  end if;
 
-  SELECT r.role, r.org_id
-  INTO v_role, v_org_id
-  FROM public.user_roles r
-  WHERE r.user_id = v_app_user_id
-  LIMIT 1;
+  select r.role, r.org_id
+  into v_role, v_org_id
+  from public.user_roles r
+  where r.user_id = v_app_user_id
+  limit 1;
 
-  SELECT p.display_name
-  INTO v_display_name
-  FROM public.profiles p
-  WHERE p.user_id = v_app_user_id;
+  select p.display_name
+  into v_display_name
+  from public.profiles p
+  where p.user_id = v_app_user_id;
 
-  RETURN jsonb_build_object(
+  return jsonb_build_object(
     'linked', true,
     'user_id', v_app_user_id,
     'role', v_role,
     'display_name', v_display_name,
     'org_id', v_org_id
   );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+end;
+$$;
 
-CREATE OR REPLACE FUNCTION public.unlink_telegram(p_user_id UUID)
-RETURNS JSONB AS $$
-DECLARE
-  v_current_user_id UUID;
-BEGIN
+create or replace function public.unlink_telegram(p_user_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_current_user_id uuid;
+begin
   v_current_user_id := auth.uid();
-  IF v_current_user_id IS NULL OR v_current_user_id <> p_user_id THEN
-    RAISE EXCEPTION 'Unauthorized';
-  END IF;
+  if v_current_user_id is null or v_current_user_id <> p_user_id then
+    raise exception 'Unauthorized';
+  end if;
 
-  DELETE FROM public.telegram_links WHERE app_user_id = p_user_id;
-  RETURN jsonb_build_object('success', true);
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+  delete from public.telegram_links where app_user_id = p_user_id;
+  return jsonb_build_object('success', true);
+end;
+$$;
 
-GRANT EXECUTE ON FUNCTION public.generate_telegram_link_code TO authenticated;
-GRANT EXECUTE ON FUNCTION public.confirm_telegram_link TO authenticated;
-GRANT EXECUTE ON FUNCTION public.get_telegram_user_role TO authenticated;
-GRANT EXECUTE ON FUNCTION public.unlink_telegram TO authenticated;
+revoke all on function public.generate_telegram_link_code(uuid) from public, anon;
+revoke all on function public.confirm_telegram_link(text, bigint, text, text) from public, anon;
+revoke all on function public.get_telegram_user_role(bigint) from public, anon;
+revoke all on function public.unlink_telegram(uuid) from public, anon;
+
+grant execute on function public.generate_telegram_link_code(uuid) to authenticated, service_role;
+grant execute on function public.confirm_telegram_link(text, bigint, text, text) to authenticated, service_role;
+grant execute on function public.get_telegram_user_role(bigint) to authenticated, service_role;
+grant execute on function public.unlink_telegram(uuid) to authenticated, service_role;
