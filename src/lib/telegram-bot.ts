@@ -1649,8 +1649,7 @@ export async function handleLinkCommand(telegramUserId: number, telegramUsername
     `Tài khoản: <b>${displayName}</b>`,
     `Vai trò: <b>${role}</b>`,
     "",
-    "Từ giờ anh chỉ cần bấm nút trong chat là dùng được.
-",
+    "Từ giờ anh chỉ cần bấm nút trong chat là dùng được.",
   ].join("\n"), { reply_markup: getAdminMenuKeyboard() });
 }
 
