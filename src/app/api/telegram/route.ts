@@ -59,104 +59,7 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#39;");
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function isLocalUrl(url: string) {
-  return /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(url);
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function sendTelegramBookingMessage(payload: {
-  bookingId: string;
-  customerName: string;
-  customerPhone: string;
-  requestedService?: string | null;
-  preferredStaff?: string | null;
-  note?: string | null;
-  requestedStartAt: string;
-  conflict?: {
-    appointment?: Array<{ id: string; start_at: string; customers?: { name?: string } | { name?: string }[] | null }>;
-    overlapCount: number;
-  } | null;
-  nearbyWarning?: {
-    appointment?: Array<{ id: string; start_at: string; customers?: { name?: string } | { name?: string }[] | null }>;
-    nearbyCount: number;
-  } | null;
-}) {
-  if (!telegramBotToken || !telegramChatId) throw new Error("Thiếu TELEGRAM_BOT_TOKEN hoặc TELEGRAM_BOOKING_CHAT_ID");
-
-  const whenText = formatViDateTime(payload.requestedStartAt);
-
-  const confirmData = `booking:confirm:${payload.bookingId}`;
-  const cancelData = `booking:cancel:${payload.bookingId}`;
-  // Legacy helper kept temporarily while V2 notification rolls out.
-
-  const lines = payload.conflict
-    ? [
-        "<b>⚠️ BOOKING MỚI BỊ TRÙNG LỊCH</b>",
-        `• Booking ID: <code>${payload.bookingId}</code>`,
-        `• Khách: <b>${payload.customerName}</b>`,
-        `• SĐT: <b>${payload.customerPhone}</b>`,
-        `• Dịch vụ: ${payload.requestedService || "-"}`,
-        `• Giờ yêu cầu: ${whenText}`,
-        `• Rule hiện tại: chỉ check trùng với <b>appointments</b> (gồm booked thủ công và booked online đã converted). Đây là khách thứ <b>${payload.conflict.overlapCount + 1}</b> cùng khung giờ.`,
-        ...(payload.conflict.appointment ?? []).slice(0, 3).map((item) => `• ${pickCustomerName(item.customers)} — ${formatViDateTime(item.start_at)}`),
-        "• Trạng thái: <b>CẦN DỜI LỊCH</b>",
-        `• Quản trị: ${publicBaseUrl}/manage/booking-requests`,
-      ]
-    : [
-        "<b>📥 BOOKING MỚI CẦN XÁC NHẬN</b>",
-        `• Booking ID: <code>${payload.bookingId}</code>`,
-        `• Khách: <b>${payload.customerName}</b>`,
-        `• SĐT: <b>${payload.customerPhone}</b>`,
-        `• Dịch vụ: ${payload.requestedService || "-"}`,
-        `• Giờ yêu cầu: ${whenText}`,
-        payload.nearbyWarning
-          ? `• Cảnh báo sát lịch: có <b>${payload.nearbyWarning.nearbyCount}</b> khách trong appointments nằm trong khoảng ±${NEARBY_WARNING_MINUTES} phút.`
-          : null,
-        ...(payload.nearbyWarning?.appointment ?? []).slice(0, 2).map((item) => `• ${pickCustomerName(item.customers)} — ${formatViDateTime(item.start_at)}`),
-        "• Hành động: chờ xác nhận / hủy",
-        `• Quản trị: ${publicBaseUrl}/manage/booking-requests`,
-      ];
-
-  const res = await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: telegramChatId,
-      text: lines.filter(Boolean).join("\n"),
-      parse_mode: "HTML",
-      disable_web_page_preview: true,
-      reply_markup: payload.conflict
-        ? {
-            inline_keyboard: [
-              [
-                { text: "📅 Dời lịch", url: `${publicBaseUrl}/manage/booking-requests` },
-                { text: "❌ Hủy lịch", callback_data: cancelData },
-              ],
-            ],
-          }
-        : {
-            inline_keyboard: [
-              [
-                { text: "✅ Confirm", callback_data: confirmData },
-                { text: "❌ Hủy lịch", callback_data: cancelData },
-              ],
-            ],
-          },
-    }),
-  });
-
-  if (!res.ok) {
-    throw new Error(`Telegram sendMessage failed: ${await res.text()}`);
-  }
-
-  return {
-    telegram: await res.json() as { ok: boolean; result?: { message_id: number; chat: { id: number | string } } },
-    debug: { confirmData, cancelData },
-  };
-}
-
-async function sendTelegramBookingMessageV2(payload: {
+function buildBookingMessageText(payload: {
   bookingId: string;
   customerName: string;
   customerPhone: string;
@@ -172,12 +75,7 @@ async function sendTelegramBookingMessageV2(payload: {
     nearbyCount: number;
   } | null;
 }) {
-  if (!telegramBotToken || !telegramChatId) throw new Error("Thiếu TELEGRAM_BOT_TOKEN hoặc TELEGRAM_BOOKING_CHAT_ID");
-
   const whenText = formatViDateTime(payload.requestedStartAt);
-  const confirmData = `booking:confirm:${payload.bookingId}`;
-  const cancelData = `booking:cancel:${payload.bookingId}`;
-  const rescheduleData = `booking:reschedule:${payload.bookingId}`;
   const safeCustomerName = escapeHtml(payload.customerName);
   const safePhone = escapeHtml(payload.customerPhone);
   const safeService = escapeHtml(payload.requestedService || "-");
@@ -213,23 +111,63 @@ async function sendTelegramBookingMessageV2(payload: {
         ...(payload.nearbyWarning?.appointment ?? []).slice(0, 2).map((item) => `• ${escapeHtml(pickCustomerName(item.customers))} — ${formatViDateTime(item.start_at)}`),
       ];
 
+  return lines.filter(Boolean).join("\n");
+}
+
+function buildBookingToggleKeyboard(payload: { bookingId: string; expanded?: boolean }) {
+  const toggleData = `bookingmenu:${payload.expanded ? "hide" : "show"}:${payload.bookingId}`;
+  const confirmData = `booking:confirm:${payload.bookingId}`;
+  const cancelData = `booking:cancel:${payload.bookingId}`;
+  const rescheduleData = `booking:reschedule:${payload.bookingId}`;
+
+  if (!payload.expanded) {
+    return {
+      inline_keyboard: [[{ text: "📂 Mở menu xử lý", callback_data: toggleData }]],
+    };
+  }
+
+  return {
+    inline_keyboard: [
+      [
+        { text: "✅ Xác nhận", callback_data: confirmData },
+        { text: "❌ Hủy", callback_data: cancelData },
+      ],
+      [{ text: "📅 Dời lịch", callback_data: rescheduleData }],
+      [{ text: "📁 Thu gọn", callback_data: toggleData }],
+    ],
+  };
+}
+
+async function sendTelegramBookingMessageV2(payload: {
+  bookingId: string;
+  customerName: string;
+  customerPhone: string;
+  requestedService?: string | null;
+  note?: string | null;
+  requestedStartAt: string;
+  conflict?: {
+    appointment?: Array<{ id: string; start_at: string; customers?: { name?: string } | { name?: string }[] | null }>;
+    overlapCount: number;
+  } | null;
+  nearbyWarning?: {
+    appointment?: Array<{ id: string; start_at: string; customers?: { name?: string } | { name?: string }[] | null }>;
+    nearbyCount: number;
+  } | null;
+}) {
+  if (!telegramBotToken || !telegramChatId) throw new Error("Thiếu TELEGRAM_BOT_TOKEN hoặc TELEGRAM_BOOKING_CHAT_ID");
+
   const res = await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       chat_id: telegramChatId,
-      text: lines.filter(Boolean).join("\n"),
+      text: buildBookingMessageText(payload),
       parse_mode: "HTML",
       disable_web_page_preview: true,
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: "✅ Xác nhận", callback_data: confirmData },
-            { text: "❌ Hủy", callback_data: cancelData },
-          ],
-          [{ text: "📅 Dời lịch", callback_data: rescheduleData }],
-        ],
-      },
+      reply_markup: buildBookingToggleKeyboard({
+        bookingId: payload.bookingId,
+        expanded: false,
+      }),
     }),
   });
 
@@ -239,7 +177,7 @@ async function sendTelegramBookingMessageV2(payload: {
 
   return {
     telegram: await res.json() as { ok: boolean; result?: { message_id: number; chat: { id: number | string } } },
-    debug: { confirmData, cancelData, rescheduleData },
+    debug: { bookingId: payload.bookingId },
   };
 }
 

@@ -460,6 +460,52 @@ async function handleCallback(callback: { id: string; data?: string; from?: { id
       return await handleMenuCallback(callback, action, chatId);
     }
 
+    if (prefix === "bookingmenu") {
+      if (!chatId || !messageId) {
+        return NextResponse.json({ ok: true, ignored: true, debug: { callbackData: callback.data, parsed: parts } });
+      }
+
+      const bookingIdForMenu = rest.join(":");
+      const expanded = action === "show";
+      const confirmData = `booking:confirm:${bookingIdForMenu}`;
+      const cancelData = `booking:cancel:${bookingIdForMenu}`;
+      const rescheduleData = `booking:reschedule:${bookingIdForMenu}`;
+      const toggleData = `bookingmenu:${expanded ? "hide" : "show"}:${bookingIdForMenu}`;
+      const reply_markup = expanded
+        ? {
+            inline_keyboard: [
+              [
+                { text: "✅ Xác nhận", callback_data: confirmData },
+                { text: "❌ Hủy", callback_data: cancelData },
+              ],
+              [{ text: "📅 Dời lịch", callback_data: rescheduleData }],
+              [{ text: "📁 Thu gọn", callback_data: toggleData }],
+            ],
+          }
+        : {
+            inline_keyboard: [[{ text: "📂 Mở menu xử lý", callback_data: toggleData }]],
+          };
+
+      const token = process.env.TELEGRAM_BOT_TOKEN;
+      const editRes = await fetch(`https://api.telegram.org/bot${token}/editMessageReplyMarkup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          message_id: messageId,
+          reply_markup,
+        }),
+      });
+
+      if (!editRes.ok) {
+        const errText = await editRes.text();
+        throw new Error(`Telegram editMessageReplyMarkup failed: ${errText}`);
+      }
+
+      await sharedAnswerCallback(callback.id, expanded ? "Đã mở menu xử lý" : "Đã thu gọn menu");
+      return NextResponse.json({ ok: true, action: expanded ? "bookingmenu_show" : "bookingmenu_hide" });
+    }
+
     if (prefix === "report") {
       if (!telegramUserId || !chatId || !action) {
         return NextResponse.json({ ok: true, ignored: true, debug: { callbackData: callback.data, parsed: parts } });
