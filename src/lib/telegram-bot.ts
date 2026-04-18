@@ -522,6 +522,38 @@ function getAdminMenuKeyboard() {
   };
 }
 
+function getCompactAdminReplyKeyboard() {
+  return {
+    keyboard: [[{ text: "🧭 Mo menu quan tri" }]],
+    resize_keyboard: true,
+    is_persistent: true,
+    input_field_placeholder: "Chon menu quan tri...",
+  };
+}
+
+function getAdminReplyKeyboard() {
+  return {
+    keyboard: [
+      [
+        { text: "📊 Tong quan" },
+        { text: "📈 Bao cao" },
+      ],
+      [
+        { text: "CRM" },
+        { text: "📌 Booking" },
+      ],
+      [
+        { text: "🕐 Ca lam" },
+        { text: "⚡ Tao nhanh" },
+      ],
+      [{ text: "🔽 Thu gon menu" }],
+    ],
+    resize_keyboard: true,
+    is_persistent: true,
+    input_field_placeholder: "Chon chuc nang quan tri...",
+  };
+}
+
 function getQuickCreateKeyboard() {
   return {
     inline_keyboard: [
@@ -1133,8 +1165,14 @@ export async function handleTelegramConversationMessage(telegramUserId: number, 
 }
 
 export async function handleManageCommand(chatId: string) {
-  await sendTelegramMessage(chatId, "⚙️ <b>MENU QUAN TRI</b>\n\nChọn chức năng:", {
-    reply_markup: getAdminMenuKeyboard(),
+  await sendTelegramMessage(chatId, "⚙️ <b>MENU QUAN TRI</b>\n\nMenu da duoc ghim duoi o nhap tin nhan. Chon chuc nang de thao tac:", {
+    reply_markup: getAdminReplyKeyboard(),
+  });
+}
+
+export async function handleCompactManageCommand(chatId: string) {
+  await sendTelegramMessage(chatId, "🧭 Menu quan tri da duoc thu gon. Bam nut duoi o nhap de mo lai.", {
+    reply_markup: getCompactAdminReplyKeyboard(),
   });
 }
 
@@ -1159,7 +1197,7 @@ export async function handleMeCommand(telegramUserId: number, chatId: string) {
 
   await sendTelegramMessage(
     chatId,
-    `✅ <b>Đã liên kết</b>\n\nTài khoản: <b>${userInfo.display_name || "N/A"}</b>\nVai trò: <b>${userInfo.role || "N/A"}</b>\n\nDùng /manage để vào quản trị.`,
+    `✅ <b>Đã liên kết</b>\n\nTài khoản: <b>${userInfo.display_name || "N/A"}</b>\nVai trò: <b>${userInfo.role || "N/A"}</b>\n\nDùng nut menu duoi o nhap de vao quản trị.`,
   );
 }
 
@@ -1644,13 +1682,13 @@ export async function handleLinkCommand(telegramUserId: number, telegramUsername
   const role = data.role as string;
   const displayName = data.display_name as string;
   await sendTelegramMessage(chatId, [
-    "✅ <b>LIÊN KẾT THÀNH CÔNG!</b>",
+    "✅ <b>LIEN KET THANH CONG!</b>",
     "",
-    `Tài khoản: <b>${displayName}</b>`,
-    `Vai trò: <b>${role}</b>`,
+    `Tai khoan: <b>${displayName}</b>`,
+    `Vai tro: <b>${role}</b>`,
     "",
-    "Từ giờ anh chỉ cần bấm nút trong chat là dùng được.",
-  ].join("\n"), { reply_markup: getAdminMenuKeyboard() });
+    "Tu gio chi can bam nut trong chat la dung duoc.",
+  ].join("\n"), { reply_markup: getAdminReplyKeyboard() });
 }
 
 export async function handleStartCommand(telegramUserId: number, chatId: string) {
@@ -1658,12 +1696,12 @@ export async function handleStartCommand(telegramUserId: number, chatId: string)
 
   if (userInfo.linked) {
     await sendTelegramMessage(chatId, [
-      "👋 <b>Chào lại!</b>",
+      "👋 <b>Chao lai!</b>",
       "",
-      `Đã liên kết: <b>${userInfo.display_name}</b> (${userInfo.role})`,
+      `Da lien ket: <b>${userInfo.display_name}</b> (${userInfo.role})`,
       "",
-      "Đây là menu quản trị của anh:",
-    ].join("\n"), { reply_markup: getAdminMenuKeyboard() });
+      "Day la menu quan tri cua anh:",
+    ].join("\n"), { reply_markup: getAdminReplyKeyboard() });
   } else {
     await sendTelegramMessage(chatId, [
       "👋 <b>Chào bạn!</b>",

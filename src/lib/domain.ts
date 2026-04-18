@@ -641,6 +641,35 @@ export async function updateAppointmentStatus(appointmentId: string, status: "BO
   if (!supabase) throw new Error("Supabase chưa cấu hình");
   const { orgId } = await ensureOrgContext();
 
+  if (status === "CANCELLED") {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const currentUserId = sessionData.session?.user?.id;
+    if (!currentUserId) throw new Error("Chưa đăng nhập");
+
+    const [{ data: currentRoleRow, error: currentRoleError }, { data: currentAppointment, error: currentAppointmentError }] = await Promise.all([
+      supabase
+        .from("user_roles")
+        .select("role")
+        .eq("org_id", orgId)
+        .eq("user_id", currentUserId)
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("appointments")
+        .select("status")
+        .eq("id", appointmentId)
+        .eq("org_id", orgId)
+        .single(),
+    ]);
+
+    if (currentRoleError) throw currentRoleError;
+    if (currentAppointmentError) throw currentAppointmentError;
+
+    if (currentAppointment.status === "CHECKED_IN" && currentRoleRow?.role !== "OWNER") {
+      throw new Error("Chỉ OWNER mới được hủy lịch của khách đã check-in.");
+    }
+  }
+
   const updateData: Record<string, unknown> = { status };
   if (status === "CHECKED_IN") {
     updateData.checked_in_at = new Date().toISOString();

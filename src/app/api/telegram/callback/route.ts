@@ -15,6 +15,7 @@ import {
   handleCaCommand,
   handleBookingCommand,
   handleManageCommand,
+  handleCompactManageCommand,
   handleCrmMenu,
   handleMeCommand,
   handleOverviewCommand,
@@ -37,6 +38,14 @@ import {
 
 const publicBaseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://chambeauty.io.vn";
 const NEARBY_WARNING_MINUTES = Number(process.env.BOOKING_NEARBY_WARNING_MINUTES ?? "30");
+
+function normalizeTelegramMenuText(text: string) {
+  return text
+    .normalize("NFKC")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
 
 function addMinutes(iso: string, minutes: number) {
   return new Date(new Date(iso).getTime() + minutes * 60 * 1000).toISOString();
@@ -363,6 +372,62 @@ async function handleMessage(message: { from?: { id: number; username?: string; 
   const consumedByConversation = await handleTelegramConversationMessage(telegramUserId, chatId, text);
   if (consumedByConversation) {
     return NextResponse.json({ ok: true, handled: "conversation" });
+  }
+
+  if (text) {
+    const normalizedText = normalizeTelegramMenuText(text);
+    const userInfo = await getTelegramUserRole(telegramUserId);
+
+    if (userInfo.linked && isManagerOrOwner(userInfo.role) && userInfo.org_id) {
+      switch (normalizedText) {
+        case "🧭 mo menu quan tri":
+        case "mo menu quan tri":
+        case "menu quan tri":
+          await handleManageCommand(chatId);
+          return NextResponse.json({ ok: true, handled: "reply_keyboard_manage" });
+        case "📊 tong quan":
+        case "tong quan":
+          await handleOverviewCommand(userInfo.org_id, chatId);
+          return NextResponse.json({ ok: true, handled: "reply_keyboard_overview" });
+        case "📈 bao cao":
+        case "bao cao":
+          await sendTelegramMessage(chatId, "📈 <b>BAO CAO DOANH THU</b>\n\nChon khoang thoi gian:", {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: "📅 Hôm nay", callback_data: "report:today" },
+                  { text: "📆 Tuần này", callback_data: "report:week" },
+                ],
+                [
+                  { text: "🗓️ Tháng này", callback_data: "report:month" },
+                  { text: "📊 Tùy chọn", callback_data: "report:custom" },
+                ],
+                [{ text: "◀️ Quay lại", callback_data: "menu:admin" }],
+              ],
+            },
+          });
+          return NextResponse.json({ ok: true, handled: "reply_keyboard_report" });
+        case "crm":
+          await handleCrmMenu(chatId);
+          return NextResponse.json({ ok: true, handled: "reply_keyboard_crm" });
+        case "📌 booking":
+        case "booking":
+          await handleBookingCommand(userInfo.org_id, chatId);
+          return NextResponse.json({ ok: true, handled: "reply_keyboard_booking" });
+        case "🕐 ca lam":
+        case "ca lam":
+          await handleCaCommand(userInfo.org_id, chatId);
+          return NextResponse.json({ ok: true, handled: "reply_keyboard_shift" });
+        case "⚡ tao nhanh":
+        case "tao nhanh":
+          await handleQuickCreateMenu(chatId);
+          return NextResponse.json({ ok: true, handled: "reply_keyboard_quickcreate" });
+        case "🔽 thu gon menu":
+        case "thu gon menu":
+          await handleCompactManageCommand(chatId);
+          return NextResponse.json({ ok: true, handled: "reply_keyboard_compact" });
+      }
+    }
   }
 
   const parts = text.split(/\s+/);

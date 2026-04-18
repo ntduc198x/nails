@@ -9,10 +9,6 @@ const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
 const telegramWebhookSecret = getTelegramWebhookSecret();
 const publicBaseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.chambeauty.io.vn";
 
-const BOT_COMMANDS = [
-  { command: "start", description: "Bắt đầu và mở menu quản trị" },
-];
-
 export async function POST(req: Request) {
   const auth = verifyTelegramInternalRequest(req);
   if (!auth.ok) {
@@ -66,14 +62,13 @@ export async function POST(req: Request) {
     errors.push(`Webhook exception: ${msg}`);
   }
 
-  // Set commands
+  // Clear slash commands so Telegram only shows the custom reply keyboard.
   try {
     const commandsRes = await fetch(
-      `https://api.telegram.org/bot${telegramBotToken}/setMyCommands`,
+      `https://api.telegram.org/bot${telegramBotToken}/deleteMyCommands`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ commands: BOT_COMMANDS }),
       }
     );
     const commandsData = await commandsRes.json();
@@ -85,6 +80,30 @@ export async function POST(req: Request) {
     const msg = e instanceof Error ? e.message : String(e);
     results.commands = { error: msg };
     errors.push(`Commands exception: ${msg}`);
+  }
+
+  // Reset menu button to default state. The visible admin controls are handled
+  // by the persistent reply keyboard, not by slash commands.
+  try {
+    const menuButtonRes = await fetch(
+      `https://api.telegram.org/bot${telegramBotToken}/setChatMenuButton`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          menu_button: { type: "default" },
+        }),
+      }
+    );
+    const menuButtonData = await menuButtonRes.json();
+    results.menuButton = menuButtonData;
+    if (!menuButtonData.ok) {
+      errors.push(`Menu button error: ${JSON.stringify(menuButtonData)}`);
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    results.menuButton = { error: msg };
+    errors.push(`Menu button exception: ${msg}`);
   }
 
   return NextResponse.json({

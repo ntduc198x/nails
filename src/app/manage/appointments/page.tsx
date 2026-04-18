@@ -307,7 +307,7 @@ function AppointmentCard({ row, staffName, resourceName, onlineBooked, overdue, 
           )}
           {row.status === "CHECKED_IN" && (
             <>
-              {role === "BOSS" ? (
+              {role === "OWNER" ? (
                 confirmCancelId === row.id ? (
                   <>
                     <button onClick={() => { setConfirmCancelId(null); void onQuickStatus(row.id, "CANCELLED"); }} className="cursor-pointer rounded-xl border border-red-600 bg-red-600 px-3 py-2 text-sm font-medium text-white" disabled={!!updatingId}>Xác nhận</button>
@@ -566,6 +566,12 @@ export default function OperationsPage() {
   }
 
   async function onQuickStatus(id: string, status: "CHECKED_IN" | "CANCELLED") {
+    const targetRow = rows.find((row) => row.id === id);
+    if (status === "CANCELLED" && targetRow?.status === "CHECKED_IN" && role !== "OWNER") {
+      setError("Chi OWNER moi duoc huy lich cua khach da check-in.");
+      return;
+    }
+
     try {
       setUpdatingId(id);
       setError(null);
