@@ -18,7 +18,6 @@ import {
   handleCompactManageCommand,
   sendFreshAdminReplyKeyboard,
   clearReplyPanelState,
-  editTelegramMessage,
   handleCrmMenu,
   handleMeCommand,
   handleOverviewCommand,

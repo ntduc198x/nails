@@ -245,43 +245,6 @@ export async function clearReplyPanelState(chatId: string) {
   await clearFileReplyPanelState(chatId);
 }
 
-async function deleteTrackedReplyPanel(chatId: string) {
-  const state = await getReplyPanelState(chatId);
-  if (!state?.messageId) return;
-  try {
-    await deleteTelegramMessage(chatId, state.messageId);
-  } catch {
-    // Ignore delete errors; the message may already be gone.
-  } finally {
-    await clearReplyPanelState(chatId);
-  }
-}
-
-export async function editTelegramMessage(chatId: string, messageId: number, text: string, replyMarkup?: unknown) {
-  if (!telegramBotToken) throw new Error("Thiếu TELEGRAM_BOT_TOKEN");
-
-  const res = await fetch(`https://api.telegram.org/bot${telegramBotToken}/editMessageText`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      message_id: messageId,
-      text,
-      parse_mode: "HTML",
-      disable_web_page_preview: true,
-      ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
-    }),
-  });
-
-  const payload = await res.json().catch(() => null);
-  if (!res.ok || payload?.ok === false) {
-    const description = payload?.description || (payload ? JSON.stringify(payload) : await res.text());
-    throw new Error(`Telegram editMessageText failed: ${description}`);
-  }
-
-  return payload;
-}
-
 export async function editTelegramMessageReplyMarkup(chatId: string, messageId: number, replyMarkup?: unknown) {
   if (!telegramBotToken) throw new Error("Thiếu TELEGRAM_BOT_TOKEN");
 
@@ -305,17 +268,6 @@ export async function editTelegramMessageReplyMarkup(chatId: string, messageId: 
 }
 
 export async function sendManagedReplyPanel(chatId: string, text: string, replyMarkup: unknown, opts?: { forceNew?: boolean }) {
-  const tracked = opts?.forceNew ? null : await getReplyPanelState(chatId);
-  if (tracked?.messageId) {
-    try {
-      await editTelegramMessage(chatId, tracked.messageId, text, replyMarkup);
-      await setReplyPanelState(chatId, tracked.messageId);
-      return { ok: true, result: { message_id: tracked.messageId } };
-    } catch {
-      await clearReplyPanelState(chatId);
-    }
-  }
-
   const response = await sendTelegramMessage(chatId, text, { reply_markup: replyMarkup });
   const messageId = response.result?.message_id;
   if (messageId) {
@@ -1345,7 +1297,7 @@ export async function sendFreshAdminReplyKeyboard(chatId: string) {
 }
 
 export async function handleCompactManageCommand(chatId: string) {
-  await deleteTrackedReplyPanel(chatId);
+  await clearReplyPanelState(chatId);
   await sendTelegramMessage(chatId, "🧭 Menu quan tri da duoc an. Bam icon menu canh emoji de mo lai khi can.", {
     reply_markup: getCompactAdminReplyKeyboard(),
   });
