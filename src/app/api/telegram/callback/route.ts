@@ -368,7 +368,7 @@ async function handleMessage(message: { from?: { id: number; username?: string; 
         case "mo menu quan tri":
         case "menu quan tri":
         case "⚙️ menu quan tri":
-          await handleManageCommand(chatId);
+          await handleManageCommand(chatId, { forceNew: true });
           return NextResponse.json({ ok: true, handled: "reply_manage" });
       }
     }
@@ -392,7 +392,7 @@ async function handleMessage(message: { from?: { id: number; username?: string; 
       return NextResponse.json({ ok: true, command, error: "forbidden", role: userInfo.role });
     }
 
-    await handleManageCommand(chatId);
+    await handleManageCommand(chatId, { forceNew: true });
     return NextResponse.json({ ok: true, command: "manage" });
   }
 

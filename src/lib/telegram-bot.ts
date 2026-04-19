@@ -304,8 +304,8 @@ export async function editTelegramMessageReplyMarkup(chatId: string, messageId: 
   return payload;
 }
 
-export async function sendManagedReplyPanel(chatId: string, text: string, replyMarkup: unknown) {
-  const tracked = await getReplyPanelState(chatId);
+export async function sendManagedReplyPanel(chatId: string, text: string, replyMarkup: unknown, opts?: { forceNew?: boolean }) {
+  const tracked = opts?.forceNew ? null : await getReplyPanelState(chatId);
   if (tracked?.messageId) {
     try {
       await editTelegramMessage(chatId, tracked.messageId, text, replyMarkup);
@@ -1313,8 +1313,10 @@ export async function handleTelegramConversationMessage(telegramUserId: number, 
   return false;
 }
 
-export async function handleManageCommand(chatId: string) {
-  await clearReplyPanelState(chatId);
+export async function handleManageCommand(chatId: string, opts?: { forceNew?: boolean }) {
+  if (opts?.forceNew) {
+    await clearReplyPanelState(chatId);
+  }
   await sendManagedReplyPanel(
     chatId,
     "⚙️ <b>MENU QUẢN TRỊ</b>\n\nChọn chức năng để thao tác.",
@@ -1331,6 +1333,7 @@ export async function handleManageCommand(chatId: string) {
         ],
       ],
     },
+    { forceNew: opts?.forceNew },
   );
 }
 
@@ -1861,17 +1864,7 @@ export async function handleStartCommand(telegramUserId: number, chatId: string)
   const userInfo = await getTelegramUserRole(telegramUserId);
 
   if (userInfo.linked) {
-    await sendManagedReplyPanel(
-      chatId,
-      [
-        "👋 <b>Chao lai!</b>",
-        "",
-        `Da lien ket: <b>${userInfo.display_name}</b> (${userInfo.role})`,
-        "",
-        "Day la menu quan tri cua anh:",
-      ].join("\n"),
-      getAdminReplyKeyboard(),
-    );
+    await handleManageCommand(chatId, { forceNew: true });
   } else {
     await sendTelegramMessage(chatId, [
       "👋 <b>Chào bạn!</b>",
