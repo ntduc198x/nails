@@ -305,6 +305,17 @@ export async function editTelegramMessageReplyMarkup(chatId: string, messageId: 
 }
 
 export async function sendManagedReplyPanel(chatId: string, text: string, replyMarkup: unknown) {
+  const tracked = await getReplyPanelState(chatId);
+  if (tracked?.messageId) {
+    try {
+      await editTelegramMessage(chatId, tracked.messageId, text, replyMarkup);
+      await setReplyPanelState(chatId, tracked.messageId);
+      return { ok: true, result: { message_id: tracked.messageId } };
+    } catch {
+      await clearReplyPanelState(chatId);
+    }
+  }
+
   const response = await sendTelegramMessage(chatId, text, { reply_markup: replyMarkup });
   const messageId = response.result?.message_id;
   if (messageId) {
@@ -1303,6 +1314,7 @@ export async function handleTelegramConversationMessage(telegramUserId: number, 
 }
 
 export async function handleManageCommand(chatId: string) {
+  await clearReplyPanelState(chatId);
   await sendManagedReplyPanel(
     chatId,
     "⚙️ <b>MENU QUẢN TRỊ</b>\n\nChọn chức năng để thao tác.",
