@@ -305,17 +305,6 @@ export async function editTelegramMessageReplyMarkup(chatId: string, messageId: 
 }
 
 export async function sendManagedReplyPanel(chatId: string, text: string, replyMarkup: unknown) {
-  const tracked = await getReplyPanelState(chatId);
-  if (tracked?.messageId) {
-    try {
-      await editTelegramMessage(chatId, tracked.messageId, text, replyMarkup);
-      await setReplyPanelState(chatId, tracked.messageId);
-      return { ok: true, result: { message_id: tracked.messageId } };
-    } catch {
-      await clearReplyPanelState(chatId);
-    }
-  }
-
   const response = await sendTelegramMessage(chatId, text, { reply_markup: replyMarkup });
   const messageId = response.result?.message_id;
   if (messageId) {
@@ -1396,18 +1385,27 @@ export async function handleCrmAtRiskCommand(orgId: string, chatId: string) {
   const rows = await listTelegramCrmCustomers(orgId, "at_risk");
 
   if (!rows.length) {
-    await sendManagedReplyPanel(chatId, "CRM <b>AT RISK</b>\n\nChưa có khách nào ở nhóm AT_RISK/LOST.", getCrmBackKeyboard());
+    await sendManagedReplyPanel(chatId, "CRM <b>KHÁCH CÓ NGUY CƠ</b>\n\nChưa có khách nào ở nhóm có nguy cơ / đã mất.", getCrmBackKeyboard());
     return;
   }
 
-  const lines = ["CRM <b>AT RISK</b>", "", "Khách cần ưu tiên chăm sóc lại:"];
+  const lines = [
+    "CRM <b>KHÁCH CÓ NGUY CƠ</b>",
+    "",
+    "Nhóm này gồm:",
+    "• <b>Có nguy cơ</b>: khách không quay lại từ <b>30 ngày</b> trở lên",
+    "• <b>Đã mất</b>: khách không quay lại từ <b>60 ngày</b> trở lên",
+    "",
+    "Khách cần ưu tiên chăm sóc lại:",
+  ];
   const inlineKeyboard: Array<Array<{ text: string; callback_data?: string; url?: string }>> = [];
 
   for (const row of rows) {
     const displayName = escapeHtml(String(row.full_name || row.name || "Khach"));
     const phone = escapeHtml(String(row.phone || "Chua co SDT"));
     const lastVisit = row.last_visit_at ? formatViDateTime(String(row.last_visit_at)) : "Chua co";
-    const status = escapeHtml(String(row.customer_status || "AT_RISK"));
+    const rawStatus = String(row.customer_status || "AT_RISK");
+    const status = rawStatus === "LOST" ? "Đã mất" : rawStatus === "AT_RISK" ? "Có nguy cơ" : rawStatus;
     lines.push(`• <b>${displayName}</b> — ${status}`);
     lines.push(`  SĐT: ${phone} | Lần ghé cuối: ${lastVisit}`);
     inlineKeyboard.push([
