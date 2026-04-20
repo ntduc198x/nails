@@ -20,6 +20,57 @@ function getServiceSupabase() {
   });
 }
 
+function resolveInternalBaseUrl(req: Request) {
+  const requestUrl = new URL(req.url);
+  const forwardedProto = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const forwardedHost = req.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+
+  if (forwardedHost) {
+    return `${forwardedProto || requestUrl.protocol.replace(":", "")}://${forwardedHost}`;
+  }
+
+  return requestUrl.origin;
+}
+
+async function notifyTelegramBookingRequest(req: Request, bookingRequestId: string) {
+  const internalSecret = process.env.TELEGRAM_INTERNAL_ROUTE_SECRET;
+  if (!internalSecret) {
+    return {
+      ok: false,
+      skipped: true,
+      reason: "missing_internal_secret",
+    };
+  }
+
+  const notifyUrl = new URL("/api/telegram", resolveInternalBaseUrl(req)).toString();
+
+  try {
+    const response = await fetch(notifyUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${internalSecret}`,
+      },
+      body: JSON.stringify({
+        record: { id: bookingRequestId },
+      }),
+    });
+
+    const payload = await response.json().catch(() => null);
+
+    return {
+      ok: response.ok && payload?.ok === true,
+      status: response.status,
+      payload,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -61,6 +112,7 @@ export async function POST(req: Request) {
         : "";
 
     if (createdBookingId) {
+      const telegramNotification = await notifyTelegramBookingRequest(req, createdBookingId);
       const serviceClient = getServiceSupabase();
       if (serviceClient) {
         const { data: createdRow } = await serviceClient
@@ -77,9 +129,16 @@ export async function POST(req: Request) {
             .eq("id", createdBookingId)
             .maybeSingle();
 
-          return NextResponse.json({ ok: true, data, bookingRequest: refreshedRow ?? createdRow });
+          return NextResponse.json({
+            ok: true,
+            data,
+            bookingRequest: refreshedRow ?? createdRow,
+            telegramNotification,
+          });
         }
       }
+
+      return NextResponse.json({ ok: true, data, telegramNotification });
     }
 
     return NextResponse.json({ ok: true, data });

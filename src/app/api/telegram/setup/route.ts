@@ -10,10 +10,28 @@ const telegramWebhookSecret = getTelegramWebhookSecret();
 
 function resolveTelegramPublicBaseUrl(req: Request) {
   const requestUrl = new URL(req.url);
+  const forwardedProto = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const forwardedHost = req.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
   const envBaseUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
-  const fallbackOrigin = requestUrl.origin;
-  const candidate = envBaseUrl || fallbackOrigin || "https://www.chambeauty.io.vn";
-  const resolved = new URL(candidate, fallbackOrigin);
+  const requestOrigin = forwardedHost
+    ? `${forwardedProto || requestUrl.protocol.replace(":", "")}://${forwardedHost}`
+    : requestUrl.origin;
+  const requestBaseUrl = new URL(requestOrigin);
+  const fallbackOrigin = requestBaseUrl.origin;
+
+  const isLocalLikeHost = (hostname: string) =>
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname.endsWith(".trycloudflare.com");
+
+  const envResolved = envBaseUrl ? new URL(envBaseUrl, fallbackOrigin) : null;
+  const preferRequestOrigin = !isLocalLikeHost(requestBaseUrl.hostname);
+  const candidate = preferRequestOrigin
+    ? requestBaseUrl
+    : envResolved && !isLocalLikeHost(envResolved.hostname)
+      ? envResolved
+      : requestBaseUrl;
+  const resolved = new URL(candidate.origin, fallbackOrigin);
 
   // Telegram webhook should point to the canonical host to avoid 307 redirects.
   if (
