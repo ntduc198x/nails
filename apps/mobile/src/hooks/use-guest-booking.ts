@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
 import {
   createPublicBookingRequest,
+  createPublicBookingRequestForMobile,
   publicBookingInputSchema,
   type PublicBookingInput,
   type PublicBookingSubmissionResult,
 } from "@nails/shared";
 import { mobileEnv } from "@/src/lib/env";
+import { mobileSupabase } from "@/src/lib/supabase";
 
 export type GuestBookingFormValues = {
   customerName: string;
@@ -19,10 +21,28 @@ export type GuestBookingFormValues = {
 
 type GuestBookingFieldErrors = Partial<Record<keyof GuestBookingFormValues, string>>;
 
-const DEFAULT_TIME_SLOTS = ["09:00", "10:30", "13:00", "15:00", "17:30", "19:00"];
+const DEFAULT_TIME_SLOTS = Array.from({ length: 25 }, (_, index) => {
+  if (index === 24) return "21:00";
+
+  const hour = 9 + Math.floor(index / 2);
+  const minute = index % 2 === 0 ? "00" : "30";
+
+  return `${String(hour).padStart(2, "0")}:${minute}`;
+});
+
+function getDateLabel(date: Date, index: number) {
+  if (index === 0) return "Hom nay";
+  if (index === 1) return "Ngay mai";
+
+  return date.toLocaleDateString("vi-VN", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+  });
+}
 
 function createDateOptions() {
-  return Array.from({ length: 7 }, (_, index) => {
+  return Array.from({ length: 21 }, (_, index) => {
     const date = new Date();
     date.setHours(0, 0, 0, 0);
     date.setDate(date.getDate() + index);
@@ -33,11 +53,7 @@ function createDateOptions() {
         String(date.getMonth() + 1).padStart(2, "0"),
         String(date.getDate()).padStart(2, "0"),
       ].join("-"),
-      label: date.toLocaleDateString("vi-VN", {
-        weekday: "short",
-        day: "2-digit",
-        month: "2-digit",
-      }),
+      label: getDateLabel(date, index),
     };
   });
 }
@@ -96,8 +112,8 @@ export function useGuestBooking() {
   }
 
   async function submit() {
-    if (!mobileEnv.apiBaseUrl) {
-      setSubmitError("Thieu EXPO_PUBLIC_API_BASE_URL de gui guest booking tren mobile.");
+    if (!mobileSupabase && !mobileEnv.apiBaseUrl) {
+      setSubmitError("Thieu cau hinh ket noi booking tren mobile.");
       return;
     }
 
@@ -133,9 +149,11 @@ export function useGuestBooking() {
         return;
       }
 
-      const result = await createPublicBookingRequest(parsed.data, {
-        baseUrl: mobileEnv.apiBaseUrl,
-      });
+      const result = mobileSupabase
+        ? await createPublicBookingRequestForMobile(mobileSupabase, parsed.data)
+        : await createPublicBookingRequest(parsed.data, {
+            baseUrl: mobileEnv.apiBaseUrl,
+          });
 
       setSuccessResult(result);
     } catch (error) {
