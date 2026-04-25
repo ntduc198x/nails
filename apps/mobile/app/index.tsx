@@ -1,5 +1,6 @@
 import { Redirect } from "expo-router";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { isCustomerRole } from "@nails/shared";
 import { useSession } from "@/src/providers/session-provider";
 
 export default function IndexScreen() {
@@ -26,6 +27,10 @@ export default function IndexScreen() {
   }
 
   if (!role) {
+    return <Redirect href="/(customer)" />;
+  }
+
+  if (isCustomerRole(role)) {
     return <Redirect href="/(customer)" />;
   }
 

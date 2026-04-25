@@ -40,7 +40,7 @@ create table if not exists user_roles (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null,
   org_id uuid not null references orgs(id) on delete cascade,
-  role text not null check (role in ('OWNER','MANAGER','RECEPTION','ACCOUNTANT','TECH')),
+  role text not null check (role in ('USER','OWNER','MANAGER','RECEPTION','ACCOUNTANT','TECH')),
   unique (user_id, org_id, role)
 );
 
@@ -252,6 +252,12 @@ with check (
 
 create policy "org read services" on services
 for select using (org_id = public.my_org_id());
+
+drop policy if exists "public read lookbook services" on services;
+create policy "public read lookbook services" on services
+for select using (
+  active = true and featured_in_lookbook = true
+);
 
 create policy "owner manager reception write services" on services
 for all using (
@@ -3655,17 +3661,28 @@ security definer
 set search_path = public
 as $$
 declare
+  v_default_org_id constant uuid := '00000000-0000-0000-0000-000000000001'::uuid;
+  v_default_branch_id constant uuid := '00000000-0000-0000-0000-000000000101'::uuid;
   v_org_id uuid;
   v_branch_id uuid;
 begin
   select id
   into v_org_id
   from public.orgs
+  where id <> v_default_org_id
   order by created_at asc, id asc
   limit 1;
 
   if v_org_id is null then
-    v_org_id := '00000000-0000-0000-0000-000000000001'::uuid;
+    select id
+    into v_org_id
+    from public.orgs
+    order by created_at asc, id asc
+    limit 1;
+  end if;
+
+  if v_org_id is null then
+    v_org_id := v_default_org_id;
 
     insert into public.orgs (id, name)
     values (v_org_id, 'Nails App Default Org')
@@ -3681,10 +3698,19 @@ begin
   limit 1;
 
   if v_branch_id is null then
-    v_branch_id := '00000000-0000-0000-0000-000000000101'::uuid;
+    v_branch_id := case
+      when v_org_id = v_default_org_id then v_default_branch_id
+      else gen_random_uuid()
+    end;
 
     insert into public.branches (id, org_id, name, timezone, currency)
-    values (v_branch_id, v_org_id, 'Main Branch', 'Asia/Bangkok', 'VND')
+    values (
+      v_branch_id,
+      v_org_id,
+      case when v_org_id = v_default_org_id then 'Main Branch' else 'Primary Branch' end,
+      'Asia/Bangkok',
+      'VND'
+    )
     on conflict (id) do update
       set
         org_id = excluded.org_id,
@@ -3715,10 +3741,12 @@ declare
   v_role text;
   v_display_name text;
   v_phone text;
+  v_registration_mode text;
 begin
   v_workspace := public.ensure_default_workspace();
   v_org_id := (v_workspace ->> 'org_id')::uuid;
   v_branch_id := (v_workspace ->> 'branch_id')::uuid;
+  v_registration_mode := upper(coalesce(new.raw_user_meta_data ->> 'registration_mode', 'ADMIN'));
 
   v_display_name := nullif(
     trim(
@@ -3762,6 +3790,7 @@ begin
       phone = coalesce(excluded.phone, public.profiles.phone);
 
   select case
+    when v_registration_mode = 'USER' then 'USER'
     when exists (
       select 1
       from public.user_roles

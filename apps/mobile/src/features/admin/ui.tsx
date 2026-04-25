@@ -1,19 +1,42 @@
 import type { ReactNode } from "react";
+import Feather from "@expo/vector-icons/Feather";
 import { formatViDate, formatVnd } from "@nails/shared";
 import { Pressable, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { SessionActions } from "@/src/providers/session-provider";
 
 export type AppointmentFilter = "ALL" | "BOOKED" | "CHECKED_IN" | "DONE" | "NO_SHOW" | "CANCELLED";
+export type AdminNavTarget = "booking" | "scheduling" | "checkout" | "shifts";
+export const ADMIN_HEADER_TOP_OFFSET = 12;
+export const ADMIN_BOTTOM_BAR_BOTTOM_OFFSET = 0;
+
+export function getAdminBottomBarPadding(insetBottom: number) {
+  return ADMIN_BOTTOM_BAR_BOTTOM_OFFSET + Math.max(insetBottom, 6);
+}
+
+export function getAdminHeaderTopPadding(insetTop: number) {
+  return Math.max(insetTop, 10) + ADMIN_HEADER_TOP_OFFSET;
+}
+
+const ADMIN_NAV_ITEMS: Array<{
+  key: AdminNavTarget;
+  label: string;
+  icon: React.ComponentProps<typeof Feather>["name"];
+}> = [
+  { key: "booking", label: "Booking", icon: "calendar" },
+  { key: "scheduling", label: "\u0110i\u1ec1u ph\u1ed1i", icon: "users" },
+  { key: "checkout", label: "Thu ti\u1ec1n", icon: "briefcase" },
+  { key: "shifts", label: "C\u00e1 nh\u00e2n", icon: "user" },
+];
 
 function getStatusLabel(status: string) {
-  if (status === "NEEDS_RESCHEDULE") return "Cần dời lịch";
-  if (status === "BOOKED") return "Chờ Check-in";
-  if (status === "CHECKED_IN") return "Đang phục vụ";
-  if (status === "DONE") return "Đã xong";
-  if (status === "NO_SHOW") return "Không tới";
-  if (status === "CANCELLED") return "Hủy lịch";
-  if (status === "NEW") return "Mới";
-  if (status === "CONVERTED") return "Đã chốt";
+  if (status === "NEEDS_RESCHEDULE") return "C\u1ea7n d\u1eddi l\u1ecbch";
+  if (status === "BOOKED") return "Ch\u1edd check-in";
+  if (status === "CHECKED_IN") return "\u0110ang ph\u1ee5c v\u1ee5";
+  if (status === "DONE") return "\u0110\u00e3 xong";
+  if (status === "NO_SHOW") return "Kh\u00f4ng t\u1edbi";
+  if (status === "CANCELLED") return "H\u1ee7y l\u1ecbch";
+  if (status === "NEW") return "M\u1edbi";
+  if (status === "CONVERTED") return "\u0110\u00e3 ch\u1ed1t";
   return status;
 }
 
@@ -85,7 +108,7 @@ export function AdminScreen({
             <>
               <Text style={styles.eyebrow}>Week 4 Admin Core Flows</Text>
               <Text style={styles.subtitle}>{subtitle}</Text>
-              <Text style={styles.date}>Hom nay: {formatViDate(new Date())}</Text>
+              <Text style={styles.date}>H\u00f4m nay: {formatViDate(new Date())}</Text>
               <Text style={styles.date}>Role: {role ?? "-"}</Text>
               <Text style={styles.date}>User: {userEmail ?? "-"}</Text>
             </>
@@ -155,28 +178,23 @@ export function AdminNavLinks({
   current,
   onNavigate,
 }: {
-  current: "booking" | "scheduling" | "checkout" | "shifts";
-  onNavigate: (target: "booking" | "scheduling" | "checkout" | "shifts") => void;
+  current: AdminNavTarget;
+  onNavigate: (target: AdminNavTarget) => void;
 }) {
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Dieu huong nhanh</Text>
+      <Text style={styles.sectionTitle}>\u0110i\u1ec1u h\u01b0\u1edbng nhanh</Text>
       <View style={styles.inlineWrap}>
-        {([
-          ["booking", "Web Booking"],
-          ["scheduling", "Dieu phoi lich"],
-          ["checkout", "Thanh toan"],
-          ["shifts", "Ca lam"],
-        ] as const).map(([value, label]) => (
+        {ADMIN_NAV_ITEMS.map(({ key, label }) => (
           <Pressable
-            key={value}
-            style={[styles.inlineChipSelectable, current === value ? styles.inlineChipSelectableActive : null]}
-            onPress={() => onNavigate(value)}
+            key={key}
+            style={[styles.inlineChipSelectable, current === key ? styles.inlineChipSelectableActive : null]}
+            onPress={() => onNavigate(key)}
           >
             <Text
               style={[
                 styles.inlineChipSelectableText,
-                current === value ? styles.inlineChipSelectableTextActive : null,
+                current === key ? styles.inlineChipSelectableTextActive : null,
               ]}
             >
               {label}
@@ -192,25 +210,19 @@ export function AdminBottomNav({
   current,
   onNavigate,
 }: {
-  current: "booking" | "scheduling" | "checkout" | "shifts";
-  onNavigate: (target: "booking" | "scheduling" | "checkout" | "shifts") => void;
+  current: AdminNavTarget;
+  onNavigate: (target: AdminNavTarget) => void;
 }) {
   return (
     <View style={styles.bottomNav}>
-      {([
-        ["booking", "Booking"],
-        ["scheduling", "Điều phối"],
-        ["checkout", "Thu tiền"],
-        ["shifts", "Ca làm"],
-      ] as const).map(([value, label]) => {
-        const active = current === value;
+      {ADMIN_NAV_ITEMS.map(({ key, label, icon }) => {
+        const active = current === key;
         return (
-          <Pressable
-            key={value}
-            style={[styles.bottomNavItem, active ? styles.bottomNavItemActive : null]}
-            onPress={() => onNavigate(value)}
-          >
-            <Text style={[styles.bottomNavText, active ? styles.bottomNavTextActive : null]}>{label}</Text>
+          <Pressable key={key} style={styles.bottomNavItem} onPress={() => onNavigate(key)}>
+            <View style={[styles.bottomNavPill, active ? styles.bottomNavPillActive : null]}>
+              <Feather name={icon} size={19} color={active ? "#2b241f" : "#9e9184"} />
+              <Text style={[styles.bottomNavText, active ? styles.bottomNavTextActive : null]}>{label}</Text>
+            </View>
           </Pressable>
         );
       })}
@@ -591,9 +603,9 @@ export const styles = StyleSheet.create({
   },
   footerShell: {
     borderTopWidth: 1,
-    borderTopColor: "#eadbc8",
-    backgroundColor: "#fffaf5",
-    paddingHorizontal: 10,
+    borderTopColor: "rgba(47, 36, 29, 0.06)",
+    backgroundColor: "rgba(255,255,255,0.98)",
+    paddingHorizontal: 14,
     paddingTop: 8,
     paddingBottom: 8,
   },
@@ -601,25 +613,35 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 4,
+    gap: 6,
   },
   bottomNavItem: {
     flex: 1,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 4,
+    alignItems: "center",
   },
-  bottomNavItemActive: {
-    backgroundColor: "#f0e7dc",
+  bottomNavPill: {
+    minWidth: 78,
+    height: 52,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  bottomNavPillActive: {
+    backgroundColor: "#f3ebe2",
   },
   bottomNavText: {
     textAlign: "center",
-    color: "#8a7869",
-    fontSize: 12,
-    fontWeight: "700",
+    color: "#9e9184",
+    fontSize: 11,
+    fontWeight: "500",
+    letterSpacing: -0.1,
   },
   bottomNavTextActive: {
     color: "#2b241f",
+    fontWeight: "600",
   },
   ticketRow: {
     flexDirection: "row",

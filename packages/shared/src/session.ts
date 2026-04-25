@@ -72,7 +72,7 @@ export async function getOrCreateRole(client: SharedSupabaseClient, userId: stri
 
   const orgId = typeof profile?.org_id === "string" ? profile.org_id : undefined;
   if (!orgId) {
-    throw new Error("USER_NOT_BOUND_TO_ORG");
+    return "USER";
   }
 
   const { count: ownerCount, error: ownerCountErr } = await client

@@ -87,7 +87,15 @@ export default function LoginPage() {
 
       router.replace("/manage");
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Xác thực thất bại.");
+      if (e instanceof TypeError && /fetch/i.test(e.message)) {
+        console.error("Supabase sign-in network error", {
+          hasSupabaseClient: Boolean(supabase),
+          error: e,
+        });
+        setMsg("Không kết nối được tới Supabase khi đăng nhập local. Kiểm tra `.env.local`, mạng, hoặc chạy lại server dev để nạp env mới.");
+      } else {
+        setMsg(e instanceof Error ? e.message : "Xác thực thất bại.");
+      }
     } finally {
       setLoading(false);
     }

@@ -104,6 +104,8 @@ android {
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
+            // Android Studio emulators reach the host machine via 10.0.2.2.
+            resValue "string", "react_native_dev_server_ip", "10.0.2.2"
         }
         release {
             // Caution! In production, you need to generate your own keystore file.

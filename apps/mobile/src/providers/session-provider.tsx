@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import type {
   AppRole,
+  AppSessionResult,
   AppSessionValidation,
   AuthenticatedUserSummary,
   InviteCodeConsumptionResult,
@@ -11,15 +12,18 @@ import {
   consumeInviteCodeWithClient,
   createAppSessionWithDevice,
   getAuthenticatedUserSummary,
+  isCustomerRole,
   revokeAppSessionToken,
   validateAppSessionToken,
 } from "@nails/shared";
 import { clearStoredAppSessionToken, getStoredAppSessionToken, setStoredAppSessionToken } from "@/src/lib/app-session";
+import { premiumTheme } from "@/src/design/premium-theme";
 import { getMobileDeviceFingerprint, getMobileDeviceInfo } from "@/src/lib/device";
 import { mobileEnv } from "@/src/lib/env";
 import { mobileSupabase } from "@/src/lib/supabase";
 
 const SESSION_BOOT_TIMEOUT_MS = 3000;
+const { colors, radius, spacing, shadow } = premiumTheme;
 
 type SessionContextValue = {
   isHydrated: boolean;
@@ -29,7 +33,13 @@ type SessionContextValue = {
   appSession: AppSessionValidation | null;
   error: string | null;
   signIn: (input: { email: string; password: string }) => Promise<void>;
-  signUp: (input: { email: string; password: string; name: string; inviteCode: string }) => Promise<InviteCodeConsumptionResult>;
+  signUp: (input: {
+    email: string;
+    password: string;
+    name: string;
+    inviteCode?: string;
+    registrationMode: "USER" | "ADMIN";
+  }) => Promise<InviteCodeConsumptionResult | null>;
   requestPasswordReset: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   clearError: () => void;
@@ -74,6 +84,10 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallbackVa
       clearTimeout(timeoutHandle);
     }
   }
+}
+
+async function withSessionTimeout<T>(promise: Promise<T>, fallbackValue: T) {
+  return withTimeout(promise, SESSION_BOOT_TIMEOUT_MS, fallbackValue);
 }
 
 export function SessionProvider({ children }: { children: ReactNode }) {
@@ -122,30 +136,49 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         let nextValidation: AppSessionValidation | null = null;
 
         if (existingToken) {
-          nextValidation = await validateAppSessionToken(mobileSupabase, existingToken);
+          nextValidation = await withSessionTimeout(
+            validateAppSessionToken(mobileSupabase, existingToken),
+            { valid: false, reason: "INVALID_TOKEN" } satisfies AppSessionValidation,
+          );
           if (!nextValidation.valid) {
             await clearStoredAppSessionToken();
           }
         }
 
         if (!nextValidation?.valid) {
-          const sessionResult = await createAppSessionWithDevice(mobileSupabase, {
-            userId: summary.id,
-            deviceFingerprint: await getMobileDeviceFingerprint(),
-            deviceInfo: await getMobileDeviceInfo(),
-          });
+          const sessionResult = await withSessionTimeout(
+            createAppSessionWithDevice(mobileSupabase, {
+              userId: summary.id,
+              deviceFingerprint: await getMobileDeviceFingerprint(),
+              deviceInfo: await getMobileDeviceInfo(),
+            }),
+            {
+              success: false,
+              error: "App session mobile dang khoi tao cham. Tiep tuc vao app voi che do co ban.",
+            } satisfies AppSessionResult,
+          );
 
-          if (!sessionResult.success || !sessionResult.token) {
-            throw new Error(sessionResult.message || sessionResult.error || "Khong tao duoc app session tren mobile.");
+          if (sessionResult.success && sessionResult.token) {
+            await setStoredAppSessionToken(sessionResult.token);
+            nextValidation = await withSessionTimeout(
+              validateAppSessionToken(mobileSupabase, sessionResult.token),
+              {
+                valid: true,
+                userId: summary.id,
+              } satisfies AppSessionValidation,
+            );
+          } else {
+            nextValidation = {
+              valid: false,
+              reason: "INVALID_TOKEN",
+              message: sessionResult.message || sessionResult.error || "Khong tao duoc app session tren mobile.",
+            };
           }
-
-          await setStoredAppSessionToken(sessionResult.token);
-          nextValidation = await validateAppSessionToken(mobileSupabase, sessionResult.token);
         }
 
         if (!mounted) return;
         setAppSession(nextValidation);
-        setError(null);
+        setError(nextValidation.valid ? null : nextValidation.message ?? null);
       } catch (nextError) {
         if (!mounted) return;
         setUser(null);
@@ -188,18 +221,33 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setUser(summary);
     setRoleState(summary.role);
 
-    const sessionResult = await createAppSessionWithDevice(mobileSupabase, {
-      userId: summary.id,
-      deviceFingerprint: await getMobileDeviceFingerprint(),
-      deviceInfo: await getMobileDeviceInfo(),
-    });
+    const sessionResult = await withSessionTimeout(
+      createAppSessionWithDevice(mobileSupabase, {
+        userId: summary.id,
+        deviceFingerprint: await getMobileDeviceFingerprint(),
+        deviceInfo: await getMobileDeviceInfo(),
+      }),
+      {
+        success: false,
+        error: "App session mobile dang khoi tao cham. Tiep tuc vao app voi che do co ban.",
+      } satisfies AppSessionResult,
+    );
 
     if (!sessionResult.success || !sessionResult.token) {
-      throw new Error(sessionResult.message || sessionResult.error || "Khong tao duoc app session tren mobile.");
+      setAppSession({
+        valid: false,
+        reason: "INVALID_TOKEN",
+        message: sessionResult.message || sessionResult.error || "Khong tao duoc app session tren mobile.",
+      });
+      setError(sessionResult.message || sessionResult.error || "Khong tao duoc app session tren mobile.");
+      return;
     }
 
     await setStoredAppSessionToken(sessionResult.token);
-    const validation = await validateAppSessionToken(mobileSupabase, sessionResult.token);
+    const validation = await withSessionTimeout(validateAppSessionToken(mobileSupabase, sessionResult.token), {
+      valid: true,
+      userId: summary.id,
+    } satisfies AppSessionValidation);
     setAppSession(validation);
     setError(null);
   }
@@ -232,7 +280,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function signUp(input: { email: string; password: string; name: string; inviteCode: string }) {
+  async function signUp(input: {
+    email: string;
+    password: string;
+    name: string;
+    inviteCode?: string;
+    registrationMode: "USER" | "ADMIN";
+  }) {
     if (!mobileSupabase) {
       throw new Error("Thieu cau hinh Supabase mobile.");
     }
@@ -247,6 +301,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         options: {
           data: {
             display_name: input.name.trim(),
+            registration_mode: input.registrationMode,
           },
         },
       });
@@ -260,15 +315,24 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         throw new Error("Khong tao duoc tai khoan moi.");
       }
 
-      const inviteResult = await consumeInviteCodeWithClient(mobileSupabase, {
-        code: input.inviteCode.trim().toUpperCase(),
-        userId,
-        displayName: input.name.trim(),
-      });
+      let inviteResult: InviteCodeConsumptionResult | null = null;
+
+      if (input.registrationMode === "ADMIN") {
+        const nextInviteCode = input.inviteCode?.trim().toUpperCase();
+        if (!nextInviteCode) {
+          throw new Error("Nhap ma moi de tao tai khoan quan tri.");
+        }
+
+        inviteResult = await consumeInviteCodeWithClient(mobileSupabase, {
+          code: nextInviteCode,
+          userId,
+          displayName: input.name.trim(),
+        });
+      }
 
       if (data.session?.user) {
         await hydrateAfterAuth();
-        router.replace("/");
+        router.replace(input.registrationMode === "USER" ? "/(customer)" : "/(admin)");
       }
       return inviteResult;
     } catch (nextError) {
@@ -319,7 +383,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setRoleState(null);
       setAppSession(null);
       setError(null);
-      router.replace("/(customer)");
+      router.replace("/(auth)/sign-in");
     } finally {
       setIsBusy(false);
     }
@@ -359,9 +423,11 @@ export function SessionActions() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.caption}>Mobile session</Text>
+      <Text style={styles.caption}>Tai khoan hien tai</Text>
       <Text style={styles.value}>{user?.email ?? "Chua co session"}</Text>
-      <Text style={styles.value}>{role ? `Role: ${role}` : "Role chua san sang"}</Text>
+      <Text style={styles.value}>
+        {role ? `Vai tro: ${role}${isCustomerRole(role) ? " (customer)" : " (admin)"}` : "Vai tro chua san sang"}
+      </Text>
       <Text style={styles.value}>{appSession?.valid ? "App session: OK" : "App session: chua co"}</Text>
       <Pressable style={styles.button} disabled={isBusy} onPress={handleReset}>
         <Text style={styles.buttonText}>{isBusy ? "Dang xu ly..." : "Dang xuat"}</Text>
@@ -372,33 +438,36 @@ export function SessionActions() {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: "#ffffff",
-    borderRadius: 18,
-    padding: 18,
-    gap: 8,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.xs,
     borderWidth: 1,
-    borderColor: "#e7ddd3",
+    borderColor: colors.border,
+    ...shadow.card,
   },
   caption: {
-    color: "#8a7460",
+    color: colors.accentWarm,
     fontSize: 12,
     textTransform: "uppercase",
-    fontWeight: "700",
+    fontWeight: "800",
+    letterSpacing: 1,
   },
   value: {
-    color: "#2b241f",
+    color: colors.text,
     fontSize: 15,
+    lineHeight: 21,
   },
   button: {
     marginTop: 8,
-    backgroundColor: "#2b241f",
-    borderRadius: 12,
-    paddingVertical: 12,
+    backgroundColor: colors.accent,
+    borderRadius: radius.md,
+    paddingVertical: 13,
     paddingHorizontal: 14,
   },
   buttonText: {
     color: "#fff",
     textAlign: "center",
-    fontWeight: "600",
+    fontWeight: "800",
   },
 });

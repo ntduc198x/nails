@@ -1,12 +1,14 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import fs from "node:fs";
+import {
+  getMergedEnv,
+  mobileDir,
+  repoRoot,
+  syncMobileEnvLocalFromRoot,
+} from "./shared-env.mjs";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const mobileDir = path.resolve(__dirname, "..", "apps", "mobile");
-const expoCliPath = path.resolve(__dirname, "..", "node_modules", "expo", "bin", "cli");
+const expoCliPath = path.resolve(repoRoot, "node_modules", "expo", "bin", "cli");
 
 const args = process.argv.slice(2);
 
@@ -34,15 +36,18 @@ function resolveJavaHome() {
 
 const javaHome = resolveJavaHome();
 const javaBinPath = javaHome ? path.join(javaHome, "bin") : null;
+const mergedEnv = getMergedEnv(process.env);
+const { derived: mobilePublicEnv } = syncMobileEnvLocalFromRoot(mergedEnv);
 
 const child = spawn(process.execPath, [expoCliPath, ...args], {
   cwd: mobileDir,
   stdio: "inherit",
   env: {
-    ...process.env,
+    ...mergedEnv,
+    ...mobilePublicEnv,
     ...(javaHome ? { JAVA_HOME: javaHome } : {}),
-    EXPO_ROUTER_APP_ROOT: process.env.EXPO_ROUTER_APP_ROOT ?? "app",
-    ...(javaBinPath ? { Path: `${process.env.Path ?? ""};${javaBinPath}` } : {}),
+    EXPO_ROUTER_APP_ROOT: mergedEnv.EXPO_ROUTER_APP_ROOT ?? "app",
+    ...(javaBinPath ? { Path: `${mergedEnv.Path ?? ""};${javaBinPath}` } : {}),
   },
 });
 

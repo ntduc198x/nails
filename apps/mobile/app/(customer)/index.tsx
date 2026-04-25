@@ -1,964 +1,537 @@
-import { Redirect, router } from "expo-router";
+import { router } from "expo-router";
 import { useMemo, useState } from "react";
-import {
-  Image,
-  Linking,
-  Modal,
-  Pressable,
-  RefreshControl,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import { formatViDateTime } from "@nails/shared";
-import { MasonryGrid, type MasonryItem } from "@/src/components/masonry-grid";
-import { useGuestBooking } from "@/src/hooks/use-guest-booking";
-import { type LookbookService, useLookbookServices } from "@/src/hooks/use-lookbook-services";
-import { SessionActions, useSession } from "@/src/providers/session-provider";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { FALLBACK_SERVICES, NEWS_ITEMS, OFFERS } from "@/src/features/customer/data";
+import { CustomerScreen } from "@/src/features/customer/ui";
+import { useLookbookServices } from "@/src/hooks/use-lookbook-services";
+import { premiumTheme } from "@/src/design/premium-theme";
 
-const FALLBACK_SERVICES: LookbookService[] = [
-  {
-    id: "luxury-gel",
-    title: "Luxury Gel",
-    blurb: "Form mong toi gian, nen den bong va chi tiet da beo hien dai.",
-    tone: "Nhe nhang",
-    price: "350.000d",
-    image: "https://images.unsplash.com/photo-1604654894610-df63bc536371?q=80&w=1200",
-    aspectRatio: 1.28,
-  },
-  {
-    id: "nail-art-design",
-    title: "Nail Art Design",
-    blurb: "Phoi mau xam bac va white milk cho layout sang trong, sang da.",
-    tone: "Noi bat",
-    price: "500.000d",
-    image: "https://images.unsplash.com/photo-1607779097040-26e80aa78e66?q=80&w=1200",
-    aspectRatio: 0.98,
-  },
-  {
-    id: "nail-han-quoc",
-    title: "Nail Han Quoc",
-    blurb: "Base nude trong veo, diem nhan phu kien kim loai nho va sang.",
-    tone: "Nhe nhang",
-    price: "400.000d",
-    image: "https://images.unsplash.com/photo-1519014816548-bf5fe059798b?q=80&w=1200",
-    aspectRatio: 1.16,
-  },
-  {
-    id: "french-chic",
-    title: "French Chic",
-    blurb: "French mong va gam beige hong, hop hen ho va di lam moi ngay.",
-    tone: "Sang trong",
-    price: "300.000d",
-    image: "https://images.unsplash.com/photo-1522337660859-02fbefca4702?q=80&w=1200",
-    aspectRatio: 1.24,
-  },
-  {
-    id: "matcha-mood",
-    title: "Matcha Mood",
-    blurb: "Gam xanh olive mix sticker mini cho bo mong ca tinh nhung van mem.",
-    tone: "Ca tinh",
-    price: "380.000d",
-    image: "https://images.unsplash.com/photo-1610992015732-2449b76344bc?q=80&w=1200",
-    aspectRatio: 1.06,
-  },
-  {
-    id: "milky-glow",
-    title: "Milky Glow",
-    blurb: "Overlay anh ngoc trai va nhung diem nhan nho cho da tay sang hon.",
-    tone: "Don gian",
-    price: "320.000d",
-    image: "https://images.unsplash.com/photo-1632345031435-8727f6897d53?q=80&w=1200",
-    aspectRatio: 1.14,
-  },
-];
+const { colors, radius, shadow, spacing } = premiumTheme;
 
-const CATEGORY_ITEMS = [
-  { key: "all", label: "Tat ca" },
-  { key: "don-gian", label: "Nail don gian" },
-  { key: "sang-trong", label: "Nail sang trong" },
-  { key: "ca-tinh", label: "Nail ca tinh" },
-  { key: "noi-bat", label: "Nail noi bat" },
+const HOME_FILTERS = [
+  { key: "all", label: "Tất cả" },
+  { key: "trend", label: "Xu hướng" },
+  { key: "nails", label: "Nail đẹp" },
+  { key: "offers", label: "Ưu đãi" },
+  { key: "care", label: "Chăm sóc" },
+  { key: "news", label: "Tin tức" },
 ] as const;
 
-const QUICK_CONTACTS = [
-  {
-    label: "Hotline",
-    value: "0916 080 398",
-    actionLabel: "Goi",
-    onPress: () => void Linking.openURL("tel:0916080398"),
-  },
-  {
-    label: "Messenger",
-    value: "m.me/chambeautyyy",
-    actionLabel: "Chat",
-    onPress: () => void Linking.openURL("https://m.me/chambeautyyy"),
-  },
-] as const;
+type HomeFilterKey = (typeof HOME_FILTERS)[number]["key"];
 
-function formatBookingSlot(dateValue: string, timeValue: string) {
-  if (!dateValue || !timeValue) return "Chon ngay gio phu hop";
-  return formatViDateTime(`${dateValue}T${timeValue}:00`);
+type HomeCard =
+  | {
+      id: string;
+      kind: "story";
+      title: string;
+      description: string;
+      image: string;
+      badge: string;
+      tones: HomeFilterKey[];
+      footer: string;
+      action: "save" | "play";
+      onPress: () => void;
+    }
+  | {
+      id: string;
+      kind: "offer";
+      title: string;
+      description: string;
+      eyebrow: string;
+      image: string;
+      tones: HomeFilterKey[];
+      onPress: () => void;
+    };
+
+function splitIntoColumns<T>(items: T[]) {
+  return items.reduce<[T[], T[]]>(
+    (columns, item, index) => {
+      columns[index % 2].push(item);
+      return columns;
+    },
+    [[], []],
+  );
 }
 
-function matchesCategory(service: LookbookService, category: (typeof CATEGORY_ITEMS)[number]["key"]) {
-  if (category === "all") return true;
+export default function CustomerHomeScreen() {
+  const [activeFilter, setActiveFilter] = useState<HomeFilterKey>("all");
+  const { services } = useLookbookServices(FALLBACK_SERVICES);
+  const servicePool = services.length ? services : FALLBACK_SERVICES;
 
-  const haystack = `${service.title} ${service.tone} ${service.blurb}`.toLowerCase();
+  const cards = useMemo<HomeCard[]>(() => {
+    const featured = servicePool[4] ?? servicePool[0];
+    const glossy = servicePool[5] ?? servicePool[1] ?? servicePool[0];
+    const soft = servicePool[2] ?? servicePool[0];
+    const neutral = servicePool[3] ?? servicePool[0];
 
-  if (category === "don-gian") {
-    return haystack.includes("nhe nhang") || haystack.includes("don gian") || haystack.includes("milky");
-  }
+    return [
+      {
+        id: `story-${featured.id}`,
+        kind: "story",
+        title: NEWS_ITEMS[0]?.title ?? "Chrome olive và cat-eye nude đang là tông màu được đặt nhiều nhất tuần này",
+        description:
+          "Khách hàng đang ưu tiên tông nude sáng tay, mix thêm chi tiết chrome mỏng để tạo điểm nhấn tinh tế.",
+        image: featured.image,
+        badge: "Tin nổi bật",
+        tones: ["all", "trend", "nails", "news"],
+        footer: "Cham Beauty",
+        action: "save",
+        onPress: () =>
+          router.push({
+            pathname: "/(customer)/booking",
+            params: { service: featured.title },
+          }),
+      },
+      {
+        id: "offer-april",
+        kind: "offer",
+        eyebrow: "Ưu đãi tháng 4",
+        title: OFFERS[0]?.title ?? "Giảm 20%",
+        description: "Combo nail & gội đầu dưỡng sinh dành cho lịch đặt sớm trong tuần này.",
+        image: glossy.image,
+        tones: ["all", "offers", "care"],
+        onPress: () => router.push("/(customer)/offers"),
+      },
+      {
+        id: `story-${soft.id}`,
+        kind: "story",
+        title: "Nail Hàn Quốc nhẹ nhàng cho mùa hè",
+        description:
+          "Những mẫu nail tone sáng, nhẹ nhàng giúp đôi tay trông thanh thoát và nữ tính hơn.",
+        image: soft.image,
+        badge: "Video",
+        tones: ["all", "trend", "nails"],
+        footer: "Cham Beauty",
+        action: "play",
+        onPress: () => router.push("/(customer)/explore"),
+      },
+      {
+        id: `story-${glossy.id}`,
+        kind: "story",
+        title: "Top 5 màu nail được yêu thích nhất tháng 4",
+        description:
+          "Bảng màu hot trend: hồng sữa, nude đất, trắng ngọc trai, be sữa và cam san hô.",
+        image: glossy.image,
+        badge: "Xu hướng",
+        tones: ["all", "trend", "nails", "news"],
+        footer: "Cham Beauty",
+        action: "save",
+        onPress: () => router.push("/(customer)/explore"),
+      },
+      {
+        id: `story-${neutral.id}`,
+        kind: "story",
+        title: "Mẫu nail nâu đất - Đơn giản nhưng không đơn điệu",
+        description:
+          "Sự lựa chọn hoàn hảo cho những ai yêu thích phong cách tối giản, tinh tế.",
+        image: neutral.image,
+        badge: "Chăm sóc",
+        tones: ["all", "care", "nails"],
+        footer: "Cham Beauty",
+        action: "save",
+        onPress: () =>
+          router.push({
+            pathname: "/(customer)/booking",
+            params: { service: neutral.title },
+          }),
+      },
+    ];
+  }, [servicePool]);
 
-  if (category === "sang-trong") {
-    return haystack.includes("sang trong") || haystack.includes("french") || haystack.includes("luxury");
-  }
+  const visibleCards = useMemo(() => {
+    if (activeFilter === "all") return cards;
+    return cards.filter((card) => card.tones.includes(activeFilter));
+  }, [activeFilter, cards]);
 
-  if (category === "ca-tinh") {
-    return haystack.includes("ca tinh") || haystack.includes("olive") || haystack.includes("matcha");
-  }
+  const [leftColumn, rightColumn] = useMemo(() => splitIntoColumns(visibleCards), [visibleCards]);
 
-  if (category === "noi-bat") {
-    return haystack.includes("noi bat") || haystack.includes("art") || haystack.includes("design");
-  }
-
-  return true;
-}
-
-type ServiceCardProps = {
-  item: LookbookService;
-  onPress: () => void;
-  onLongPress: () => void;
-};
-
-function ServiceCard({ item, onPress, onLongPress }: ServiceCardProps) {
   return (
-    <Pressable style={styles.serviceCard} onPress={onPress} onLongPress={onLongPress}>
-      <Image source={{ uri: item.image }} alt={item.title} style={[styles.serviceImage, { aspectRatio: item.aspectRatio ?? 1.15 }]} />
-
-      <View style={styles.serviceBody}>
-        <View style={styles.serviceHeading}>
-          <Text numberOfLines={1} style={styles.serviceTitle}>
-            {item.title}
+    <CustomerScreen hideHeader title="Trang chủ" contentContainerStyle={styles.screenContent}>
+      <View style={styles.headerBlock}>
+        <View style={styles.headerCopy}>
+          <Text style={styles.brandLabel}>CHAM BEAUTY</Text>
+          <Text style={styles.pageTitle}>Trang chủ</Text>
+          <Text style={styles.pageSubtitle}>
+            Tin mới, lịch hẹn gần nhất và cập nhật ưu đãi cho khách hàng.
           </Text>
-          <Text style={styles.servicePrice}>{item.price}</Text>
         </View>
 
-        <View style={styles.serviceFooter}>
-          <View style={styles.authorRow}>
-            <View style={styles.authorAvatar}>
-              <Text style={styles.authorAvatarText}>C</Text>
-            </View>
-            <Text style={styles.authorText}>Cham Beauty</Text>
+        <View style={styles.headerActions}>
+          <Pressable
+            accessibilityLabel="Thông báo"
+            style={styles.headerCircle}
+            onPress={() => router.push("/(customer)/notifications")}
+          >
+            <Text style={styles.headerBell}>🔔</Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityLabel="Hồ sơ"
+            style={styles.profileBadge}
+            onPress={() => router.push("/(customer)/profile")}
+          >
+            <Text style={styles.profileBadgeText}>TB</Text>
+          </Pressable>
+        </View>
+      </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filtersRow}
+      >
+        {HOME_FILTERS.map((item) => {
+          const active = item.key === activeFilter;
+
+          return (
+            <Pressable
+              key={item.key}
+              style={[styles.filterChip, active ? styles.filterChipActive : null]}
+              onPress={() => setActiveFilter(item.key)}
+            >
+              <Text style={[styles.filterChipText, active ? styles.filterChipTextActive : null]}>
+                {item.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
+      <View style={styles.columns}>
+        <View style={styles.column}>
+          {leftColumn.map((card) => renderCard(card))}
+        </View>
+        <View style={styles.column}>
+          {rightColumn.map((card) => renderCard(card))}
+        </View>
+      </View>
+    </CustomerScreen>
+  );
+}
+
+function renderCard(card: HomeCard) {
+  if (card.kind === "offer") {
+    return (
+      <Pressable key={card.id} style={[styles.cardBase, styles.offerCard]} onPress={card.onPress}>
+        <Image alt={card.title} source={{ uri: card.image }} style={styles.offerImage} />
+        <View style={styles.offerContent}>
+          <View style={styles.offerTextPanel}>
+          <Text style={styles.offerEyebrow}>{card.eyebrow}</Text>
+          <Text style={styles.offerTitle}>{card.title}</Text>
+          <Text style={styles.offerDescription}>{card.description}</Text>
+
+          <View style={styles.offerCta}>
+            <Text style={styles.offerCtaText}>Đặt lịch ngay</Text>
           </View>
-          <Text style={styles.moreText}>...</Text>
+          </View>
+        </View>
+      </Pressable>
+    );
+  }
+
+  return (
+    <Pressable key={card.id} style={styles.cardBase} onPress={card.onPress}>
+      <View style={styles.imageWrap}>
+        <Image alt={card.title} source={{ uri: card.image }} style={styles.storyImage} />
+        <View style={styles.cardBadgeWrap}>
+          <Text style={styles.cardBadgeText}>{card.badge}</Text>
+        </View>
+
+        {card.action === "play" ? (
+          <View style={styles.playBadge}>
+            <Text style={styles.playBadgeText}>▶</Text>
+          </View>
+        ) : null}
+      </View>
+
+      <View style={styles.cardBody}>
+        <Text style={styles.cardTitle}>{card.title}</Text>
+        <Text style={styles.cardDescription}>{card.description}</Text>
+
+        <View style={styles.cardFooter}>
+          <View style={styles.cardFooterBrand}>
+            <View style={styles.footerAvatar}>
+              <Text style={styles.footerAvatarText}>C</Text>
+            </View>
+            <Text style={styles.footerBrandText}>{card.footer}</Text>
+          </View>
+
+          <Text style={styles.footerActionText}>{card.action === "save" ? "⌑" : "▶"}</Text>
         </View>
       </View>
     </Pressable>
   );
 }
 
-type BookingModalProps = {
-  isSubmitting: boolean;
-  isVisible: boolean;
-  onClose: () => void;
-  onSubmit: () => void;
-  fieldErrors: ReturnType<typeof useGuestBooking>["fieldErrors"];
-  successResult: ReturnType<typeof useGuestBooking>["successResult"];
-  submitError: string | null;
-  updateValue: ReturnType<typeof useGuestBooking>["updateValue"];
-  values: ReturnType<typeof useGuestBooking>["values"];
-  timeSlots: string[];
-  dateOptions: Array<{ value: string; label: string }>;
-};
-
-function BookingModal({
-  dateOptions,
-  fieldErrors,
-  isSubmitting,
-  isVisible,
-  onClose,
-  onSubmit,
-  successResult,
-  submitError,
-  timeSlots,
-  updateValue,
-  values,
-}: BookingModalProps) {
-  const slotLabel = useMemo(
-    () => formatBookingSlot(values.selectedDate, values.selectedTime),
-    [values.selectedDate, values.selectedTime]
-  );
-
-  return (
-    <Modal animationType="slide" transparent visible={isVisible} onRequestClose={onClose}>
-      <View style={styles.sheetBackdrop}>
-        <Pressable style={styles.sheetDismissArea} onPress={onClose} />
-        <View style={styles.sheetCard}>
-          <View style={styles.sheetHandle} />
-          <View style={styles.sheetHeader}>
-            <View style={styles.sheetHeaderCopy}>
-              <Text style={styles.sheetEyebrow}>Dat lich nhanh</Text>
-              <Text style={styles.sheetTitle}>{values.requestedService || "Chon mau nail ban muon lam"}</Text>
-              <Text style={styles.sheetSubtitle}>{slotLabel}</Text>
-            </View>
-            <Pressable style={styles.sheetCloseButton} onPress={onClose}>
-              <Text style={styles.sheetCloseText}>Dong</Text>
-            </Pressable>
-          </View>
-
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.sheetContent}>
-            {successResult ? (
-              <View style={styles.successCard}>
-                <Text style={styles.successTitle}>Da gui yeu cau thanh cong</Text>
-                <Text style={styles.successText}>{slotLabel}</Text>
-                <Text style={styles.successId}>{successResult.bookingRequestId ?? "Dang dong bo yeu cau"}</Text>
-                <Pressable style={styles.submitButton} onPress={onClose}>
-                  <Text style={styles.submitButtonText}>Xong</Text>
-                </Pressable>
-              </View>
-            ) : (
-              <>
-                <View style={styles.inlinePickerGroup}>
-                  <Text style={styles.inlinePickerLabel}>Ngay</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.inlineChipsRow}>
-                    {dateOptions.map((option) => {
-                      const active = option.value === values.selectedDate;
-                      return (
-                        <Pressable
-                          key={option.value}
-                          style={[styles.inlineChip, active ? styles.inlineChipActive : null]}
-                          onPress={() => updateValue("selectedDate", option.value)}
-                        >
-                          <Text style={[styles.inlineChipText, active ? styles.inlineChipTextActive : null]}>{option.label}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </ScrollView>
-                  {fieldErrors.selectedDate ? <Text style={styles.errorText}>{fieldErrors.selectedDate}</Text> : null}
-                </View>
-
-                <View style={styles.inlinePickerGroup}>
-                  <Text style={styles.inlinePickerLabel}>Gio</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.inlineChipsRow}>
-                    {timeSlots.map((slot) => {
-                      const active = slot === values.selectedTime;
-                      return (
-                        <Pressable
-                          key={slot}
-                          style={[styles.inlineChip, active ? styles.inlineChipActive : null]}
-                          onPress={() => updateValue("selectedTime", slot)}
-                        >
-                          <Text style={[styles.inlineChipText, active ? styles.inlineChipTextActive : null]}>{slot}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </ScrollView>
-                  {fieldErrors.selectedTime ? <Text style={styles.errorText}>{fieldErrors.selectedTime}</Text> : null}
-                </View>
-
-                <TextInput
-                  placeholder="Ten khach hang"
-                  placeholderTextColor="#a19182"
-                  style={styles.sheetInput}
-                  value={values.customerName}
-                  onChangeText={(value) => updateValue("customerName", value)}
-                />
-                {fieldErrors.customerName ? <Text style={styles.errorText}>{fieldErrors.customerName}</Text> : null}
-
-                <TextInput
-                  keyboardType="phone-pad"
-                  placeholder="So dien thoai"
-                  placeholderTextColor="#a19182"
-                  style={styles.sheetInput}
-                  value={values.customerPhone}
-                  onChangeText={(value) => updateValue("customerPhone", value)}
-                />
-                {fieldErrors.customerPhone ? <Text style={styles.errorText}>{fieldErrors.customerPhone}</Text> : null}
-
-                <TextInput
-                  placeholder="Nhan vien uu tien"
-                  placeholderTextColor="#a19182"
-                  style={styles.sheetInput}
-                  value={values.preferredStaff}
-                  onChangeText={(value) => updateValue("preferredStaff", value)}
-                />
-
-                <TextInput
-                  multiline
-                  numberOfLines={4}
-                  placeholder="Mau sac, form mong, luu y dac biet..."
-                  placeholderTextColor="#a19182"
-                  style={[styles.sheetInput, styles.sheetTextarea]}
-                  textAlignVertical="top"
-                  value={values.note}
-                  onChangeText={(value) => updateValue("note", value)}
-                />
-
-                <View style={styles.contactQuickGrid}>
-                  {QUICK_CONTACTS.map((item) => (
-                    <Pressable key={item.label} style={styles.contactQuickCard} onPress={item.onPress}>
-                      <Text style={styles.contactQuickLabel}>{item.label}</Text>
-                      <Text style={styles.contactQuickValue}>{item.value}</Text>
-                      <Text style={styles.contactQuickAction}>{item.actionLabel}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-
-                {submitError ? <Text style={styles.errorText}>{submitError}</Text> : null}
-
-                <Pressable disabled={isSubmitting} style={styles.submitButton} onPress={onSubmit}>
-                  <Text style={styles.submitButtonText}>{isSubmitting ? "Dang gui..." : "Gui yeu cau"}</Text>
-                </Pressable>
-              </>
-            )}
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-export default function CustomerHomeScreen() {
-  const { role, user } = useSession();
-  const { dateOptions, fieldErrors, isSubmitting, reset, submit, submitError, successResult, timeSlots, updateValue, values } =
-    useGuestBooking();
-  const { isLoading, refresh, services, source } = useLookbookServices(FALLBACK_SERVICES);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeCategory, setActiveCategory] = useState<(typeof CATEGORY_ITEMS)[number]["key"]>("all");
-  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
-  const [isBookingModalVisible, setIsBookingModalVisible] = useState(false);
-  const [isAccountModalVisible, setIsAccountModalVisible] = useState(false);
-
-  const filteredServices = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-
-    return services.filter((service) => {
-      const haystack = `${service.title} ${service.blurb} ${service.tone}`.toLowerCase();
-      const matchesQuery = !query || haystack.includes(query);
-      return matchesQuery && matchesCategory(service, activeCategory);
-    });
-  }, [activeCategory, searchQuery, services]);
-
-  if (role) {
-    return <Redirect href="/(admin)" />;
-  }
-
-  async function handleRefresh() {
-    setIsRefreshing(true);
-    try {
-      await refresh();
-    } finally {
-      setIsRefreshing(false);
-    }
-  }
-
-  function openBookingForService(service?: LookbookService) {
-    if (service) {
-      updateValue("requestedService", service.title);
-      updateValue("note", values.note || service.blurb);
-    }
-
-    setIsBookingModalVisible(true);
-  }
-
-  async function handleSubmitBooking() {
-    await submit();
-  }
-
-  function handleCloseBooking() {
-    if (successResult) {
-      reset();
-    }
-    setIsBookingModalVisible(false);
-  }
-
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.screen}>
-        <ScrollView
-          contentContainerStyle={styles.content}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={() => void handleRefresh()}
-              tintColor="#3b2d23"
-              colors={["#3b2d23"]}
-              progressBackgroundColor="#fffaf4"
-            />
-          }
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.header}>
-            <Text style={styles.brandText}>CHAM BEAUTY</Text>
-            <Text style={styles.headerMeta}>
-              {isLoading ? "Dang tai feed..." : `${filteredServices.length} mau nail`}
-              {source === "fallback" ? " · local" : ""}
-            </Text>
-          </View>
-
-          <View style={styles.searchShell}>
-            <Text style={styles.searchIcon}>⌕</Text>
-            <TextInput
-              placeholder="Tim kiem mau nail, mau sac..."
-              placeholderTextColor="#b4a89b"
-              style={styles.searchInput}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            <Pressable style={styles.searchFilterButton} onPress={() => setActiveCategory("all")}>
-              <Text style={styles.searchFilterText}>≋</Text>
-            </Pressable>
-          </View>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-            {CATEGORY_ITEMS.map((item) => {
-              const active = item.key === activeCategory;
-              return (
-                <Pressable
-                  key={item.key}
-                  style={[styles.filterChip, active ? styles.filterChipActive : null]}
-                  onPress={() => setActiveCategory(item.key)}
-                >
-                  <Text style={[styles.filterChipText, active ? styles.filterChipTextActive : null]}>{item.label}</Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-
-          <MasonryGrid
-            data={filteredServices as readonly (MasonryItem & LookbookService)[]}
-            onItemLongPress={(item) => setLightboxImage(item.image)}
-            renderItem={(item) => (
-              <ServiceCard item={item as LookbookService} onPress={() => openBookingForService(item as LookbookService)} onLongPress={() => setLightboxImage(item.image)} />
-            )}
-            ListEmptyComponent={
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>Khong tim thay mau phu hop</Text>
-                <Text style={styles.emptyText}>Thu doi tu khoa tim kiem hoac chuyen sang nhom filter khac.</Text>
-              </View>
-            }
-          />
-        </ScrollView>
-
-        <View style={styles.bottomBar}>
-          <Pressable style={styles.bottomItem}>
-            <Text style={[styles.bottomIcon, styles.bottomIconActive]}>⌂</Text>
-            <Text style={[styles.bottomLabel, styles.bottomLabelActive]}>Trang chu</Text>
-          </Pressable>
-
-          <Pressable style={styles.bottomItem} onPress={() => setActiveCategory("noi-bat")}>
-            <Text style={styles.bottomIcon}>⌗</Text>
-            <Text style={styles.bottomLabel}>Kham pha</Text>
-          </Pressable>
-
-          <Pressable style={styles.plusButton} onPress={() => openBookingForService()}>
-            <Text style={styles.plusButtonText}>+</Text>
-          </Pressable>
-
-          <Pressable style={styles.bottomItem} onPress={() => openBookingForService()}>
-            <Text style={styles.bottomIcon}>⌚</Text>
-            <Text style={styles.bottomLabel}>Dat lich</Text>
-          </Pressable>
-
-          <Pressable style={styles.bottomItem} onPress={() => (user ? setIsAccountModalVisible(true) : router.push("/(auth)/sign-in"))}>
-            <Text style={styles.bottomIcon}>◌</Text>
-            <Text style={styles.bottomLabel}>Ca nhan</Text>
-          </Pressable>
-        </View>
-      </View>
-
-      <BookingModal
-        dateOptions={dateOptions}
-        fieldErrors={fieldErrors}
-        isSubmitting={isSubmitting}
-        isVisible={isBookingModalVisible}
-        onClose={handleCloseBooking}
-        onSubmit={() => void handleSubmitBooking()}
-        successResult={successResult}
-        submitError={submitError}
-        timeSlots={timeSlots}
-        updateValue={updateValue}
-        values={values}
-      />
-
-      <Modal animationType="slide" transparent visible={isAccountModalVisible} onRequestClose={() => setIsAccountModalVisible(false)}>
-        <View style={styles.sheetBackdrop}>
-          <Pressable style={styles.sheetDismissArea} onPress={() => setIsAccountModalVisible(false)} />
-          <View style={styles.accountSheet}>
-            <View style={styles.sheetHandle} />
-            <Text style={styles.sheetEyebrow}>Tai khoan</Text>
-            {user ? (
-              <SessionActions />
-            ) : (
-              <Pressable style={styles.submitButton} onPress={() => router.push("/(auth)/sign-in")}>
-                <Text style={styles.submitButtonText}>Dang nhap</Text>
-              </Pressable>
-            )}
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={!!lightboxImage} transparent animationType="fade" onRequestClose={() => setLightboxImage(null)}>
-        <View style={styles.lightboxBackdrop}>
-          <Pressable style={styles.lightboxDismiss} onPress={() => setLightboxImage(null)}>
-            <Text style={styles.lightboxDismissText}>Dong</Text>
-          </Pressable>
-          {lightboxImage ? (
-            <Image source={{ uri: lightboxImage }} alt="Anh lookbook phong to" style={styles.lightboxImage} resizeMode="contain" />
-          ) : null}
-        </View>
-      </Modal>
-    </SafeAreaView>
-  );
-}
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff9f2",
+  screenContent: {
+    paddingTop: spacing.sm,
   },
-  screen: {
-    flex: 1,
-  },
-  content: {
-    paddingHorizontal: 16,
-    paddingTop: 18,
-    paddingBottom: 120,
-    gap: 18,
-  },
-  header: {
-    gap: 4,
-  },
-  brandText: {
-    fontSize: 19,
-    fontWeight: "800",
-    letterSpacing: 2.4,
-    color: "#2e241e",
-  },
-  headerMeta: {
-    fontSize: 13,
-    color: "#9a8b7b",
-    fontWeight: "600",
-  },
-  searchShell: {
+  headerBlock: {
+    alignItems: "flex-start",
     flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 999,
-    backgroundColor: "#fbf3e9",
-    borderWidth: 1,
-    borderColor: "#e8d9c9",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 10,
+    justifyContent: "space-between",
+    marginBottom: 2,
   },
-  searchIcon: {
-    fontSize: 22,
-    color: "#3b2d23",
-  },
-  searchInput: {
+  headerCopy: {
     flex: 1,
-    color: "#2e241e",
-    fontSize: 16,
-    paddingVertical: 4,
+    gap: 6,
+    paddingRight: spacing.md,
   },
-  searchFilterButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+  brandLabel: {
+    color: "#bf8b62",
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 1.8,
+  },
+  pageTitle: {
+    color: "#352b23",
+    fontSize: 29,
+    fontWeight: "800",
+    letterSpacing: -0.82,
+    lineHeight: 34,
+  },
+  pageSubtitle: {
+    color: "#8a7c70",
+    fontSize: 13,
+    lineHeight: 19,
+    maxWidth: 240,
+  },
+  headerActions: {
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#fffaf4",
+    flexDirection: "row",
+    gap: spacing.sm,
+    paddingTop: 18,
+  },
+  headerCircle: {
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderColor: "#eadfd4",
+    borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: "#eadbc9",
+    height: 40,
+    justifyContent: "center",
+    width: 40,
   },
-  searchFilterText: {
-    fontSize: 20,
-    color: "#3b2d23",
-    marginTop: -1,
+  headerBell: {
+    color: "#5a4b40",
+    fontSize: 16,
   },
-  filterRow: {
-    gap: 10,
-    paddingRight: 12,
+  profileBadge: {
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderColor: "#eadfd4",
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+  },
+  profileBadgeText: {
+    color: "#74665b",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  filtersRow: {
+    gap: 8,
+    paddingBottom: spacing.sm,
+    paddingRight: spacing.lg,
+    paddingTop: spacing.sm,
   },
   filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 999,
-    backgroundColor: "#fffaf4",
+    alignItems: "center",
+    backgroundColor: "#fffaf6",
+    borderColor: "#eadfd4",
+    borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: "#eadbc9",
+    justifyContent: "center",
+    minHeight: 34,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
   },
   filterChipActive: {
-    backgroundColor: "#3b2d23",
-    borderColor: "#3b2d23",
+    backgroundColor: "#4a392f",
+    borderColor: "#4a392f",
   },
   filterChipText: {
-    color: "#6f5d4c",
-    fontSize: 14,
+    color: "#76675b",
+    fontSize: 12,
     fontWeight: "700",
   },
   filterChipTextActive: {
-    color: "#fffaf4",
+    color: "#fff9f4",
   },
-  serviceCard: {
-    borderRadius: 24,
-    overflow: "hidden",
-    backgroundColor: "#fffdf8",
-    borderWidth: 1,
-    borderColor: "#efdfd1",
-  },
-  serviceImage: {
-    width: "100%",
-    backgroundColor: "#efe3d5",
-  },
-  serviceBody: {
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    gap: 10,
-  },
-  serviceHeading: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 10,
-  },
-  serviceTitle: {
-    flex: 1,
-    color: "#2e241e",
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  servicePrice: {
-    color: "#a06e44",
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  serviceFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  authorRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  authorAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#3b2d23",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  authorAvatarText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "800",
-  },
-  authorText: {
-    color: "#6f5d4c",
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  moreText: {
-    color: "#3b2d23",
-    fontSize: 22,
-    lineHeight: 22,
-  },
-  emptyState: {
-    marginTop: 28,
-    borderRadius: 22,
-    backgroundColor: "#fffdf8",
-    borderWidth: 1,
-    borderColor: "#efdfd1",
-    padding: 22,
-    gap: 8,
-  },
-  emptyTitle: {
-    color: "#2e241e",
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  emptyText: {
-    color: "#857565",
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  bottomBar: {
-    position: "absolute",
-    left: 14,
-    right: 14,
-    bottom: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderRadius: 34,
-    backgroundColor: "#fffaf4",
-    borderWidth: 1,
-    borderColor: "#eadbc9",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  bottomItem: {
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    minWidth: 58,
-  },
-  bottomIcon: {
-    fontSize: 20,
-    color: "#8a7b6b",
-    fontWeight: "700",
-  },
-  bottomIconActive: {
-    color: "#2e241e",
-  },
-  bottomLabel: {
-    color: "#8a7b6b",
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  bottomLabelActive: {
-    color: "#2e241e",
-    fontWeight: "700",
-  },
-  plusButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "#3b2d23",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: -26,
-  },
-  plusButtonText: {
-    color: "#fffaf4",
-    fontSize: 36,
-    lineHeight: 38,
-    fontWeight: "400",
-    marginTop: -2,
-  },
-  sheetBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(34, 26, 20, 0.35)",
-    justifyContent: "flex-end",
-  },
-  sheetDismissArea: {
-    flex: 1,
-  },
-  sheetCard: {
-    maxHeight: "88%",
-    backgroundColor: "#fffaf4",
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    paddingHorizontal: 18,
-    paddingTop: 12,
-    paddingBottom: 28,
-  },
-  accountSheet: {
-    backgroundColor: "#fffaf4",
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    paddingHorizontal: 18,
-    paddingTop: 12,
-    paddingBottom: 28,
-    gap: 14,
-  },
-  sheetHandle: {
-    alignSelf: "center",
-    width: 54,
-    height: 6,
-    borderRadius: 999,
-    backgroundColor: "#ddcbbb",
-    marginBottom: 14,
-  },
-  sheetHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  columns: {
     alignItems: "flex-start",
-    gap: 14,
-  },
-  sheetHeaderCopy: {
-    flex: 1,
-    gap: 4,
-  },
-  sheetEyebrow: {
-    color: "#9c6f48",
-    fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  sheetTitle: {
-    color: "#2e241e",
-    fontSize: 24,
-    lineHeight: 30,
-    fontWeight: "800",
-  },
-  sheetSubtitle: {
-    color: "#7e6d5b",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  sheetCloseButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: "#f4eadf",
-  },
-  sheetCloseText: {
-    color: "#3b2d23",
-    fontWeight: "700",
-  },
-  sheetContent: {
-    paddingTop: 18,
-    gap: 14,
-  },
-  inlinePickerGroup: {
-    gap: 10,
-  },
-  inlinePickerLabel: {
-    color: "#2e241e",
-    fontSize: 14,
-    fontWeight: "800",
-  },
-  inlineChipsRow: {
-    gap: 8,
-    paddingRight: 8,
-  },
-  inlineChip: {
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#eadbc9",
-  },
-  inlineChipActive: {
-    backgroundColor: "#3b2d23",
-    borderColor: "#3b2d23",
-  },
-  inlineChipText: {
-    color: "#6f5d4c",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  inlineChipTextActive: {
-    color: "#fffaf4",
-  },
-  sheetInput: {
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#eadbc9",
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    color: "#2e241e",
-    fontSize: 15,
-  },
-  sheetTextarea: {
-    minHeight: 112,
-  },
-  contactQuickGrid: {
     flexDirection: "row",
-    gap: 10,
+    gap: 12,
   },
-  contactQuickCard: {
+  column: {
     flex: 1,
-    borderRadius: 18,
-    backgroundColor: "#3b2d23",
-    padding: 14,
-    gap: 5,
+    gap: 12,
   },
-  contactQuickLabel: {
-    color: "#cdb79f",
+  cardBase: {
+    ...shadow.card,
+    backgroundColor: "#fffdfa",
+    borderColor: "#eadfd4",
+    borderRadius: 22,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  imageWrap: {
+    position: "relative",
+  },
+  storyImage: {
+    aspectRatio: 0.92,
+    width: "100%",
+  },
+  cardBadgeWrap: {
+    left: 10,
+    position: "absolute",
+    top: 10,
+  },
+  cardBadgeText: {
+    backgroundColor: "rgba(255, 248, 240, 0.96)",
+    borderRadius: radius.pill,
+    color: "#c19a79",
+    fontSize: 10,
+    fontWeight: "800",
+    overflow: "hidden",
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    textTransform: "uppercase",
+  },
+  playBadge: {
+    alignItems: "center",
+    backgroundColor: "rgba(66, 52, 42, 0.82)",
+    borderRadius: radius.pill,
+    bottom: 10,
+    height: 28,
+    justifyContent: "center",
+    left: 10,
+    position: "absolute",
+    width: 28,
+  },
+  playBadgeText: {
+    color: "#fffaf5",
     fontSize: 11,
     fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
+    marginLeft: 1,
   },
-  contactQuickValue: {
-    color: "#fffaf4",
+  cardBody: {
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    paddingTop: 11,
+  },
+  cardTitle: {
+    color: "#41362d",
     fontSize: 14,
-    fontWeight: "700",
-  },
-  contactQuickAction: {
-    color: "#f0d5b7",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  submitButton: {
-    borderRadius: 18,
-    backgroundColor: "#3b2d23",
-    paddingVertical: 16,
-    paddingHorizontal: 18,
-  },
-  submitButtonText: {
-    color: "#fffaf4",
-    textAlign: "center",
-    fontSize: 15,
     fontWeight: "800",
-  },
-  successCard: {
-    borderRadius: 22,
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#eadbc9",
-    padding: 18,
-    gap: 10,
-  },
-  successTitle: {
-    color: "#2e241e",
-    fontSize: 20,
-    fontWeight: "800",
-  },
-  successText: {
-    color: "#6f5d4c",
-    fontSize: 14,
+    letterSpacing: -0.2,
     lineHeight: 20,
-    fontWeight: "600",
   },
-  successId: {
-    color: "#9c6f48",
-    fontSize: 13,
-    fontWeight: "700",
+  cardDescription: {
+    color: "#877a6e",
+    fontSize: 12,
+    lineHeight: 17,
   },
-  errorText: {
-    color: "#c54b47",
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: "600",
-  },
-  lightboxBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(17, 12, 8, 0.88)",
-    justifyContent: "center",
+  cardFooter: {
     alignItems: "center",
-    padding: 18,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 2,
   },
-  lightboxDismiss: {
-    position: "absolute",
-    top: 52,
-    right: 18,
-    zIndex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.14)",
+  cardFooterBrand: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 6,
   },
-  lightboxDismissText: {
-    color: "#fff",
+  footerAvatar: {
+    alignItems: "center",
+    backgroundColor: "#2f241d",
+    borderRadius: radius.pill,
+    height: 18,
+    justifyContent: "center",
+    width: 18,
+  },
+  footerAvatarText: {
+    color: "#fff8f2",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  footerBrandText: {
+    color: "#5f5349",
+    fontSize: 11,
     fontWeight: "700",
   },
-  lightboxImage: {
-    width: "100%",
-    height: "72%",
-    borderRadius: 24,
+  footerActionText: {
+    color: "#85786d",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  offerCard: {
+    backgroundColor: "#f2e3d1",
+    minHeight: 274,
+    position: "relative",
+  },
+  offerContent: {
+    minHeight: 274,
+    justifyContent: "flex-start",
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+    paddingTop: 14,
+    position: "relative",
+    zIndex: 2,
+  },
+  offerTextPanel: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255, 248, 241, 0.62)",
+    borderRadius: 18,
+    maxWidth: "84%",
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    paddingTop: 10,
+  },
+  offerEyebrow: {
+    color: "#d3a37b",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+  offerTitle: {
+    color: "#40342b",
+    fontSize: 23,
+    fontWeight: "900",
+    lineHeight: 30,
+    marginTop: 6,
+  },
+  offerDescription: {
+    color: "#6f6156",
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 4,
+    maxWidth: "82%",
+  },
+  offerCta: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: "#4a392f",
+    borderRadius: radius.pill,
+    justifyContent: "center",
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  offerCtaText: {
+    color: "#fff8f2",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  offerImage: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 1,
+    zIndex: 0,
   },
 });

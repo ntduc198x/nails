@@ -1,8 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
+import { getDerivedMobilePublicEnv, getMergedEnv, repoRoot, syncMobileEnvLocalFromRoot } from "./shared-env.mjs";
 
 const rootDir = process.cwd();
-const envFile = path.join(rootDir, ".env.local");
+const envFile = path.join(repoRoot, ".env.local");
 
 const requiredKeys = [
   "EXPO_PUBLIC_SUPABASE_URL",
@@ -17,29 +18,9 @@ const legacyKeys = [
   "NEXT_PUBLIC_APP_URL",
 ];
 
-function parseDotEnvFile(filePath) {
-  if (!fs.existsSync(filePath)) {
-    return {};
-  }
-
-  const raw = fs.readFileSync(filePath, "utf8");
-  const entries = {};
-
-  for (const line of raw.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const separatorIndex = trimmed.indexOf("=");
-    if (separatorIndex === -1) continue;
-    const key = trimmed.slice(0, separatorIndex).trim();
-    const value = trimmed.slice(separatorIndex + 1).trim();
-    entries[key] = value;
-  }
-
-  return entries;
-}
-
-const envFromFile = parseDotEnvFile(envFile);
-const readValue = (key) => process.env[key] ?? envFromFile[key] ?? "";
+const mergedEnv = getMergedEnv(process.env);
+const derivedMobileEnv = getDerivedMobilePublicEnv(mergedEnv);
+const readValue = (key) => derivedMobileEnv[key] ?? mergedEnv[key] ?? "";
 
 const missingKeys = requiredKeys.filter((key) => !readValue(key));
 const legacyOnlyKeys = legacyKeys.filter((key) => readValue(key));
@@ -49,16 +30,18 @@ if (!fs.existsSync(envFile)) {
   process.exit(1);
 }
 
-console.log("Mobile env contract check");
+const { targetPath } = syncMobileEnvLocalFromRoot(mergedEnv);
+
+console.log(`Mobile env contract check (${path.relative(rootDir, envFile)})`);
 for (const key of requiredKeys) {
   console.log(`${readValue(key) ? "OK " : "MISS"} ${key}`);
 }
 
 if (missingKeys.length > 0) {
   console.error("");
-  console.error("The mobile app reads EXPO_PUBLIC_* keys only. Add the missing keys to .env.local.");
+  console.error("The mobile app reads EXPO_PUBLIC_* keys only. Add the missing keys to the repo root .env.local or their NEXT_PUBLIC_* equivalents.");
   if (legacyOnlyKeys.length > 0) {
-    console.error("Legacy web env keys detected, but they are not sufficient for Expo mobile runtime:");
+    console.error("Legacy web env keys detected. They will be mapped for mobile only when the matching EXPO_PUBLIC_* values are absent:");
     for (const key of legacyOnlyKeys) {
       console.error(`- ${key}`);
     }
@@ -67,6 +50,7 @@ if (missingKeys.length > 0) {
 }
 
 console.log("");
+console.log(`Synced mobile env file: ${path.relative(rootDir, targetPath)}`);
 console.log("Android shell variables expected in the shell that launches Expo/Gradle:");
 console.log("- ANDROID_HOME");
 console.log("- ANDROID_SDK_ROOT");

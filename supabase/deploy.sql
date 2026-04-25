@@ -39,7 +39,7 @@ create table if not exists user_roles (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null,
   org_id uuid not null references orgs(id) on delete cascade,
-  role text not null check (role in ('OWNER','MANAGER','RECEPTION','ACCOUNTANT','TECH')),
+  role text not null check (role in ('USER','OWNER','MANAGER','RECEPTION','ACCOUNTANT','TECH')),
   unique (user_id, org_id, role)
 );
 
@@ -251,6 +251,12 @@ with check (
 
 create policy "org read services" on services
 for select using (org_id = public.my_org_id());
+
+drop policy if exists "public read lookbook services" on services;
+create policy "public read lookbook services" on services
+for select using (
+  active = true and featured_in_lookbook = true
+);
 
 create policy "owner manager reception write services" on services
 for all using (

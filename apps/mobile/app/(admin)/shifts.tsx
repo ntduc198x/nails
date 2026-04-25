@@ -1,12 +1,21 @@
+import Feather from "@expo/vector-icons/Feather";
+import { Alert } from "react-native";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "expo-router";
-import { Pressable, Text, View } from "react-native";
+import {
+  Pressable,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AdminBottomNav, getAdminBottomBarPadding, getAdminHeaderTopPadding } from "@/src/features/admin/ui";
 import { ensureOrgContext, type AppRole } from "@nails/shared";
 import { mobileSupabase } from "@/src/lib/supabase";
 import { useSession } from "@/src/providers/session-provider";
-import { AdminBottomNav, AdminScreen, styles } from "@/src/features/admin/ui";
-
-type RangeMode = "week" | "month";
 
 type Entry = {
   id: string;
@@ -23,85 +32,92 @@ type TeamMember = {
 
 const LONG_OPEN_SHIFT_HOURS = 10;
 
+const c = {
+  bg: "#FCFAF8",
+  white: "#FFFFFF",
+  text: "#2F241D",
+  sub: "#8F8479",
+  subSoft: "#A89B90",
+  soft: "#F3EDE7",
+  soft2: "#FBF7F3",
+  border: "rgba(47, 36, 29, 0.06)",
+  success: "#2B9E5F",
+  successBg: "#E8F5EC",
+  warn: "#E38B28",
+  warnBg: "#FFF3E5",
+  error: "#DF493E",
+  errorBg: "#FDEBE8",
+  badge: "#F8E2C7",
+};
+
 function canManageTeamView(role: AppRole | null) {
   return role === "OWNER" || role === "MANAGER";
 }
 
-function formatDuration(clockIn: string, clockOut: string | null, nowTs: number) {
+function fmtTime(value: string | null | undefined) {
+  if (!value) return "--:--";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "--:--";
+  return d.toLocaleTimeString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function fmtDuration(clockIn: string, clockOut: string | null, nowTs: number) {
   const start = new Date(clockIn).getTime();
   const end = clockOut ? new Date(clockOut).getTime() : nowTs;
-  const totalMinutes = Math.max(0, Math.round((end - start) / 60000));
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return `${hours}h ${String(minutes).padStart(2, "0")}m`;
+  const mins = Math.max(0, Math.round((end - start) / 60000));
+  return `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, "0")}m`;
 }
 
-function getStartOfWeek(date: Date) {
-  const next = new Date(date);
-  const day = next.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  next.setDate(next.getDate() + diff);
-  next.setHours(0, 0, 0, 0);
-  return next;
+function isSameDate(left: Date, right: Date) {
+  return (
+    left.getFullYear() === right.getFullYear() &&
+    left.getMonth() === right.getMonth() &&
+    left.getDate() === right.getDate()
+  );
 }
 
-function getEndOfWeek(date: Date) {
-  const next = getStartOfWeek(date);
-  next.setDate(next.getDate() + 6);
-  next.setHours(23, 59, 59, 999);
-  return next;
+function initials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
 }
 
-function getStartOfMonth(date: Date) {
+function displayName(email: string | null | undefined) {
+  if (!email) return "Nhân viên";
+  return email
+    .split("@")[0]
+    .replace(/[._-]+/g, " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function startOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
 }
 
-function getEndOfMonth(date: Date) {
+function endOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
 }
 
-function ShiftRowCard({
-  name,
-  roleLabel,
-  clockIn,
-  clockOut,
-  active,
-  overdue,
-  nowTs,
-}: {
-  name: string;
-  roleLabel: string;
-  clockIn: string;
-  clockOut: string | null;
-  active: boolean;
-  overdue: boolean;
-  nowTs: number;
-}) {
-  return (
-    <View
-      style={[
-        styles.listRow,
-        active ? styles.listRowActive : null,
-        overdue ? { borderColor: "#f59e0b", backgroundColor: "#fff7ed" } : null,
-      ]}
-    >
-      <View style={styles.rowHeader}>
-        <Text style={styles.rowTitle}>{name}</Text>
-        <Text style={styles.rowMeta}>{active ? "Dang mo" : "Da dong"}</Text>
-      </View>
-      <Text style={styles.rowMeta}>
-        {roleLabel} - {formatDuration(clockIn, clockOut, nowTs)}
-      </Text>
-      <Text style={styles.rowMeta}>Mo ca: {new Date(clockIn).toLocaleString("vi-VN")}</Text>
-      <Text style={styles.rowMeta}>Dong ca: {clockOut ? new Date(clockOut).toLocaleString("vi-VN") : "-"}</Text>
-      {overdue ? <Text style={styles.warningText}>Ca nay da mo qua lau.</Text> : null}
-    </View>
-  );
+function formatLongDate(date: Date) {
+  const weekday = date.toLocaleDateString("vi-VN", { weekday: "long" });
+  const normalizedWeekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+  return `${normalizedWeekday}, ${date.toLocaleDateString("vi-VN")}`;
 }
 
 export default function AdminShiftsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { isHydrated, role, user } = useSession();
+
   const [entries, setEntries] = useState<Entry[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -109,23 +125,17 @@ export default function AdminShiftsScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
-  const [rangeMode, setRangeMode] = useState<RangeMode>("week");
+  const [rangeMode, setRangeMode] = useState<"week" | "month">("month");
   const [nowTs, setNowTs] = useState(() => Date.now());
 
   const loadEntries = useCallback(
     async (targetOrgId: string) => {
-      if (!mobileSupabase) {
-        setError("Thieu cau hinh Supabase mobile.");
-        return;
-      }
+      if (!mobileSupabase) return;
+      const firstLoad = entries.length === 0;
 
-      const isInitial = entries.length === 0;
       try {
-        if (isInitial) {
-          setLoading(true);
-        } else {
-          setRefreshing(true);
-        }
+        if (firstLoad) setLoading(true);
+        else setRefreshing(true);
         setError(null);
 
         const [entriesRes, teamRpc] = await Promise.all([
@@ -143,25 +153,22 @@ export default function AdminShiftsScreen() {
 
         setEntries((entriesRes.data ?? []) as Entry[]);
         setTeamMembers(
-          ((teamRpc.data as Array<Record<string, unknown>>) ?? [])
-            .filter((row) => String(row.role ?? "") !== "OWNER")
-            .map((row) => ({
-              user_id: String(row.user_id),
-              display_name:
-                typeof row.display_name === "string" && row.display_name.trim().length > 0
-                  ? row.display_name.trim()
-                  : String(row.user_id).slice(0, 8),
-              role: typeof row.role === "string" ? row.role : null,
-            })),
+          (((teamRpc.data as Array<Record<string, unknown>>) ?? []).filter(
+            (row) => String(row.role ?? "") !== "OWNER",
+          )).map((row) => ({
+            user_id: String(row.user_id),
+            display_name:
+              typeof row.display_name === "string" && row.display_name.trim()
+                ? row.display_name.trim()
+                : String(row.user_id).slice(0, 8),
+            role: typeof row.role === "string" ? row.role : null,
+          })),
         );
-      } catch (nextError) {
-        setError(nextError instanceof Error ? nextError.message : "Load shifts failed");
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Load shifts failed");
       } finally {
-        if (isInitial) {
-          setLoading(false);
-        } else {
-          setRefreshing(false);
-        }
+        if (firstLoad) setLoading(false);
+        else setRefreshing(false);
       }
     },
     [entries.length],
@@ -175,11 +182,11 @@ export default function AdminShiftsScreen() {
       }
 
       try {
-        const context = await ensureOrgContext(mobileSupabase);
-        setOrgId(context.orgId);
-        await loadEntries(context.orgId);
-      } catch (nextError) {
-        setError(nextError instanceof Error ? nextError.message : "Khoi tao shifts failed");
+        const ctx = await ensureOrgContext(mobileSupabase);
+        setOrgId(ctx.orgId);
+        await loadEntries(ctx.orgId);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Khởi tạo shifts failed");
         setLoading(false);
       }
     }
@@ -188,7 +195,7 @@ export default function AdminShiftsScreen() {
   }, [isHydrated, loadEntries, user?.id]);
 
   useEffect(() => {
-    const timer = setInterval(() => setNowTs(Date.now()), 60_000);
+    const timer = setInterval(() => setNowTs(Date.now()), 60000);
     return () => clearInterval(timer);
   }, []);
 
@@ -200,7 +207,8 @@ export default function AdminShiftsScreen() {
     try {
       setSubmitting(true);
       setError(null);
-      const { data: openRows, error: existingErr } = await mobileSupabase
+
+      const { data, error: existingErr } = await mobileSupabase
         .from("time_entries")
         .select("id")
         .eq("org_id", orgId)
@@ -209,17 +217,20 @@ export default function AdminShiftsScreen() {
         .limit(1);
 
       if (existingErr) throw existingErr;
-      if (openRows?.length) throw new Error("Ban dang co mot ca mo roi.");
+      if (data?.length) throw new Error("Bạn đang có một ca mở rồi.");
 
-      const { error: insertError } = await mobileSupabase.from("time_entries").insert({
-        org_id: orgId,
-        staff_user_id: user.id,
-        clock_in: new Date().toISOString(),
-      });
+      const { error: insertError } = await mobileSupabase
+        .from("time_entries")
+        .insert({
+          org_id: orgId,
+          staff_user_id: user.id,
+          clock_in: new Date().toISOString(),
+        });
+
       if (insertError) throw insertError;
       await loadEntries(orgId);
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Clock in failed");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Clock in failed");
     } finally {
       setSubmitting(false);
     }
@@ -233,7 +244,8 @@ export default function AdminShiftsScreen() {
     try {
       setSubmitting(true);
       setError(null);
-      const { data: openRows, error: findErr } = await mobileSupabase
+
+      const { data, error: findErr } = await mobileSupabase
         .from("time_entries")
         .select("id")
         .eq("org_id", orgId)
@@ -243,25 +255,25 @@ export default function AdminShiftsScreen() {
         .limit(1);
 
       if (findErr) throw findErr;
-      const id = openRows?.[0]?.id;
-      if (!id) throw new Error("Khong co ca dang mo de dong.");
+
+      const id = data?.[0]?.id;
+      if (!id) throw new Error("Không có ca đang mở để đóng.");
 
       const { error: updateError } = await mobileSupabase
         .from("time_entries")
         .update({ clock_out: new Date().toISOString() })
         .eq("id", id)
         .eq("org_id", orgId);
+
       if (updateError) throw updateError;
       await loadEntries(orgId);
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Clock out failed");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Clock out failed");
     } finally {
       setSubmitting(false);
     }
   }
 
-  const canUse = role === "OWNER" || role === "MANAGER" || role === "RECEPTION" || role === "TECH";
-  const canManageView = canManageTeamView(role);
   const memberMap = useMemo(
     () =>
       new Map(
@@ -275,192 +287,811 @@ export default function AdminShiftsScreen() {
       ),
     [teamMembers],
   );
+
+  const currentName =
+    memberMap.get(user?.id ?? "")?.name || displayName(user?.email);
+
   const visibleEntries = useMemo(() => {
-    const base = canManageView ? entries : entries.filter((entry) => entry.staff_user_id === user?.id);
-    return base.filter((entry) => memberMap.get(entry.staff_user_id)?.role !== "OWNER");
-  }, [canManageView, entries, memberMap, user?.id]);
-  const filterRange = useMemo(() => {
-    const now = new Date();
-    return rangeMode === "week"
-      ? { from: getStartOfWeek(now), to: getEndOfWeek(now) }
-      : { from: getStartOfMonth(now), to: getEndOfMonth(now) };
-  }, [rangeMode]);
-  const filteredEntries = useMemo(
-    () =>
-      visibleEntries.filter((entry) => {
-        const startedAt = new Date(entry.clock_in).getTime();
-        return startedAt >= filterRange.from.getTime() && startedAt <= filterRange.to.getTime();
-      }),
-    [filterRange.from, filterRange.to, visibleEntries],
-  );
+    const base = canManageTeamView(role)
+      ? entries
+      : entries.filter((entry) => entry.staff_user_id === user?.id);
+
+    return base.filter(
+      (entry) => memberMap.get(entry.staff_user_id)?.role !== "OWNER",
+    );
+  }, [entries, memberMap, role, user?.id]);
+
   const activeEntry = useMemo(
-    () => entries.find((entry) => entry.staff_user_id === user?.id && !entry.clock_out) ?? null,
+    () =>
+      entries.find(
+        (entry) => entry.staff_user_id === user?.id && !entry.clock_out,
+      ) ?? null,
     [entries, user?.id],
   );
-  const openEntries = useMemo(() => filteredEntries.filter((entry) => !entry.clock_out), [filteredEntries]);
+
+  const today = useMemo(() => new Date(nowTs), [nowTs]);
+  const userEntries = useMemo(
+    () => entries.filter((entry) => entry.staff_user_id === user?.id),
+    [entries, user?.id],
+  );
+
+  const todayEntries = useMemo(
+    () =>
+      userEntries.filter((entry) => isSameDate(new Date(entry.clock_in), today)),
+    [today, userEntries],
+  );
+
+  const todayEntry = activeEntry ?? todayEntries[0] ?? null;
+
+  const todayMinutes = useMemo(
+    () =>
+      todayEntries.reduce((acc, entry) => {
+        const end = entry.clock_out
+          ? new Date(entry.clock_out).getTime()
+          : nowTs;
+        return (
+          acc +
+          Math.max(
+            0,
+            Math.round((end - new Date(entry.clock_in).getTime()) / 60000),
+          )
+        );
+      }, 0),
+    [todayEntries, nowTs],
+  );
+
+  const monthlyEntries = useMemo(() => {
+    const from = startOfMonth(today).getTime();
+    const to = endOfMonth(today).getTime();
+
+    return userEntries.filter((entry) => {
+      const ts = new Date(entry.clock_in).getTime();
+      return ts >= from && ts <= to;
+    });
+  }, [today, userEntries]);
+
+  const monthlyMinutes = useMemo(
+    () =>
+      monthlyEntries.reduce((acc, entry) => {
+        const end = entry.clock_out
+          ? new Date(entry.clock_out).getTime()
+          : nowTs;
+        return (
+          acc +
+          Math.max(
+            0,
+            Math.round((end - new Date(entry.clock_in).getTime()) / 60000),
+          )
+        );
+      }, 0),
+    [monthlyEntries, nowTs],
+  );
+
+  const monthlyDays = useMemo(
+    () =>
+      new Set(
+        monthlyEntries.map((entry) =>
+          new Date(entry.clock_in).toLocaleDateString("vi-VN"),
+        ),
+      ).size,
+    [monthlyEntries],
+  );
+
+  const lateDays = useMemo(
+    () =>
+      monthlyEntries.filter((entry) => {
+        const date = new Date(entry.clock_in);
+        return date.getHours() > 8 || (date.getHours() === 8 && date.getMinutes() > 35);
+      }).length,
+    [monthlyEntries],
+  );
+
   const overdueOpenEntries = useMemo(
     () =>
-      openEntries.filter(
-        (entry) => (nowTs - new Date(entry.clock_in).getTime()) / 3600000 >= LONG_OPEN_SHIFT_HOURS,
+      visibleEntries.filter(
+        (entry) =>
+          !entry.clock_out &&
+          (nowTs - new Date(entry.clock_in).getTime()) / 3600000 >=
+            LONG_OPEN_SHIFT_HOURS,
       ),
-    [nowTs, openEntries],
+    [nowTs, visibleEntries],
   );
-  const closedEntries = useMemo(() => filteredEntries.filter((entry) => !!entry.clock_out), [filteredEntries]);
-  const totalMinutes = useMemo(
+
+  const nextEntry = useMemo(
     () =>
-      filteredEntries.reduce((acc, entry) => {
-        const start = new Date(entry.clock_in).getTime();
-        const end = entry.clock_out ? new Date(entry.clock_out).getTime() : nowTs;
-        return acc + Math.max(0, Math.round((end - start) / 60000));
-      }, 0),
-    [filteredEntries, nowTs],
+      userEntries
+        .filter((entry) => new Date(entry.clock_in).getTime() > nowTs)
+        .sort(
+          (a, b) =>
+            new Date(a.clock_in).getTime() - new Date(b.clock_in).getTime(),
+        )[0] ?? null,
+    [nowTs, userEntries],
   );
-  const headerMeta = refreshing
-    ? "Dang lam moi..."
-    : overdueOpenEntries.length > 0
-      ? `${overdueOpenEntries.length} ca mo qua lau`
-      : activeEntry
-        ? "Dang trong ca"
-        : openEntries.length > 0
-          ? `${openEntries.length} ca dang mo`
-          : "Chua mo ca";
+
+  const notificationCount = Math.max(overdueOpenEntries.length, nextEntry ? 1 : 0);
+  const shiftName =
+    todayEntry && new Date(todayEntry.clock_in).getHours() < 12
+      ? "Ca sáng"
+      : "Ca chiều";
+  const shiftStatus = activeEntry ? "Đang làm" : todayEntry ? "Hoàn tất" : "Chưa mở";
+  const totalHoursText = `${Math.floor(monthlyMinutes / 60)}h ${String(
+    monthlyMinutes % 60,
+  ).padStart(2, "0")}m`;
+  const workingDaysTarget = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+
+  const actionItems = [
+    {
+      icon: "calendar",
+      label: "Lịch làm việc",
+      onPress: () => setRangeMode("month"),
+    },
+    {
+      icon: "repeat",
+      label: "Đổi ca",
+      onPress: () => Alert.alert("Tính năng đang phát triển", "Chức năng đổi ca sẽ được ra mắt sớm."),
+    },
+    {
+      icon: "clock",
+      label: "Xin nghỉ",
+      onPress: () => Alert.alert("Tính năng đang phát triển", "Chức năng xin nghỉ sẽ được ra mắt sớm."),
+    },
+    {
+      icon: "file-text",
+      label: activeEntry ? "Đóng ca" : "Ca linh hoạt",
+      onPress: () => {
+        if (activeEntry) void clockOut();
+        else void clockIn();
+      },
+    },
+  ] as const;
+
+  const notificationTitle = nextEntry
+    ? `Ca ${new Date(nextEntry.clock_in).getHours() < 12 ? "sáng" : "chiều"} ngày ${new Date(nextEntry.clock_in).toLocaleDateString("vi-VN")}`
+    : "Chưa có thông báo mới";
+
+  const notificationSubtext = nextEntry
+    ? `${fmtTime(nextEntry.clock_in)} - ${fmtTime(nextEntry.clock_out)} • Chi nhánh Hà Nội`
+    : "Không có lịch ca nào sắp tới";
 
   return (
-    <AdminScreen
-      title="Ca lam"
-      subtitle=""
-      role={role}
-      userEmail={user?.email}
-      compactHeader
-      onRefresh={() => {
-        if (orgId) {
-          void loadEntries(orgId);
-        }
-      }}
-      refreshing={loading || refreshing}
-      footer={
-        <AdminBottomNav
-          current="shifts"
-          onNavigate={(target) => {
-            void router.replace(`/(admin)/${target}`);
-          }}
-        />
-      }
-    >
-      <View style={styles.section}>
-        <View style={styles.rowHeader}>
-          <Text style={styles.sectionTitle}>Trang thai</Text>
-          <Text style={styles.rowMeta}>{headerMeta}</Text>
-        </View>
-        {error ? <Text style={styles.warningText}>{error}</Text> : null}
-        {overdueOpenEntries.length > 0 ? (
-          <Text style={styles.warningText}>{overdueOpenEntries.length} ca dang mo qua {LONG_OPEN_SHIFT_HOURS} gio.</Text>
-        ) : null}
-        {canUse ? (
-          <View style={styles.inlineWrap}>
-            <Pressable
-              style={styles.primaryButton}
-              disabled={role === "OWNER" || submitting || Boolean(activeEntry)}
-              onPress={() => void clockIn()}
-            >
-              <Text style={styles.primaryButtonText}>{submitting ? "Dang xu ly..." : "Mo ca"}</Text>
-            </Pressable>
-            <Pressable
-              style={styles.secondaryButton}
-              disabled={role === "OWNER" || submitting || !activeEntry}
-              onPress={() => void clockOut()}
-            >
-              <Text style={styles.secondaryButtonText}>{submitting ? "Dang xu ly..." : "Dong ca"}</Text>
-            </Pressable>
-          </View>
-        ) : null}
-      </View>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.screen}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.content,
+            {
+              paddingTop: getAdminHeaderTopPadding(insets.top),
+              paddingBottom: 112 + getAdminBottomBarPadding(insets.bottom),
+            },
+          ]}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={loading || refreshing}
+              onRefresh={() => {
+                if (orgId) void loadEntries(orgId);
+              }}
+              tintColor={c.text}
+              colors={[c.text]}
+            />
+          }
+        >
+          <View style={styles.header}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{initials(currentName)}</Text>
+            </View>
 
-      <View style={styles.section}>
-        <View style={styles.rowHeader}>
-          <Text style={styles.sectionTitle}>Tong quan</Text>
-          <View style={styles.inlineWrap}>
-            {([
-              ["week", "Tuan nay"],
-              ["month", "Thang nay"],
-            ] as const).map(([value, label]) => (
-              <Pressable
-                key={value}
-                style={[styles.inlineChipSelectable, rangeMode === value ? styles.inlineChipSelectableActive : null]}
-                onPress={() => setRangeMode(value)}
-              >
-                <Text
-                  style={[styles.inlineChipSelectableText, rangeMode === value ? styles.inlineChipSelectableTextActive : null]}
-                >
-                  {label}
-                </Text>
+            <View style={styles.headerCopy}>
+              <View style={styles.titleRow}>
+                <Text style={styles.title}>{currentName}</Text>
+                <View style={styles.techBadge}>
+                  <Text style={styles.techBadgeText}>TECH</Text>
+                </View>
+              </View>
+              <Text style={styles.subtitle}>
+                Quản lý công việc, ca làm và tài khoản
+              </Text>
+            </View>
+
+            <View style={styles.headerActions}>
+              <Pressable style={styles.iconButton}>
+                <Feather name="bell" size={22} color={c.text} />
+                {notificationCount > 0 ? (
+                  <View style={styles.redDot}>
+                    <Text style={styles.redDotText}>{Math.min(notificationCount, 9)}</Text>
+                  </View>
+                ) : null}
               </Pressable>
-            ))}
+              <Pressable style={styles.iconButton} onPress={() => void router.push({ pathname: "/(admin)/settings", params: { from: "/(admin)/shifts" } })}>
+                <Feather name="settings" size={22} color={c.text} />
+              </Pressable>
+            </View>
           </View>
-        </View>
-        <View style={[styles.quickGrid, { flexDirection: 'row'}]}>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>Dang mo</Text>
-            <Text style={styles.metricValue}>{openEntries.length}</Text>
-          </View>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>Qua lau</Text>
-            <Text style={styles.metricValue}>{overdueOpenEntries.length}</Text>
-          </View>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>Tong gio</Text>
-            <Text style={styles.metricValue}>{`${Math.floor(totalMinutes / 60)}h ${String(totalMinutes % 60).padStart(2, "0")}m`}</Text>
-          </View>
-        </View>
-      </View>
 
-      <View style={styles.section}>
-        <View style={styles.rowHeader}>
-          <Text style={styles.sectionTitle}>Ca dang mo</Text>
-          <Text style={styles.rowMeta}>{openEntries.length}</Text>
-        </View>
-        {loading ? <Text style={styles.rowMeta}>Dang tai...</Text> : null}
-        {!loading && openEntries.length === 0 ? <Text style={styles.rowMeta}>Khong co ca nao dang mo</Text> : null}
-        {openEntries.map((entry) => {
-          const member = memberMap.get(entry.staff_user_id);
-          const overdue = (nowTs - new Date(entry.clock_in).getTime()) / 3600000 >= LONG_OPEN_SHIFT_HOURS;
-          return (
-            <ShiftRowCard
-              key={entry.id}
-              name={member?.name ?? entry.staff_user_id}
-              roleLabel={member?.role ?? "-"}
-              clockIn={entry.clock_in}
-              clockOut={entry.clock_out}
-              active
-              overdue={overdue}
-              nowTs={nowTs}
-            />
-          );
-        })}
-      </View>
+          {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <View style={styles.section}>
-        <View style={styles.rowHeader}>
-          <Text style={styles.sectionTitle}>Lich su ca</Text>
-          <Text style={styles.rowMeta}>{Math.min(closedEntries.length, 6)}</Text>
+          <View style={styles.mainCard}>
+            <View style={styles.sectionTitleRow}>
+              <Feather name="calendar" size={18} color={c.sub} />
+              <Text style={styles.sectionTitle}>Ca làm hôm nay</Text>
+            </View>
+
+            <View style={styles.dateRow}>
+              <Feather name="calendar" size={15} color={c.sub} />
+              <Text style={styles.dateText}>{formatLongDate(today)}</Text>
+            </View>
+
+            <View style={styles.shiftPanel}>
+              <View style={styles.shiftTopRow}>
+                <View style={styles.row}>
+                  <View style={styles.greenDot} />
+                  <Text style={styles.shiftLabel}>{shiftName}</Text>
+                </View>
+                <View style={styles.stateBadge}>
+                  <Text style={styles.stateBadgeText}>{shiftStatus}</Text>
+                </View>
+              </View>
+
+              <View style={styles.shiftMainRow}>
+                <Text style={styles.bigTime}>
+                  {fmtTime(todayEntry?.clock_in)} - {fmtTime(todayEntry?.clock_out)}
+                </Text>
+                <View style={styles.divider} />
+                <View style={styles.durationWrap}>
+                  <Feather name="clock" size={17} color={c.sub} />
+                  <Text style={styles.durationText}>
+                    {todayEntry ? fmtDuration(todayEntry.clock_in, todayEntry.clock_out, nowTs) : "0h 00m"} đã làm
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.shiftBottomRow}>
+                <View style={styles.metaItem}>
+                  <Feather name="map-pin" size={15} color={c.sub} />
+                  <Text style={styles.metaText}>Chi nhánh Hà Nội</Text>
+                </View>
+                <Text style={styles.metaText}>Nghỉ trưa: 12:00 - 13:00</Text>
+              </View>
+            </View>
+
+            <View style={styles.actionGrid}>
+              {actionItems.map((item) => (
+                <Pressable key={item.label} style={styles.actionCard} onPress={item.onPress}>
+                  <Feather name={item.icon} size={22} color={c.text} />
+                  <Text style={styles.actionText}>{item.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.statusCard}>
+            <Text style={styles.sectionTitle}>Trạng thái hôm nay</Text>
+
+            <View style={styles.statusRow}>
+              <View style={styles.statusBox}>
+                <View style={styles.statusHead}>
+                  <View style={[styles.statusIcon, { backgroundColor: c.successBg }]}>
+                    <Feather name="mic" size={15} color={c.success} />
+                  </View>
+                  <Text style={styles.statusLabel}>Mở ca</Text>
+                </View>
+                <Text style={styles.statusValue}>{fmtTime(todayEntry?.clock_in)}</Text>
+                <Text style={[styles.statusMeta, { color: c.success }]}>Đã mở</Text>
+              </View>
+
+              <View style={styles.statusBox}>
+                <View style={styles.statusHead}>
+                  <View style={[styles.statusIcon, { backgroundColor: c.errorBg }]}>
+                    <Feather name="square" size={12} color={c.error} />
+                  </View>
+                  <Text style={styles.statusLabel}>Đóng ca</Text>
+                </View>
+                <Text style={styles.statusValue}>{fmtTime(todayEntry?.clock_out)}</Text>
+                <Text style={[styles.statusMeta, { color: todayEntry?.clock_out ? c.success : c.error }]}>
+                  {todayEntry?.clock_out ? "Đã đóng" : "Chưa đóng"}
+                </Text>
+              </View>
+
+              <View style={styles.statusBox}>
+                <View style={styles.statusHead}>
+                  <View style={[styles.statusIcon, { backgroundColor: c.warnBg }]}>
+                    <Feather name="clock" size={14} color={c.warn} />
+                  </View>
+                  <Text style={styles.statusLabel}>Tổng giờ làm</Text>
+                </View>
+                <Text style={styles.statusValue}>
+                  {`${Math.floor(todayMinutes / 60)}h ${String(todayMinutes % 60).padStart(2, "0")}m`}
+                </Text>
+                <Text style={[styles.statusMeta, { color: c.warn }]}>
+                  {activeEntry ? "Đang làm" : "Hôm nay"}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.sectionBlock}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.bigSectionTitle}>
+                Tổng quan tháng {String(today.getMonth() + 1).padStart(2, "0")}
+              </Text>
+              <Pressable style={styles.ghostPill} onPress={() => setRangeMode(rangeMode === "month" ? "week" : "month")}>
+                <Text style={styles.ghostPillText}>Xem chi tiết</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.overviewGrid}>
+              <View style={styles.overviewBox}>
+                <Text style={styles.overviewLabel}>Tổng giờ làm</Text>
+                <Text style={styles.overviewValue}>{totalHoursText}</Text>
+                <Text style={styles.overviewSub}>/ 176h</Text>
+              </View>
+              <View style={styles.overviewBox}>
+                <Text style={styles.overviewLabel}>Số ngày làm</Text>
+                <Text style={styles.overviewValue}>{monthlyDays}</Text>
+                <Text style={styles.overviewSub}>/ {workingDaysTarget} ngày</Text>
+              </View>
+              <View style={styles.overviewBox}>
+                <Text style={styles.overviewLabel}>Ngày nghỉ phép</Text>
+                <Text style={styles.overviewValue}>2</Text>
+                <Text style={styles.overviewSub}>còn lại</Text>
+              </View>
+              <View style={styles.overviewBox}>
+                <Text style={styles.overviewLabel}>Đi muộn</Text>
+                <Text style={styles.overviewValue}>{lateDays}</Text>
+                <Text style={styles.overviewSub}>lần</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.sectionBlock}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.bigSectionTitle}>Thông báo</Text>
+              <Pressable style={styles.ghostPill}>
+                <Text style={styles.ghostPillText}>Xem tất cả</Text>
+              </Pressable>
+            </View>
+
+            <Pressable style={styles.noticeCard}>
+              <View style={styles.noticeIcon}>
+                <Feather name="calendar" size={18} color={c.text} />
+              </View>
+              <View style={styles.noticeBody}>
+                <Text style={styles.noticeTitle}>{notificationTitle}</Text>
+                <Text style={styles.noticeSub}>{notificationSubtext}</Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={c.subSoft} />
+            </Pressable>
+          </View>
+        </ScrollView>
+
+        <View style={[styles.navShell, { paddingBottom: getAdminBottomBarPadding(insets.bottom) }]}>
+          <AdminBottomNav current="shifts" onNavigate={(target) => void router.replace(`/(admin)/${target}`)} />
         </View>
-        {closedEntries.length === 0 ? <Text style={styles.rowMeta}>Chua co ca dong</Text> : null}
-        {closedEntries.slice(0, 6).map((entry) => {
-          const member = memberMap.get(entry.staff_user_id);
-          return (
-            <ShiftRowCard
-              key={entry.id}
-              name={member?.name ?? entry.staff_user_id}
-              roleLabel={member?.role ?? "-"}
-              clockIn={entry.clock_in}
-              clockOut={entry.clock_out}
-              active={false}
-              overdue={false}
-              nowTs={nowTs}
-            />
-          );
-        })}
       </View>
-    </AdminScreen>
+    </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: c.bg,
+  },
+  screen: {
+    flex: 1,
+    backgroundColor: c.bg,
+  },
+  content: {
+    paddingHorizontal: 20,
+    gap: 18,
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  avatar: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: "#D6B08A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: {
+    color: c.white,
+    fontSize: 22,
+    lineHeight: 26,
+    fontWeight: "800",
+  },
+  headerCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  title: {
+    color: c.text,
+    fontSize: 26,
+    lineHeight: 30,
+    fontWeight: "800",
+    letterSpacing: -0.7,
+    flexShrink: 1,
+  },
+  techBadge: {
+    height: 22,
+    borderRadius: 11,
+    paddingHorizontal: 8,
+    backgroundColor: c.badge,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  techBadgeText: {
+    color: "#D4862B",
+    fontSize: 11,
+    lineHeight: 12,
+    fontWeight: "800",
+  },
+  subtitle: {
+    color: c.sub,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  iconButton: {
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  redDot: {
+    position: "absolute",
+    top: -1,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#F2544B",
+    paddingHorizontal: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  redDotText: {
+    color: c.white,
+    fontSize: 10,
+    lineHeight: 12,
+    fontWeight: "800",
+  },
+  error: {
+    color: c.error,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "600",
+  },
+  mainCard: {
+    backgroundColor: c.white,
+    borderRadius: 24,
+    padding: 14,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: c.border,
+  },
+  statusCard: {
+    backgroundColor: c.white,
+    borderRadius: 24,
+    padding: 14,
+    gap: 14,
+    borderWidth: 1,
+    borderColor: c.border,
+  },
+  sectionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  sectionTitle: {
+    color: c.text,
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: "800",
+  },
+  dateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: -4,
+  },
+  dateText: {
+    color: c.sub,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  shiftPanel: {
+    backgroundColor: c.soft2,
+    borderRadius: 20,
+    padding: 12,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: c.border,
+  },
+  shiftTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  greenDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#169B51",
+  },
+  shiftLabel: {
+    color: c.text,
+    fontSize: 15,
+    lineHeight: 18,
+    fontWeight: "700",
+  },
+  stateBadge: {
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: c.successBg,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stateBadgeText: {
+    color: c.success,
+    fontSize: 12,
+    lineHeight: 14,
+    fontWeight: "700",
+  },
+  shiftMainRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  bigTime: {
+    flex: 1,
+    color: c.text,
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: "800",
+    letterSpacing: -0.4,
+  },
+  divider: {
+    width: 1,
+    height: 34,
+    backgroundColor: c.border,
+  },
+  durationWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    minWidth: 124,
+  },
+  durationText: {
+    color: c.sub,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  shiftBottomRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: c.border,
+  },
+  metaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+  },
+  metaText: {
+    color: "#6E6258",
+    fontSize: 13,
+    lineHeight: 18,
+    flexShrink: 1,
+  },
+  actionGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 2,
+  },
+  actionCard: {
+    width: "48.1%",
+    minHeight: 80,
+    borderRadius: 18,
+    backgroundColor: c.soft2,
+    borderWidth: 1,
+    borderColor: c.border,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  actionText: {
+    color: "#5B4F45",
+    fontSize: 13,
+    lineHeight: 16,
+    fontWeight: "500",
+  },
+  statusRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  statusBox: {
+    flex: 1,
+    backgroundColor: c.soft2,
+    borderRadius: 18,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: c.border,
+  },
+  statusIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statusLabel: {
+    color: "#76695F",
+    fontSize: 12,
+    lineHeight: 16,
+    flexShrink: 1,
+  },
+  statusValue: {
+    color: c.text,
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: "800",
+    letterSpacing: -0.3,
+  },
+  statusHead: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    minHeight: 38,
+  },
+  statusMeta: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "700",
+  },
+  sectionBlock: {
+    gap: 12,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  bigSectionTitle: {
+    color: c.text,
+    fontSize: 18,
+    lineHeight: 22,
+    fontWeight: "800",
+    letterSpacing: -0.4,
+  },
+  ghostPill: {
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F7F1EC",
+    paddingHorizontal: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: c.border,
+  },
+  ghostPillText: {
+    color: "#8A7D72",
+    fontSize: 12,
+    lineHeight: 14,
+    fontWeight: "700",
+  },
+  overviewGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  overviewBox: {
+    width: "48.1%",
+    minHeight: 104,
+    borderRadius: 18,
+    backgroundColor: c.white,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: c.border,
+  },
+  overviewLabel: {
+    color: "#7D7065",
+    fontSize: 12,
+    lineHeight: 16,
+    textAlign: "center",
+  },
+  overviewValue: {
+    color: c.text,
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: "800",
+    textAlign: "center",
+    letterSpacing: -0.3,
+  },
+  overviewSub: {
+    color: "#76695F",
+    fontSize: 12,
+    lineHeight: 16,
+    textAlign: "center",
+  },
+  noticeCard: {
+    backgroundColor: c.white,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: c.border,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  noticeIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: c.soft2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  noticeBody: {
+    flex: 1,
+    gap: 4,
+  },
+  noticeTitle: {
+    color: c.text,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "700",
+  },
+  noticeSub: {
+    color: c.sub,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  navShell: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(255,255,255,0.96)",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(47, 36, 29, 0.04)",
+    paddingTop: 8,
+    paddingHorizontal: 14,
+  },
+});

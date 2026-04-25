@@ -12,7 +12,11 @@ export type LookbookService = {
   aspectRatio?: number;
 };
 
-type LookbookSource = "api" | "supabase" | "fallback";
+type LookbookSource = "api" | "supabase" | "fallback" | "empty";
+
+type UseLookbookServicesOptions = {
+  allowFallback?: boolean;
+};
 
 type ApiLookbookRow = {
   id?: string | null;
@@ -61,9 +65,17 @@ function normalizeLookbookRows(rows: ApiLookbookRow[]): LookbookService[] {
     }));
 }
 
-export function useLookbookServices(fallbackServices: LookbookService[]) {
-  const [services, setServices] = useState<LookbookService[]>(fallbackServices);
-  const [source, setSource] = useState<LookbookSource>("fallback");
+export function useLookbookServices(
+  fallbackServices: LookbookService[] = [],
+  options: UseLookbookServicesOptions = {},
+) {
+  const allowFallback = options.allowFallback ?? true;
+  const [services, setServices] = useState<LookbookService[]>(
+    allowFallback ? fallbackServices : [],
+  );
+  const [source, setSource] = useState<LookbookSource>(
+    allowFallback && fallbackServices.length ? "fallback" : "empty",
+  );
   const [isLoading, setIsLoading] = useState(true);
 
   const loadServices = useCallback(async (isActive: () => boolean = () => true) => {
@@ -121,20 +133,30 @@ export function useLookbookServices(fallbackServices: LookbookService[]) {
       if (loadedFromSupabase) return;
 
       if (isActive()) {
-        setServices(fallbackServices);
-        setSource("fallback");
+        if (allowFallback) {
+          setServices(fallbackServices);
+          setSource("fallback");
+        } else {
+          setServices([]);
+          setSource("empty");
+        }
       }
     } catch {
       if (isActive()) {
-        setServices(fallbackServices);
-        setSource("fallback");
+        if (allowFallback) {
+          setServices(fallbackServices);
+          setSource("fallback");
+        } else {
+          setServices([]);
+          setSource("empty");
+        }
       }
     } finally {
       if (isActive()) {
         setIsLoading(false);
       }
     }
-  }, [fallbackServices]);
+  }, [allowFallback, fallbackServices]);
 
   const refresh = useCallback(async () => {
     await loadServices();

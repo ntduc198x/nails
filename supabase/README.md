@@ -42,6 +42,15 @@ For selective patching on an existing project:
 2. `fix_convert_booking_request_secure.sql`
 3. `app_sessions.sql`
 4. `fresh_project_patch.sql`
+5. `auth_workspace_patch_2026_04.sql`
+
+`auth_workspace_patch_2026_04.sql`
+- fixes new auth users being bound to the placeholder default org when a real org already exists
+- supports `registration_mode=USER` so customer signups stop receiving admin roles
+
+`auth_repair_cleanup_2026_04.sql`
+- one-off cleanup for the known broken duplicate auth user
+- use when Supabase Auth admin endpoints fail with `Database error finding/loading user`
 
 ## Optional seed files
 

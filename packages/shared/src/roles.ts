@@ -1,11 +1,12 @@
 import type { AppRole } from "./auth";
 
 export const ROLE_LABELS: Record<AppRole, string> = {
+  USER: "Khach hang",
   OWNER: "BOSS",
-  MANAGER: "Quản lý",
-  RECEPTION: "Lễ tân",
-  ACCOUNTANT: "Kế toán",
-  TECH: "Kỹ thuật viên",
+  MANAGER: "Quan ly",
+  RECEPTION: "Le tan",
+  ACCOUNTANT: "Ke toan",
+  TECH: "Ky thuat vien",
 };
 
 export function getRoleLabel(role: AppRole | string | null | undefined) {
