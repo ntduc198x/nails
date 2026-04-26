@@ -1,6 +1,8 @@
 import Feather from "@expo/vector-icons/Feather";
-import { useState } from "react";
-import { Alert, Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Alert, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router";
 import { CustomerScreen, SurfaceCard } from "@/src/features/customer/ui";
 import { premiumTheme } from "@/src/design/premium-theme";
 import { mobileSupabase } from "@/src/lib/supabase";
@@ -27,7 +29,49 @@ export default function SettingsScreen() {
     next: true,
     confirm: true,
   });
-  const [isSavingPassword, setIsSavingPassword] = useState(false);
+const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [language, setLanguage] = useState("vi");
+  const [showLanguageModal, setShowLanguageModal] = useState(false);
+
+  useEffect(() => {
+    async function loadSettings() {
+      if (!mobileSupabase || !user?.id) return;
+      try {
+        const { data } = await mobileSupabase
+          .from("profiles")
+          .select("language")
+          .eq("user_id", user.id)
+          .single();
+        if (data?.language) setLanguage(data.language);
+      } catch {}
+    }
+    void loadSettings();
+  }, [user?.id]);
+
+  const languageLabel = language === "vi" ? "Tiếng Việt" : "English";
+
+  async function handleSaveLanguage(lang: string) {
+    if (!mobileSupabase || !user?.id) return;
+    try {
+      await mobileSupabase
+        .from("profiles")
+        .update({ language: lang })
+        .eq("user_id", user.id);
+      setLanguage(lang);
+      setShowLanguageModal(false);
+    } catch {
+      Alert.alert("Lỗi", "Không thể lưu ngôn ngữ.");
+    }
+  }
+
+  async function handleClearCache() {
+    try {
+      await AsyncStorage.clear();
+      Alert.alert("Đã xóa", "Bộ nhớ đệm đã được xóa.");
+    } catch {
+      Alert.alert("Lỗi", "Không thể xóa bộ nhớ đệm.");
+    }
+  }
 
   async function handleChangePassword() {
     if (!mobileSupabase) {
@@ -83,7 +127,15 @@ export default function SettingsScreen() {
   }
 
   return (
-    <CustomerScreen title="Cài đặt" contentContainerStyle={styles.content}>
+    <CustomerScreen title="Cài đặt" hideHeader contentContainerStyle={styles.content}>
+      <View style={styles.headerRow}>
+        <Pressable hitSlop={10} onPress={() => router.back()} style={styles.backButton}>
+          <Feather color={colors.text} name="chevron-left" size={24} />
+        </Pressable>
+        <Text style={styles.headerTitle}>Cài đặt</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
       <SurfaceCard style={styles.groupCard}>
         <ToggleRow
           icon="bell"
@@ -112,9 +164,9 @@ export default function SettingsScreen() {
         />
       </SurfaceCard>
 
-      <SurfaceCard style={styles.groupCard}>
-        <ActionRow icon="globe" label="Ngôn ngữ" value="Tiếng Việt" />
-        <ActionRow icon="trash-2" label="Xóa bộ nhớ đệm" last value="12.4 MB" />
+<SurfaceCard style={styles.groupCard}>
+        <ActionRow icon="globe" label="Ngôn ngữ" value={languageLabel} onPress={() => setShowLanguageModal(true)} />
+        <ActionRow icon="trash-2" label="Xóa bộ nhớ đệm" last value="0 KB" onPress={handleClearCache} />
       </SurfaceCard>
 
       <SurfaceCard style={styles.passwordCard}>
@@ -165,6 +217,20 @@ export default function SettingsScreen() {
         </Pressable>
       </SurfaceCard>
 
+      <Modal visible={showLanguageModal} transparent animationType="fade">
+        <Pressable style={styles.modalOverlay} onPress={() => setShowLanguageModal(false)}>
+          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>Chọn ngôn ngữ</Text>
+            <Pressable style={styles.modalOption} onPress={() => handleSaveLanguage("vi")}>
+              <Text style={[styles.modalOptionText, language === "vi" && styles.modalOptionTextActive]}>Tiếng Việt</Text>
+            </Pressable>
+            <Pressable style={styles.modalOption} onPress={() => handleSaveLanguage("en")}>
+              <Text style={[styles.modalOptionText, language === "en" && styles.modalOptionTextActive]}>English</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <Text style={styles.versionText}>Phiên bản 1.0.0</Text>
     </CustomerScreen>
   );
@@ -205,14 +271,16 @@ function ActionRow({
   label,
   last = false,
   value,
+  onPress,
 }: {
   icon: FeatherIconName;
   label: string;
   last?: boolean;
   value: string;
+  onPress?: () => void;
 }) {
-  return (
-    <Pressable style={[styles.row, !last ? styles.rowDivider : null]}>
+  const content = (
+    <View style={[styles.row, !last ? styles.rowDivider : null]}>
       <View style={styles.rowCopy}>
         <Feather color={colors.textSoft} name={icon} size={18} />
         <Text style={styles.rowLabel}>{label}</Text>
@@ -220,10 +288,15 @@ function ActionRow({
 
       <View style={styles.rowTrailing}>
         <Text style={styles.rowValue}>{value}</Text>
-        <Feather color={colors.textSoft} name="chevron-right" size={18} />
+        {onPress && <Feather color={colors.textSoft} name="chevron-right" size={18} />}
       </View>
-    </Pressable>
+    </View>
   );
+
+  if (onPress) {
+    return <Pressable onPress={onPress}>{content}</Pressable>;
+  }
+  return content;
 }
 
 function PasswordField({
@@ -269,6 +342,27 @@ const styles = StyleSheet.create({
     gap: 0,
     paddingHorizontal: 12,
     paddingVertical: 0,
+  },
+  headerRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  backButton: {
+    height: 44,
+    width: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: -8,
+  },
+  headerTitle: {
+    color: colors.text,
+    fontSize: 22,
+    fontWeight: "800",
+  },
+  headerSpacer: {
+    flex: 1,
   },
   row: {
     alignItems: "center",
@@ -357,5 +451,39 @@ const styles = StyleSheet.create({
     fontSize: 14,
     paddingTop: 0,
     textAlign: "center",
+  },
+  modalOverlay: {
+    backgroundColor: "rgba(0,0,0,0.5)",
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: 24,
+    width: "80%",
+    maxWidth: 300,
+  },
+  modalTitle: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  modalOption: {
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  modalOptionText: {
+    color: colors.textSoft,
+    fontSize: 16,
+    textAlign: "center",
+  },
+  modalOptionTextActive: {
+    color: colors.accent,
+    fontWeight: "700",
   },
 });

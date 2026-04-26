@@ -1,9 +1,10 @@
 import Feather from "@expo/vector-icons/Feather";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { NOTIFICATIONS } from "@/src/features/customer/data";
-import { CustomerScreen, SurfaceCard } from "@/src/features/customer/ui";
+import { CustomerScreen } from "@/src/features/customer/ui";
 import { premiumTheme } from "@/src/design/premium-theme";
+import { mobileSupabase } from "@/src/lib/supabase";
+import { useSession } from "@/src/providers/session-provider";
 
 const { colors, radius, shadow } = premiumTheme;
 
@@ -16,6 +17,15 @@ const FILTERS = [
 type FilterKey = (typeof FILTERS)[number]["key"];
 type FeatherIconName = React.ComponentProps<typeof Feather>["name"];
 
+type NotificationItem = {
+  id: string;
+  title: string;
+  body: string;
+  created_at: string;
+  type: string;
+  is_read: boolean;
+};
+
 function normalizeVietnamese(value: string) {
   return value
     .normalize("NFD")
@@ -27,81 +37,102 @@ function normalizeVietnamese(value: string) {
 
 function normalizeGroup(value: string): FilterKey {
   const normalized = normalizeVietnamese(value);
-
   if (normalized.includes("he thong")) return "Hệ thống";
   if (normalized.includes("khuyen mai")) return "Khuyến mãi";
   return "Tất cả";
 }
 
-function getNotificationContent(item: (typeof NOTIFICATIONS)[number]) {
-  switch (item.id) {
-    case "notify-1":
-      return {
-        title: "Đặt lịch thành công",
-        body: "Bạn đã đặt lịch với Nguyễn Khánh Ly\nvào 19:00 18/04",
-        time: "2 phút trước",
-      };
-    case "notify-2":
-      return {
-        title: "Nhắc lịch hẹn",
-        body: "Bạn có lịch hẹn vào 19:00 18/04\nvới Nguyễn Khánh Ly",
-        time: "10 phút trước",
-      };
-    case "notify-3":
-      return {
-        title: "Ưu đãi đặc biệt",
-        body: "Giảm 20% tất cả dịch vụ nail art\ntrong tuần này!",
-        time: "1 giờ trước",
-      };
-    default:
-      return {
-        title: "Đánh giá dịch vụ",
-        body: "Cảm ơn bạn đã sử dụng dịch vụ.\nHãy đánh giá để giúp chúng tôi cải thiện nhé!",
-        time: "2 giờ trước",
-      };
-  }
+function formatTime(isoString: string): string {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+
+  if (diffMins < 1) return "Vừa xong";
+  if (diffMins < 60) return `${diffMins} phút trước`;
+  if (diffHours < 24) return `${diffHours} giờ trước`;
+  return date.toLocaleDateString("vi-VN");
 }
 
-function getNotificationVisual(item: (typeof NOTIFICATIONS)[number]): {
-  accent: string;
-  icon: FeatherIconName;
-  surface: string;
-} {
-  switch (item.id) {
-    case "notify-1":
-      return {
-        accent: "#c97137",
-        icon: "calendar",
-        surface: "#f8ece3",
-      };
-    case "notify-2":
-      return {
-        accent: "#4287c8",
-        icon: "calendar",
-        surface: "#eef5fb",
-      };
-    case "notify-3":
-      return {
-        accent: "#f39a24",
-        icon: "tag",
-        surface: "#fdf2e5",
-      };
-    default:
-      return {
-        accent: "#78a541",
-        icon: "star",
-        surface: "#eef5e7",
-      };
+function getVisualFromType(type: string): { accent: string; icon: FeatherIconName; surface: string } {
+  const normalized = normalizeVietnamese(type);
+  if (normalized.includes("khuyen mai") || normalized.includes("promo")) {
+    return { accent: "#f39a24", icon: "gift", surface: "#fdf2e5" };
   }
+  if (normalized.includes("booking") || normalized.includes("lich")) {
+    return { accent: "#c97137", icon: "calendar", surface: "#f8ece3" };
+  }
+  if (normalized.includes("thanh toan") || normalized.includes("payment")) {
+    return { accent: "#4287c8", icon: "credit-card", surface: "#eef5fb" };
+  }
+  return { accent: "#78a541", icon: "bell", surface: "#eef5e7" };
 }
 
 export default function NotificationsScreen() {
+  const { user } = useSession();
   const [activeFilter, setActiveFilter] = useState<FilterKey>("Tất cả");
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadNotifications() {
+      if (!mobileSupabase || !user?.id) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const { data, error } = await mobileSupabase
+          .from("customer_notifications")
+          .select("id, title, body, kind, is_read, sent_at")
+          .eq("user_id", user.id)
+          .order("sent_at", { ascending: false })
+          .limit(50);
+
+        if (error) {
+          console.error("Notification query error:", error);
+          setLoading(false);
+          return;
+        }
+
+        if (data && data.length > 0) {
+          setNotifications(data.map(n => ({
+            id: n.id,
+            title: n.title || "",
+            body: n.body || "",
+            created_at: n.sent_at || "",
+            type: n.kind || "GENERAL",
+            is_read: n.is_read ?? false,
+          })));
+        }
+      } catch (e) {
+        console.error("Failed to load notifications:", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    void loadNotifications();
+  }, [user?.id]);
 
   const items = useMemo(() => {
-    if (activeFilter === "Tất cả") return NOTIFICATIONS;
-    return NOTIFICATIONS.filter((item) => normalizeGroup(item.group) === activeFilter);
-  }, [activeFilter]);
+    if (notifications.length > 0) {
+      if (activeFilter === "Tất cả") return notifications;
+      return notifications.filter((item) => normalizeGroup(item.type) === activeFilter);
+    }
+    return [];
+  }, [activeFilter, notifications]);
+
+  async function handleMarkAsRead(id: string) {
+    if (!mobileSupabase || !user?.id) return;
+    try {
+      await mobileSupabase
+        .from("customer_notifications")
+        .update({ is_read: true, read_at: new Date().toISOString() })
+        .eq("id", id);
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+    } catch {}
+  }
 
   return (
     <CustomerScreen hideHeader title="Thông báo" contentContainerStyle={styles.content}>
@@ -136,32 +167,35 @@ export default function NotificationsScreen() {
       </View>
 
       <View style={styles.list}>
-        {items.map((item) => {
-          const content = getNotificationContent(item);
-          const visual = getNotificationVisual(item);
+        {loading ? (
+          <Text style={styles.emptyText}>Đang tải...</Text>
+        ) : items.length === 0 ? (
+          <Text style={styles.emptyText}>Không có thông báo nào</Text>
+        ) : (
+          items.map((item) => {
+            const visual = getVisualFromType(item.type);
+            const content = { title: item.title, body: item.body, time: formatTime(item.created_at) };
 
-          return (
-            <SurfaceCard key={item.id} style={styles.card}>
-              <View style={[styles.notificationIconWrap, { backgroundColor: visual.surface }]}>
-                <View style={[styles.notificationDot, { backgroundColor: visual.accent }]} />
-                <Feather color={visual.accent} name={visual.icon} size={20} />
-              </View>
-
-              <View style={styles.cardCopy}>
-                <View style={styles.cardTitleRow}>
-                  <Text style={styles.cardTitle}>{content.title}</Text>
-                  <Text style={styles.cardTime}>{content.time}</Text>
+            return (
+              <Pressable
+                key={item.id}
+                style={[styles.card, !item.is_read && styles.cardUnread]}
+                onPress={() => handleMarkAsRead(item.id)}
+              >
+                <View style={[styles.notificationIconWrap, { backgroundColor: visual.surface }]}>
+                  <Feather color={visual.accent} name={visual.icon} size={16} />
                 </View>
 
-                <Text style={styles.cardBody}>{content.body}</Text>
-              </View>
+                <View style={styles.cardContent}>
+                  <Text style={styles.cardTitle} numberOfLines={1}>{content.title}</Text>
+                  <Text style={styles.cardBody} numberOfLines={2}>{content.body}</Text>
+                </View>
 
-              <View style={styles.chevronWrap}>
-                <Feather color="#9c8c7d" name="chevron-right" size={18} />
-              </View>
-            </SurfaceCard>
-          );
-        })}
+                <Text style={styles.cardTime}>{content.time}</Text>
+              </Pressable>
+            );
+          })
+        )}
       </View>
 
       <Pressable style={styles.readAllButton}>
@@ -187,22 +221,19 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   headerCopy: {
-    flex: 1,
     gap: 4,
-    paddingRight: 12,
   },
   eyebrow: {
-    color: "#4f4034",
-    fontSize: 12,
+    color: colors.accentWarm,
+    fontSize: 11,
     fontWeight: "800",
     letterSpacing: 1.6,
-    lineHeight: 15,
   },
   pageTitle: {
     color: colors.text,
     fontSize: 29,
     fontWeight: "800",
-    letterSpacing: -0.82,
+    letterSpacing: -0.8,
     lineHeight: 34,
   },
   settingsButton: {
@@ -236,85 +267,64 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
   },
   segmentLabel: {
-    color: "#7c6c5f",
-    fontSize: 12,
+    color: "#857568",
+    fontSize: 13,
     fontWeight: "600",
-    letterSpacing: -0.12,
   },
   segmentLabelActive: {
     color: "#fffaf5",
-    fontWeight: "700",
   },
   list: {
-    gap: 11,
+    gap: 8,
   },
   card: {
-    ...shadow.card,
     alignItems: "center",
-    borderRadius: 21,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
     flexDirection: "row",
-    gap: 13,
-    minHeight: 93,
-    paddingHorizontal: 12,
-    paddingVertical: 11,
+    gap: 12,
+    padding: 12,
+  },
+  cardUnread: {
+    borderLeftWidth: 3,
+    borderLeftColor: colors.accent,
   },
   notificationIconWrap: {
     alignItems: "center",
-    borderRadius: 21,
-    height: 50,
+    borderRadius: 14,
+    height: 32,
     justifyContent: "center",
-    position: "relative",
-    width: 50,
+    width: 32,
   },
-  notificationDot: {
-    borderRadius: radius.pill,
-    height: 7,
-    position: "absolute",
-    right: -2,
-    top: -1,
-    width: 7,
-  },
-  cardCopy: {
+  cardContent: {
     flex: 1,
-    gap: 4,
-    minWidth: 0,
-  },
-  cardTitleRow: {
-    alignItems: "flex-start",
-    flexDirection: "row",
-    gap: 8,
-    justifyContent: "space-between",
+    gap: 2,
   },
   cardTitle: {
     color: colors.text,
-    flex: 1,
-    fontSize: 15,
-    fontWeight: "700",
-    letterSpacing: -0.22,
-    lineHeight: 19,
-  },
-  cardTime: {
-    color: "#9a8a7b",
-    fontSize: 12,
-    fontWeight: "500",
-    letterSpacing: -0.08,
-    lineHeight: 16,
+    fontSize: 14,
+    fontWeight: "600",
   },
   cardBody: {
-    color: "#6e5f53",
+    color: colors.textSoft,
     fontSize: 13,
-    fontWeight: "500",
-    letterSpacing: -0.1,
-    lineHeight: 20,
+    lineHeight: 18,
   },
-  chevronWrap: {
-    alignItems: "center",
-    justifyContent: "center",
-    width: 18,
+  cardTime: {
+    color: colors.textSoft,
+    fontSize: 11,
+  },
+  emptyText: {
+    color: colors.textSoft,
+    fontSize: 15,
+    textAlign: "center",
+    paddingVertical: 40,
   },
   readAllButton: {
     alignItems: "center",
-    backgroundColor: "#fffdfa",
+    backgroundColor: "#fffaf5",
     borderColor: colors.border,
     borderRadius: 17,
     borderWidth: 1,

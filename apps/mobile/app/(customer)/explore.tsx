@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { router } from "expo-router";
 import {
   Image,
@@ -18,6 +18,10 @@ import { premiumTheme } from "@/src/design/premium-theme";
 
 const { colors, radius, shadow, spacing } = premiumTheme;
 
+const CARD_WIDTH = 140;
+const DOT_GAP = 12;
+const AUTO_SCROLL_INTERVAL = 4000;
+
 function splitIntoColumns<T>(items: T[]) {
   return items.reduce<[T[], T[]]>(
     (columns, item, index) => {
@@ -32,7 +36,9 @@ export default function ExploreScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<(typeof CATEGORY_ITEMS)[number]["key"]>("all");
   const [previewService, setPreviewService] = useState<LookbookService | null>(null);
-  const { isLoading, services } = useLookbookServices([], { allowFallback: false });
+  const [activeLookbookIndex, setActiveLookbookIndex] = useState(0);
+  const lookbookScrollerRef = useRef<ScrollView>(null);
+  const { isLoading, services } = useLookbookServices([], { allowFallback: true });
   const { isFavorite, toggleFavorite } = useCustomerFavorites();
 
   const filteredServices = useMemo(() => {
@@ -43,6 +49,32 @@ export default function ExploreScreen() {
       return (!query || haystack.includes(query)) && matchesCategory(service, activeCategory);
     });
   }, [activeCategory, searchQuery, services]);
+
+  const onScroll = useCallback(
+    (event: any) => {
+      const scrollX = event.nativeEvent.contentOffset.x;
+      const cardWidth = CARD_WIDTH + DOT_GAP;
+      const nextIndex = Math.max(0, Math.min(filteredServices.length - 1, Math.round(scrollX / cardWidth)));
+      setActiveLookbookIndex(nextIndex);
+    },
+    [filteredServices.length],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const interval = setInterval(() => {
+      if (cancelled || !filteredServices.length) return;
+
+      const nextIndex = (activeLookbookIndex + 1) % filteredServices.length;
+      lookbookScrollerRef.current?.scrollTo({ x: nextIndex * (CARD_WIDTH + DOT_GAP), animated: true });
+      setActiveLookbookIndex(nextIndex);
+    }, AUTO_SCROLL_INTERVAL);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [activeLookbookIndex, filteredServices.length]);
 
   const [leftColumn, rightColumn] = useMemo(() => splitIntoColumns(filteredServices), [filteredServices]);
 
@@ -85,21 +117,39 @@ export default function ExploreScreen() {
         })}
       </ScrollView>
 
-      <View style={styles.columns}>
-        <View style={styles.column}>
-          {leftColumn.map((service) => renderServiceCard(service, isFavorite(service.id), toggleFavorite, setPreviewService))}
+      {!isLoading && filteredServices.length > 0 && (
+        <View style={styles.lookbookSection}>
+          <Text style={styles.lookbookTitle}>Mẫu nail</Text>
+          <ScrollView
+            ref={lookbookScrollerRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.lookbookScroll}
+            onScroll={onScroll}
+            scrollEventThrottle={16}
+          >
+            {filteredServices.map((service) => (
+              <View key={service.id} style={styles.lookbookCard}>
+                {renderLookbookCard(service, isFavorite(service.id), toggleFavorite, setPreviewService)}
+              </View>
+            ))}
+          </ScrollView>
+          <View style={styles.lookbookDots}>
+            {filteredServices.map((_, index) => (
+              <View
+                key={index}
+                style={[styles.lookbookDot, index === activeLookbookIndex ? styles.lookbookDotActive : null]}
+              />
+            ))}
+          </View>
         </View>
-        <View style={styles.column}>
-          {rightColumn.map((service) => renderServiceCard(service, isFavorite(service.id), toggleFavorite, setPreviewService))}
-        </View>
-      </View>
+      )}
 
       {!isLoading && filteredServices.length === 0 ? (
         <SurfaceCard style={styles.emptyCard}>
-          <Text style={styles.emptyTitle}>Chua co lookbook de hien thi</Text>
+          <Text style={styles.emptyTitle}>Chưa có lookbook để hiển thị</Text>
           <Text style={styles.emptyDescription}>
-            Man nay dang lay du lieu lookbook thuc tu he thong. Khi DB chua co du lieu phu hop,
-            danh sach se de trong thay vi hien fallback.
+            Hãy quay lại sau khi dữ liệu lookbook được cập nhật từ hệ thống.
           </Text>
         </SurfaceCard>
       ) : null}
@@ -120,6 +170,30 @@ export default function ExploreScreen() {
         </View>
       </Modal>
     </CustomerScreen>
+  );
+}
+
+function renderLookbookCard(
+  service: LookbookService,
+  favorite: boolean,
+  toggleFavorite: (serviceId: string) => Promise<void>,
+  setPreviewService: (service: LookbookService | null) => void,
+) {
+  return (
+    <Pressable onPress={() => setPreviewService(service)}>
+      <Image source={{ uri: service.image }} style={styles.lookbookCardImage} />
+      <Pressable style={styles.lookbookFavoriteButton} onPress={() => void toggleFavorite(service.id)}>
+        <Text style={[styles.lookbookFavoriteIcon, favorite ? styles.lookbookFavoriteIconActive : null]}>
+          {favorite ? "♥" : "♡"}
+        </Text>
+      </Pressable>
+      <View style={styles.lookbookCardBody}>
+        <Text style={styles.lookbookCardTitle} numberOfLines={1}>
+          {service.title}
+        </Text>
+        <Text style={styles.lookbookCardPrice}>{service.price}</Text>
+      </View>
+    </Pressable>
   );
 }
 
@@ -379,6 +453,78 @@ const styles = StyleSheet.create({
     color: "#4a392f",
     fontSize: 11,
     fontWeight: "800",
+  },
+  lookbookSection: {
+    gap: spacing.md,
+  },
+  lookbookTitle: {
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  lookbookScroll: {
+    gap: DOT_GAP,
+    paddingVertical: spacing.sm,
+  },
+  lookbookCard: {
+    width: CARD_WIDTH,
+  },
+  lookbookCardImage: {
+    aspectRatio: 0.83,
+    borderRadius: radius.lg,
+    width: CARD_WIDTH,
+  },
+  lookbookFavoriteButton: {
+    alignItems: "center",
+    backgroundColor: "rgba(255, 250, 245, 0.96)",
+    borderRadius: radius.pill,
+    height: 28,
+    justifyContent: "center",
+    position: "absolute",
+    right: 8,
+    top: 8,
+    width: 28,
+  },
+  lookbookFavoriteIcon: {
+    color: "#8b7b6d",
+    fontSize: 14,
+    lineHeight: 15,
+  },
+  lookbookFavoriteIconActive: {
+    color: "#4a392f",
+  },
+  lookbookCardBody: {
+    gap: 4,
+    paddingTop: spacing.sm,
+  },
+  lookbookCardTitle: {
+    color: "#41362d",
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: -0.1,
+  },
+  lookbookCardPrice: {
+    color: "#a67a52",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  lookbookDots: {
+    flexDirection: "row",
+    gap: 6,
+    justifyContent: "center",
+    paddingTop: spacing.xs,
+  },
+  lookbookDot: {
+    backgroundColor: "#e7d9ca",
+    borderRadius: 4,
+    height: 8,
+    width: 8,
+  },
+  lookbookDotActive: {
+    backgroundColor: "#4a392f",
+    borderRadius: 6,
+    height: 10,
+    width: 10,
   },
   emptyCard: {
     borderRadius: 18,

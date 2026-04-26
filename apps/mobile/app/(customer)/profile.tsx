@@ -136,10 +136,13 @@ export default function ProfileScreen() {
 
   return (
     <CustomerScreen hideHeader scroll contentContainerStyle={styles.content} title="Cá nhân">
-      <View style={styles.topBar}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={styles.topIconButton}>
-          <Feather color={colors.text} name="chevron-left" size={22} />
+<View style={styles.topBar}>
+        <Pressable hitSlop={12} onPress={() => router.push("/(customer)/offers")} style={styles.walletButton}>
+          <Feather color={colors.text} name="credit-card" size={22} />
+          <View style={styles.walletDot} />
         </Pressable>
+
+        <View style={styles.topBarSpacer} />
 
         <Pressable hitSlop={12} onPress={() => router.push("/(customer)/settings")} style={styles.topIconButton}>
           <Feather color={colors.text} name="settings" size={18} />
@@ -173,21 +176,13 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      <SurfaceCard style={styles.metricsCard}>
+<SurfaceCard style={styles.metricsCard}>
         <View style={styles.metricsRow}>
           <ProfileMetric icon="credit-card" label="Tổng chi tiêu" value={summary.totalSpent} />
           <View style={styles.metricDivider} />
           <ProfileMetric icon="calendar" label="Tổng lượt hẹn" value={summary.totalVisits} />
           <View style={styles.metricDivider} />
           <ProfileMetric icon="clock" label="Lần cuối" value={summary.lastVisit} />
-          <View style={styles.metricDivider} />
-          <ProfileMetric
-            compact
-            icon="credit-card"
-            label="Ví ưu đãi"
-            onPress={() => router.push("/(customer)/offers")}
-            value={summary.offerWallet}
-          />
         </View>
       </SurfaceCard>
 
@@ -460,6 +455,25 @@ const styles = StyleSheet.create({
     height: 34,
     justifyContent: "center",
     width: 34,
+  },
+  topBarSpacer: {
+    flex: 1,
+  },
+  walletButton: {
+    alignItems: "center",
+    height: 44,
+    justifyContent: "center",
+    position: "relative",
+    width: 44,
+  },
+  walletDot: {
+    backgroundColor: "#EF4444",
+    borderRadius: 4,
+    height: 8,
+    position: "absolute",
+    right: 4,
+    top: 4,
+    width: 8,
   },
   profileHero: {
     alignItems: "center",

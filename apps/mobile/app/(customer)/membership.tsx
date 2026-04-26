@@ -32,6 +32,9 @@ export default function MembershipScreen() {
       <View style={styles.screen}>
         <ScrollView bounces={false} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.headerRow}>
+            <Pressable hitSlop={10} onPress={() => router.back()} style={styles.backButton}>
+              <Feather color="#4a3424" name="chevron-left" size={24} />
+            </Pressable>
             <Text style={styles.title}>Thẻ thành viên</Text>
             <Pressable style={styles.helpButton}>
               <Feather color="#7b6b5f" name="help-circle" size={20} />
@@ -155,6 +158,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 18,
+    paddingLeft: 4,
+  },
+  backButton: {
+    height: 44,
+    width: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: -8,
   },
   title: {
     color: "#15110d",
@@ -162,6 +173,8 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: -0.8,
     lineHeight: 34,
+    flex: 1,
+    textAlign: "center",
   },
   helpButton: {
     alignItems: "center",

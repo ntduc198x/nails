@@ -16,6 +16,9 @@ export default function OffersScreen() {
       <View style={styles.screen}>
         <ScrollView bounces={false} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.headerRow}>
+            <Pressable hitSlop={10} onPress={() => router.back()} style={styles.backButton}>
+              <Feather color="#4a3424" name="chevron-left" size={24} />
+            </Pressable>
             <View style={styles.headerCopy}>
               <Text style={styles.title}>Ví ưu đãi</Text>
               <Text style={styles.subtitle}>Sử dụng ưu đãi để tiết kiệm chi phí</Text>
@@ -140,6 +143,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 22,
+  },
+  backButton: {
+    height: 44,
+    width: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: -8,
   },
   headerCopy: {
     flex: 1,
