@@ -1,7 +1,9 @@
+import Feather from "@expo/vector-icons/Feather";
 import { router, usePathname } from "expo-router";
 import { type ReactNode } from "react";
 import {
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleProp,
   StyleSheet,
@@ -33,6 +35,8 @@ type CustomerScreenProps = {
   floatingActionButton?: ReactNode;
   headerSlot?: ReactNode;
   hideHeader?: boolean;
+  onRefresh?: (() => void) | null;
+  refreshing?: boolean;
   scroll?: boolean;
   subtitle?: string;
   title: string;
@@ -40,75 +44,36 @@ type CustomerScreenProps = {
 
 type NavItem = {
   href: "/(customer)" | "/(customer)/explore" | "/(customer)/notifications" | "/(customer)/profile";
-  icon: "home" | "explore" | "booking" | "profile";
+  icon: React.ComponentProps<typeof Feather>["name"];
   label: string;
   match: (pathname: string) => boolean;
 };
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/(customer)", icon: "home", label: "Trang chủ", match: (pathname) => pathname === "/" || pathname === "" },
-  { href: "/(customer)/explore", icon: "explore", label: "Khám phá", match: (pathname) => pathname === "/explore" },
-  { href: "/(customer)/notifications", icon: "booking", label: "Thông báo", match: (pathname) => pathname === "/notifications" },
-  { href: "/(customer)/profile", icon: "profile", label: "Cá nhân", match: (pathname) => PROFILE_PATHS.has(pathname) },
+  { href: "/(customer)/explore", icon: "search", label: "Khám phá", match: (pathname) => pathname === "/explore" },
+  { href: "/(customer)/notifications", icon: "bell", label: "Thông báo", match: (pathname) => pathname === "/notifications" },
+  { href: "/(customer)/profile", icon: "user", label: "Cá nhân", match: (pathname) => PROFILE_PATHS.has(pathname) },
 ];
 
 type IconKind = "home" | "explore" | "booking" | "profile" | "plus" | "bell";
 
 function ShellIcon({ active = false, kind }: { active?: boolean; kind: IconKind }) {
   const tint = active ? colors.accent : colors.textMuted;
+  const iconName: React.ComponentProps<typeof Feather>["name"] =
+    kind === "home"
+      ? "home"
+      : kind === "explore"
+        ? "search"
+        : kind === "booking"
+          ? "bell"
+          : kind === "profile"
+            ? "user"
+            : kind === "bell"
+              ? "shopping-bag"
+              : "plus";
 
-  if (kind === "home") {
-    return (
-      <View style={styles.iconFrame}>
-        <View style={[styles.iconRoof, { borderBottomColor: tint }]} />
-        <View style={[styles.iconHouseBody, { borderColor: tint }]} />
-      </View>
-    );
-  }
-
-  if (kind === "explore") {
-    return (
-      <View style={styles.iconFrame}>
-        <View style={[styles.iconBubble, { borderColor: tint }]} />
-        <View style={[styles.iconBubbleTail, { borderTopColor: tint }]} />
-      </View>
-    );
-  }
-
-  if (kind === "booking") {
-    return (
-      <View style={[styles.iconCalendar, { borderColor: tint }]}>
-        <View style={[styles.iconCalendarBar, { backgroundColor: tint }]} />
-        <View style={[styles.iconCalendarPinLeft, { backgroundColor: tint }]} />
-        <View style={[styles.iconCalendarPinRight, { backgroundColor: tint }]} />
-      </View>
-    );
-  }
-
-  if (kind === "profile") {
-    return (
-      <View style={styles.iconFrame}>
-        <View style={[styles.iconHead, { borderColor: tint }]} />
-        <View style={[styles.iconShoulders, { borderColor: tint }]} />
-      </View>
-    );
-  }
-
-  if (kind === "bell") {
-    return (
-      <View style={styles.iconFrame}>
-        <View style={[styles.iconBellDome, { borderColor: tint }]} />
-        <View style={[styles.iconBellClapper, { backgroundColor: tint }]} />
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.iconFrame}>
-      <View style={styles.iconPlusVertical} />
-      <View style={styles.iconPlusHorizontal} />
-    </View>
-  );
+  return <Feather color={kind === "plus" ? colors.surface : tint} name={iconName} size={18} />;
 }
 
 export function CustomerScreen({
@@ -117,11 +82,14 @@ export function CustomerScreen({
   floatingActionButton,
   headerSlot,
   hideHeader = false,
+  onRefresh,
+  refreshing = false,
   scroll = true,
   subtitle,
   title,
 }: CustomerScreenProps) {
   const Body = scroll ? ScrollView : View;
+  const resolvedHeaderSlot = headerSlot ?? <CustomerTopActions />;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -132,12 +100,22 @@ export function CustomerScreen({
               <Text style={styles.headerTitle}>{title}</Text>
               {subtitle ? <Text style={styles.headerSubtitle}>{subtitle}</Text> : null}
             </View>
-            {headerSlot ? <View style={styles.headerSlot}>{headerSlot}</View> : null}
+            <View style={styles.headerSlot}>{resolvedHeaderSlot}</View>
           </View>
         ) : null}
 
         <Body
           style={styles.body}
+          refreshControl={
+            scroll && onRefresh ? (
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={colors.accent}
+                colors={[colors.accent]}
+              />
+            ) : undefined
+          }
           contentContainerStyle={
             scroll
               ? [
@@ -159,6 +137,20 @@ export function CustomerScreen({
   );
 }
 
+export function CustomerTopActions() {
+  return (
+    <View style={styles.topActions}>
+      <Pressable style={styles.topIconButton} onPress={() => router.replace("/(customer)/membership")}>
+        <Feather color={colors.text} name="award" size={18} />
+        <View style={styles.topDot} />
+      </Pressable>
+      <Pressable style={styles.topIconButton} onPress={() => router.replace("/(customer)/settings")}>
+        <Feather color={colors.text} name="settings" size={18} />
+      </Pressable>
+    </View>
+  );
+}
+
 export function CustomerBottomNav() {
   const pathname = usePathname();
   const leftItems = NAV_ITEMS.slice(0, 2);
@@ -172,7 +164,7 @@ export function CustomerBottomNav() {
             const active = item.match(pathname);
             return (
               <Pressable key={item.href} style={styles.navItem} onPress={() => router.push(item.href)}>
-                <ShellIcon kind={item.icon} active={active} />
+                <Feather color={active ? colors.accent : colors.textMuted} name={item.icon} size={18} />
                 <Text style={[styles.navItemText, active ? styles.navItemTextActive : null]}>{item.label}</Text>
               </Pressable>
             );
@@ -188,7 +180,7 @@ export function CustomerBottomNav() {
             const active = item.match(pathname);
             return (
               <Pressable key={item.href} style={styles.navItem} onPress={() => router.push(item.href)}>
-                <ShellIcon kind={item.icon} active={active} />
+                <Feather color={active ? colors.accent : colors.textMuted} name={item.icon} size={18} />
                 <Text style={[styles.navItemText, active ? styles.navItemTextActive : null]}>{item.label}</Text>
               </Pressable>
             );
@@ -300,7 +292,7 @@ export function SearchField({
 }) {
   return (
     <View style={styles.searchField}>
-      <Text style={styles.searchGlyph}>Tìm</Text>
+      <Text style={styles.searchGlyph}>Tim</Text>
       <TextInput
         placeholder={placeholder}
         placeholderTextColor={colors.textMuted}
@@ -386,7 +378,7 @@ export function CustomerFloatingButton({
 }) {
   return (
     <Pressable style={styles.fab} onPress={onPress}>
-      <Text style={styles.fabText}>{label ?? "Thêm"}</Text>
+      <Text style={styles.fabText}>{label ?? "Them"}</Text>
     </Pressable>
   );
 }
@@ -400,7 +392,7 @@ export function CustomerAuxMenuList({
 }) {
   return (
     <SurfaceCard>
-      <SectionTitle title="Thêm" subtitle="Mở nhanh các màn phụ cần thiết" actionLabel={onClose ? "Đóng" : undefined} onPress={onClose} />
+      <SectionTitle title="Them" subtitle="Mo nhanh cac man phu can thiet" actionLabel={onClose ? "Dong" : undefined} onPress={onClose} />
       {items.map((item) => (
         <InfoRow key={item.label} title={item.label} detail={item.detail} onPress={item.onPress} />
       ))}
@@ -443,18 +435,18 @@ export const customerStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: "#fffaf5",
   },
   shell: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: "#fffaf5",
   },
   header: {
     alignItems: "flex-start",
     flexDirection: "row",
     justifyContent: "space-between",
     paddingBottom: spacing.md,
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: 18,
     paddingTop: spacing.sm,
   },
   headerCopy: {
@@ -478,16 +470,37 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.sm,
   },
+  topActions: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  topIconButton: {
+    alignItems: "center",
+    height: 34,
+    justifyContent: "center",
+    position: "relative",
+    width: 34,
+  },
+  topDot: {
+    backgroundColor: "#ef4444",
+    borderRadius: 4,
+    height: 8,
+    position: "absolute",
+    right: 4,
+    top: 5,
+    width: 8,
+  },
   body: {
     flex: 1,
   },
   bodyContent: {
     gap: spacing.lg,
-    paddingBottom: 128,
-    paddingHorizontal: spacing.xl,
+    paddingBottom: 140,
+    paddingHorizontal: 18,
   },
   bodyContentWithoutHeader: {
-    paddingTop: spacing.sm,
+    paddingTop: spacing.xs,
   },
   bodyContentWithFab: {
     paddingBottom: 176,
@@ -517,13 +530,13 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   navWrap: {
-    bottom: 12,
+    bottom: 10,
     left: 0,
     position: "absolute",
     right: 0,
   },
   fabShell: {
-    bottom: 110,
+    bottom: 112,
     position: "absolute",
     right: spacing.xl,
   },
@@ -546,16 +559,16 @@ const styles = StyleSheet.create({
     ...shadow.floating,
     alignItems: "flex-end",
     alignSelf: "center",
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: 26,
+    backgroundColor: "#fffdf9",
+    borderColor: "#efe1d4",
+    borderRadius: 30,
     borderWidth: 1,
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingBottom: 8,
-    paddingHorizontal: spacing.md,
-    paddingTop: 8,
-    width: "92%",
+    paddingBottom: 10,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    width: "94%",
   },
   navGroup: {
     flex: 1,
@@ -565,29 +578,29 @@ const styles = StyleSheet.create({
   navCenterButton: {
     ...shadow.floating,
     alignItems: "center",
-    backgroundColor: colors.accent,
+    backgroundColor: "#9c6b3c",
     borderRadius: radius.pill,
-    height: 54,
+    height: 58,
     justifyContent: "center",
     marginHorizontal: spacing.sm,
-    marginTop: -20,
-    width: 54,
+    marginTop: -24,
+    width: 58,
   },
   navItem: {
     alignItems: "center",
-    gap: 6,
+    gap: 7,
     justifyContent: "center",
-    minHeight: 50,
+    minHeight: 52,
     minWidth: 64,
   },
   navItemText: {
     color: colors.textMuted,
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: "500",
   },
   navItemTextActive: {
     color: colors.accent,
-    fontWeight: "700",
+    fontWeight: "800",
   },
   surfaceCard: {
     ...shadow.card,
@@ -769,111 +782,5 @@ const styles = StyleSheet.create({
     backgroundColor: "#efc27d",
     borderRadius: radius.pill,
     height: "100%",
-  },
-  iconFrame: {
-    alignItems: "center",
-    height: 18,
-    justifyContent: "center",
-    width: 18,
-  },
-  iconRoof: {
-    borderLeftColor: "transparent",
-    borderLeftWidth: 6,
-    borderRightColor: "transparent",
-    borderRightWidth: 6,
-    borderBottomWidth: 7,
-    marginBottom: -1,
-  },
-  iconHouseBody: {
-    borderRadius: 3,
-    borderWidth: 1.8,
-    height: 10,
-    width: 12,
-  },
-  iconBubble: {
-    borderRadius: 6,
-    borderWidth: 1.8,
-    height: 11,
-    width: 14,
-  },
-  iconBubbleTail: {
-    borderLeftColor: "transparent",
-    borderLeftWidth: 3,
-    borderRightColor: "transparent",
-    borderRightWidth: 3,
-    borderTopWidth: 4,
-    marginLeft: -6,
-    marginTop: 8,
-    position: "absolute",
-  },
-  iconCalendar: {
-    borderRadius: 4,
-    borderWidth: 1.8,
-    height: 16,
-    width: 16,
-  },
-  iconCalendarBar: {
-    height: 2.2,
-    left: 2,
-    position: "absolute",
-    right: 2,
-    top: 4,
-  },
-  iconCalendarPinLeft: {
-    borderRadius: radius.pill,
-    height: 4,
-    left: 4,
-    position: "absolute",
-    top: -2,
-    width: 2.4,
-  },
-  iconCalendarPinRight: {
-    borderRadius: radius.pill,
-    height: 4,
-    position: "absolute",
-    right: 4,
-    top: -2,
-    width: 2.4,
-  },
-  iconHead: {
-    borderRadius: radius.pill,
-    borderWidth: 1.7,
-    height: 7,
-    width: 7,
-  },
-  iconShoulders: {
-    borderRadius: 6,
-    borderWidth: 1.7,
-    height: 6,
-    marginTop: 2,
-    width: 14,
-  },
-  iconBellDome: {
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-    borderWidth: 1.7,
-    borderBottomWidth: 0,
-    height: 11,
-    width: 12,
-  },
-  iconBellClapper: {
-    borderRadius: radius.pill,
-    height: 3,
-    marginTop: -1,
-    width: 3,
-  },
-  iconPlusVertical: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.pill,
-    height: 18,
-    position: "absolute",
-    width: 3,
-  },
-  iconPlusHorizontal: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.pill,
-    height: 3,
-    position: "absolute",
-    width: 18,
   },
 });

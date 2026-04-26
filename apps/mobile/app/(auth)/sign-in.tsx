@@ -1,22 +1,77 @@
 import Feather from "@expo/vector-icons/Feather";
-import { Redirect, router } from "expo-router";
-import { useState } from "react";
-import { Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Redirect } from "expo-router";
+import { useMemo, useState } from "react";
+import {
+  Image,
+  Platform,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { premiumTheme } from "@/src/design/premium-theme";
 import { useSession } from "@/src/providers/session-provider";
 
 const { colors } = premiumTheme;
 
+const HERO_IMAGE_URI =
+  "https://images.unsplash.com/photo-1604654894610-df63bc536371?q=80&w=1200&auto=format&fit=crop";
+
+type AuthMode = "login" | "signup";
+type RegistrationMode = "USER" | "ADMIN";
+
 export default function SignInScreen() {
-  const { clearError, error, isBusy, isHydrated, role, requestPasswordReset, signIn, signUp } = useSession();
-  const [mode, setMode] = useState<"login" | "signup">("login");
-  const [registrationMode, setRegistrationMode] = useState<"USER" | "ADMIN">("USER");
+  const {
+    clearError,
+    error,
+    isBusy,
+    isHydrated,
+    role,
+    requestPasswordReset,
+    signIn,
+    signInWithApple,
+    signInWithGoogle,
+    signUp,
+  } = useSession();
+  const [mode, setMode] = useState<AuthMode>("login");
+  const [registrationMode, setRegistrationMode] = useState<RegistrationMode>("USER");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [showEmailFallback, setShowEmailFallback] = useState(false);
+
+  const isSignup = mode === "signup";
+  const isRegisterAdmin = isSignup && registrationMode === "ADMIN";
+  const showRoleToggle = isSignup;
+  const showSocialSection = !isRegisterAdmin;
+  const showManualForm = mode === "login" || isRegisterAdmin || showEmailFallback;
+
+  const heroTitle = useMemo(() => {
+    if (isRegisterAdmin) {
+      return "Dang ky tai khoan quan tri de quan ly lich hen, nhan su va van hanh cua hang.";
+    }
+
+    return "Dang nhap de quan ly lich hen, uu dai va thong tin ca nhan.";
+  }, [isRegisterAdmin]);
+
+  const formTitle = useMemo(() => {
+    if (mode === "login") return "Dang nhap bang email";
+    if (isRegisterAdmin) return "Dang ky tai khoan quan tri";
+    return "Dang ky bang email";
+  }, [isRegisterAdmin, mode]);
+
+  const submitLabel = useMemo(() => {
+    if (isBusy) return "Dang xu ly...";
+    if (mode === "login") return "Dang nhap";
+    if (isRegisterAdmin) return "Tao tai khoan quan tri";
+    return "Tao tai khoan";
+  }, [isBusy, isRegisterAdmin, mode]);
 
   if (isHydrated && role) {
     return <Redirect href="/" />;
@@ -26,187 +81,319 @@ export default function SignInScreen() {
     setMessage(null);
     clearError();
 
-    if (mode === "signup") {
+    if (isSignup) {
       await signUp({
-        email,
+        email: email.trim(),
         password,
-        name,
+        name: name.trim(),
         inviteCode,
         registrationMode,
       });
+
       setMessage(
         registrationMode === "USER"
-          ? "Đăng ký khách hàng thành công. Bạn đã có thể vào khu cá nhân."
-          : "Đăng ký quản trị thành công. Mobile session đã được khởi tạo.",
+          ? "Tai khoan khach hang da duoc tao. Ban co the tiep tuc dang nhap ngay."
+          : "Tai khoan quan tri da duoc tao thanh cong.",
       );
       return;
     }
 
-    await signIn({ email, password });
+    await signIn({ email: email.trim(), password });
   }
 
   async function handlePasswordReset() {
     if (!email.trim()) {
-      setMessage("Nhập email trước khi gửi yêu cầu reset password.");
+      setMessage("Nhap email truoc khi gui yeu cau reset password.");
       return;
     }
 
-    await requestPasswordReset(email);
-    setMessage("Đã gửi email reset password. Kiểm tra inbox của bạn.");
+    await requestPasswordReset(email.trim());
+    setMessage("Da gui email reset password. Kiem tra inbox cua ban.");
+  }
+
+  async function handleGooglePress() {
+    setMessage(null);
+    clearError();
+    await signInWithGoogle();
+  }
+
+  async function handleApplePress() {
+    setMessage(null);
+    clearError();
+    await signInWithApple();
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.shell}>
-        {mode === "signup" ? (
-          <Pressable style={styles.backButton} onPress={() => setMode("login")}>
-            <Feather color={colors.text} name="arrow-left" size={20} />
-          </Pressable>
-        ) : (
-          <View style={styles.backButtonPlaceholder} />
-        )}
-
-        <View style={styles.accountMark}>
-          <Text style={styles.markLetter}>C</Text>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <View style={styles.brandMark}>
+          <Text style={styles.brandMarkText}>C</Text>
         </View>
         <Text style={styles.brand}>CHAM BEAUTY</Text>
         <Text style={styles.brandSub}>ACCOUNT</Text>
 
-        <Text style={styles.title}>
-          {mode === "login"
-            ? "Đăng nhập để quản lý lịch hẹn và thông tin cá nhân."
-            : "Đăng ký để quản lý lịch hẹn và thông tin cá nhân."}
-        </Text>
+        <View style={styles.heroRow}>
+          <View style={styles.heroCopy}>
+            {mode === "signup" ? (
+              <Pressable
+                style={styles.backButton}
+                onPress={() => {
+                  setMode("login");
+                  setRegistrationMode("USER");
+                  setShowEmailFallback(false);
+                  setMessage(null);
+                  clearError();
+                }}
+              >
+                <Feather color="#3F342D" name="arrow-left" size={18} />
+              </Pressable>
+            ) : (
+              <View style={styles.backSpacer} />
+            )}
 
-        <Text style={styles.description}>
-          Role USER vào khu khách hàng. Mọi role còn lại vào khu quản trị.
-        </Text>
-
-        <Pressable style={styles.customerAppButton} onPress={() => router.push("/(customer)")}>
-          <View style={styles.customerAppLeft}>
-            <Feather color="#7e6957" name="smartphone" size={15} />
-            <Text style={styles.customerAppText}>Xem app khách hàng</Text>
+            <Text style={styles.heroTitle}>{heroTitle}</Text>
           </View>
-          <Feather color="#9b826b" name="chevron-right" size={15} />
-        </Pressable>
 
-        <View style={styles.segmentWrap}>
+          <View style={styles.heroImageShell}>
+            <Image accessibilityLabel="Cham Beauty hero" alt="Cham Beauty hero" source={{ uri: HERO_IMAGE_URI }} style={styles.heroImage} />
+          </View>
+        </View>
+
+        <View style={styles.switchWrap}>
           <Pressable
-            style={[styles.segmentItem, mode === "login" ? styles.segmentItemActive : null]}
+            style={[styles.switchItem, mode === "login" ? styles.switchItemActive : null]}
             onPress={() => {
               setMode("login");
+              setRegistrationMode("USER");
+              setShowEmailFallback(false);
               setMessage(null);
               clearError();
             }}
           >
-            <Text style={[styles.segmentText, mode === "login" ? styles.segmentTextActive : null]}>
-              Đăng nhập
-            </Text>
+            <Text style={[styles.switchText, mode === "login" ? styles.switchTextActive : null]}>Dang nhap</Text>
           </Pressable>
+
           <Pressable
-            style={[styles.segmentItem, mode === "signup" ? styles.segmentItemActive : null]}
+            style={[styles.switchItem, mode === "signup" ? styles.switchItemActive : null]}
             onPress={() => {
               setMode("signup");
+              setRegistrationMode("USER");
+              setShowEmailFallback(false);
               setMessage(null);
               clearError();
             }}
           >
-            <Text style={[styles.segmentText, mode === "signup" ? styles.segmentTextActive : null]}>
-              Đăng ký
-            </Text>
+            <Text style={[styles.switchText, mode === "signup" ? styles.switchTextActive : null]}>Dang ky</Text>
           </Pressable>
         </View>
 
-        {mode === "signup" ? (
-          <View style={styles.segmentWrap}>
-            <Pressable
-              style={[styles.roleItem, registrationMode === "USER" ? styles.roleItemActive : null]}
-              onPress={() => setRegistrationMode("USER")}
-            >
-              <Feather color={registrationMode === "USER" ? colors.text : "#8b7766"} name="user" size={15} />
-              <Text style={[styles.roleText, registrationMode === "USER" ? styles.roleTextActive : null]}>
-                Khách hàng
-              </Text>
-            </Pressable>
-
-            <Pressable
-              style={[styles.roleItem, registrationMode === "ADMIN" ? styles.roleItemActive : null]}
-              onPress={() => setRegistrationMode("ADMIN")}
-            >
-              <Feather color={registrationMode === "ADMIN" ? colors.text : "#8b7766"} name="shield" size={15} />
-              <Text style={[styles.roleText, registrationMode === "ADMIN" ? styles.roleTextActive : null]}>
-                Quản trị
-              </Text>
-            </Pressable>
+        {showRoleToggle ? (
+          <View style={styles.roleWrap}>
+            <RoleButton
+              active={registrationMode === "USER"}
+              icon="user"
+              label="Khach hang"
+              onPress={() => {
+                setRegistrationMode("USER");
+                setShowEmailFallback(false);
+              }}
+            />
+            <RoleButton
+              active={registrationMode === "ADMIN"}
+              icon="shield"
+              label="Quan tri"
+              onPress={() => {
+                setRegistrationMode("ADMIN");
+                setShowEmailFallback(true);
+              }}
+            />
           </View>
         ) : null}
 
-        {mode === "signup" ? (
-          <InputRow
-            autoCapitalize="words"
-            icon="user"
-            onChangeText={setName}
-            placeholder="Tên của bạn"
-            value={name}
-          />
-        ) : null}
+        <View style={styles.card}>
+          {showSocialSection ? (
+            <>
+              <Text style={styles.cardTitle}>{mode === "login" ? "Dang nhap nhanh" : "Tao tai khoan nhanh"}</Text>
 
-        {mode === "signup" && registrationMode === "ADMIN" ? (
-          <InputRow
-            autoCapitalize="characters"
-            icon="tag"
-            onChangeText={(value) => setInviteCode(value.toUpperCase())}
-            placeholder="Mã mời quản trị"
-            value={inviteCode}
-          />
-        ) : null}
+              <SocialButton
+                icon="chrome"
+                label="Tiep tuc voi Google"
+                onPress={() => void handleGooglePress()}
+                disabled={isBusy}
+              />
 
-        <InputRow
-          autoCapitalize="none"
-          icon="mail"
-          keyboardType="email-address"
-          onChangeText={setEmail}
-          placeholder="Email"
-          value={email}
-        />
+              {Platform.OS === "ios" ? (
+                <SocialButton
+                  icon="smartphone"
+                  label="Tiep tuc voi Apple"
+                  onPress={() => void handleApplePress()}
+                  disabled={isBusy}
+                />
+              ) : null}
 
-        <InputRow
-          icon="lock"
-          onChangeText={setPassword}
-          placeholder="Mật khẩu"
-          rightSlot={
-            <Pressable onPress={() => setShowPassword((current) => !current)}>
-              <Feather color="#8f7a69" name={showPassword ? "eye" : "eye-off"} size={16} />
+              <Separator label="HOAC" />
+            </>
+          ) : null}
+
+          {showManualForm ? (
+            <>
+              <Text style={styles.formTitle}>{formTitle}</Text>
+
+              {isSignup ? (
+                <InputField
+                  icon="user"
+                  placeholder="Ho va ten"
+                  value={name}
+                  onChangeText={setName}
+                  autoCapitalize="words"
+                />
+              ) : null}
+
+              {isRegisterAdmin ? (
+                <InputField
+                  icon="tag"
+                  placeholder="Ma moi quan tri"
+                  value={inviteCode}
+                  onChangeText={(value) => setInviteCode(value.toUpperCase())}
+                  autoCapitalize="characters"
+                />
+              ) : null}
+
+              <InputField
+                icon="mail"
+                placeholder="Email"
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+
+              <InputField
+                icon="lock"
+                placeholder="Mat khau"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                rightSlot={
+                  <Pressable hitSlop={10} onPress={() => setShowPassword((current) => !current)}>
+                    <Feather color="#A89484" name={showPassword ? "eye" : "eye-off"} size={17} />
+                  </Pressable>
+                }
+              />
+
+              {mode === "login" ? (
+                <Pressable style={styles.forgotWrap} onPress={() => void handlePasswordReset()}>
+                  <Text style={styles.forgotText}>Quen mat khau?</Text>
+                </Pressable>
+              ) : null}
+
+              <GradientButton label={submitLabel} onPress={() => void handleSubmit()} disabled={isBusy} />
+            </>
+          ) : (
+            <Pressable style={styles.emailFallbackWrap} onPress={() => setShowEmailFallback(true)}>
+              <Text style={styles.emailFallbackText}>Dung email thay the</Text>
             </Pressable>
-          }
-          secureTextEntry={!showPassword}
-          value={password}
-        />
+          )}
 
-        {mode === "signup" && registrationMode === "USER" ? (
-          <Text style={styles.helperText}>Tài khoản khách hàng không cần mã mời.</Text>
-        ) : null}
+          {message ? <Text style={styles.notice}>{message}</Text> : null}
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+        </View>
 
-        <Pressable disabled={isBusy} style={styles.primaryButton} onPress={() => void handleSubmit()}>
-          <Text style={styles.primaryButtonText}>
-            {isBusy ? "Đang xử lý..." : mode === "login" ? "Đăng nhập" : "Tạo tài khoản"}
-          </Text>
-        </Pressable>
+        <View style={styles.securityCard}>
+          <View style={styles.securityIcon}>
+            <Feather color="#B67C53" name="shield" size={16} />
+          </View>
+          <Text style={styles.securityText}>Bao mat & an toan</Text>
+          <View style={styles.securityMiniBadge}>
+            <Feather color="#B67C53" name="check" size={14} />
+          </View>
+        </View>
 
-        {mode === "login" ? (
-          <Pressable disabled={isBusy} style={styles.forgotButton} onPress={() => void handlePasswordReset()}>
-            <Text style={styles.forgotButtonText}>Quên mật khẩu?</Text>
+        <View style={styles.supportRow}>
+          <Text style={styles.supportLabel}>Can ho tro?</Text>
+          <Pressable>
+            <Text style={styles.supportLink}>Lien he chung toi</Text>
           </Pressable>
-        ) : null}
-
-        {message ? <Text style={styles.notice}>{message}</Text> : null}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-      </View>
+          <Feather color="#C08A63" name="message-circle" size={14} />
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
-function InputRow({
+function RoleButton({
+  active,
+  icon,
+  label,
+  onPress,
+}: {
+  active: boolean;
+  icon: React.ComponentProps<typeof Feather>["name"];
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable style={[styles.roleItem, active ? styles.roleItemActive : null]} onPress={onPress}>
+      <Feather color={active ? "#3F342D" : "#B6A496"} name={icon} size={15} />
+      <Text style={[styles.roleText, active ? styles.roleTextActive : null]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function SocialButton({
+  disabled,
+  icon,
+  label,
+  onPress,
+}: {
+  disabled?: boolean;
+  icon: React.ComponentProps<typeof Feather>["name"];
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable disabled={disabled} style={styles.socialButton} onPress={onPress}>
+      <View style={styles.socialLeft}>
+        <View style={styles.socialIconBadge}>
+          <Feather color="#B67C53" name={icon} size={17} />
+        </View>
+        <Text style={styles.socialLabel}>{label}</Text>
+      </View>
+      <Feather color="#A89484" name="chevron-right" size={18} />
+    </Pressable>
+  );
+}
+
+function Separator({ label }: { label: string }) {
+  return (
+    <View style={styles.separatorRow}>
+      <View style={styles.separatorLine} />
+      <Text style={styles.separatorText}>{label}</Text>
+      <View style={styles.separatorLine} />
+    </View>
+  );
+}
+
+function GradientButton({
+  disabled,
+  label,
+  onPress,
+}: {
+  disabled?: boolean;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable disabled={disabled} onPress={onPress} style={styles.buttonWrap}>
+      <View style={[styles.buttonGradient, disabled ? styles.buttonDisabled : null]}>
+        <View style={styles.buttonGloss} />
+        <Text style={styles.buttonText}>{label}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+function InputField({
   icon,
   placeholder,
   rightSlot,
@@ -217,8 +404,8 @@ function InputRow({
 }) {
   return (
     <View style={styles.inputRow}>
-      <Feather color="#8f7a69" name={icon} size={16} />
-      <TextInput placeholder={placeholder} placeholderTextColor="#a89686" style={styles.input} {...props} />
+      <Feather color="#C0AE9F" name={icon} size={16} />
+      <TextInput placeholder={placeholder} placeholderTextColor="#B7A89B" style={styles.input} {...props} />
       {rightSlot ? <View style={styles.inputRight}>{rightSlot}</View> : null}
     </View>
   );
@@ -227,218 +414,287 @@ function InputRow({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: "center",
-    backgroundColor: colors.background,
-    paddingHorizontal: 16,
+    backgroundColor: "#FCFAF8",
+  },
+  scrollContent: {
+    paddingHorizontal: 24,
     paddingTop: 16,
-    paddingBottom: 20,
+    paddingBottom: 24,
   },
-  shell: {
-    alignSelf: "center",
-    width: "100%",
-    maxWidth: 360,
-    gap: 12,
-    backgroundColor: "#fffdfa",
-    borderColor: "#eadfd2",
-    borderRadius: 26,
-    borderWidth: 1,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 16,
-    shadowColor: "#2a1e14",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-  },
-  backButton: {
-    alignItems: "flex-start",
-    height: 22,
-    justifyContent: "center",
-    width: 22,
-  },
-  backButtonPlaceholder: {
-    height: 22,
-    width: 22,
-  },
-  accountMark: {
+  brandMark: {
     alignItems: "center",
     alignSelf: "center",
     justifyContent: "center",
-    width: 32,
-    height: 32,
-    marginTop: 1,
+    width: 34,
+    height: 34,
     borderRadius: 999,
     borderWidth: 1.25,
-    borderColor: "#b58763",
+    borderColor: "#B67C53",
   },
-  markLetter: {
-    color: "#b58763",
-    fontSize: 21,
+  brandMarkText: {
+    color: "#B67C53",
+    fontSize: 22,
     fontWeight: "400",
-    lineHeight: 22,
+    lineHeight: 24,
     marginTop: -2,
   },
   brand: {
     alignSelf: "center",
-    color: "#9d785c",
+    marginTop: 8,
+    color: "#A66F4A",
     fontSize: 15,
     fontWeight: "700",
-    letterSpacing: 3,
-    lineHeight: 18,
-    marginTop: -4,
+    letterSpacing: 2.8,
   },
   brandSub: {
     alignSelf: "center",
-    color: "#7c6655",
+    marginTop: 4,
+    color: "#7F6F63",
     fontSize: 10,
     fontWeight: "700",
-    letterSpacing: 2.2,
-    lineHeight: 12,
-    marginTop: -4,
+    letterSpacing: 2.1,
   },
-  title: {
-    color: "#332821",
-    fontSize: 28,
+  heroRow: {
+    marginTop: 24,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  heroCopy: {
+    flex: 1,
+    gap: 16,
+    paddingTop: 6,
+  },
+  backButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#7E6452",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+  },
+  backSpacer: {
+    width: 34,
+    height: 34,
+  },
+  heroTitle: {
+    color: "#352E29",
+    fontSize: 18,
     fontWeight: "800",
-    letterSpacing: -0.8,
-    lineHeight: 35,
-    marginTop: 6,
+    lineHeight: 28,
+    letterSpacing: -0.3,
   },
-  description: {
-    color: "#6f6155",
-    fontSize: 14,
-    fontWeight: "500",
-    lineHeight: 21,
+  heroImageShell: {
+    width: 126,
+    height: 158,
+    borderRadius: 28,
+    overflow: "hidden",
+    backgroundColor: "#F6EEE8",
   },
-  customerAppButton: {
-    alignItems: "center",
-    justifyContent: "space-between",
-    flexDirection: "row",
-    minHeight: 44,
-    paddingHorizontal: 14,
-    backgroundColor: "#f7ecdf",
-    borderRadius: 17,
+  heroImage: {
+    width: "100%",
+    height: "100%",
   },
-  customerAppLeft: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 10,
-  },
-  customerAppText: {
-    color: "#6d5a4a",
-    fontSize: 14,
-    fontWeight: "700",
-    lineHeight: 17,
-  },
-  segmentWrap: {
-    flexDirection: "row",
-    gap: 4,
-    padding: 4,
-    backgroundColor: "#f9efe4",
-    borderRadius: 17,
-  },
-  segmentItem: {
-    alignItems: "center",
-    justifyContent: "center",
-    flex: 1,
-    minHeight: 40,
-    borderRadius: 14,
-  },
-  segmentItemActive: {
-    backgroundColor: "#4a3424",
-  },
-  segmentText: {
-    color: "#7e6959",
-    fontSize: 14,
-    fontWeight: "700",
-    lineHeight: 17,
-  },
-  segmentTextActive: {
-    color: "#fff",
-  },
-  roleItem: {
-    alignItems: "center",
-    justifyContent: "center",
-    flex: 1,
+  switchWrap: {
+    marginTop: 24,
     flexDirection: "row",
     gap: 8,
-    minHeight: 40,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#eadfd2",
-    backgroundColor: "#fffaf5",
+    backgroundColor: "#F4ECE5",
+    borderRadius: 22,
+    padding: 4,
   },
-  roleItemActive: {
-    borderWidth: 1.5,
-    borderColor: "#4a3424",
+  switchItem: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  roleText: {
-    color: "#7f6d5c",
+  switchItemActive: {
+    backgroundColor: "#5A3923",
+    shadowColor: "#5A3923",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+  },
+  switchText: {
+    color: "#85786E",
     fontSize: 14,
     fontWeight: "700",
-    lineHeight: 17,
+  },
+  switchTextActive: {
+    color: "#FFFFFF",
+  },
+  roleWrap: {
+    marginTop: 16,
+    flexDirection: "row",
+    gap: 8,
+  },
+  roleItem: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#EEE5DE",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  roleItemActive: {
+    borderColor: "#47382E",
+    borderWidth: 1.2,
+  },
+  roleText: {
+    color: "#8D8075",
+    fontSize: 14,
+    fontWeight: "700",
   },
   roleTextActive: {
-    color: colors.text,
+    color: "#3F342D",
+  },
+  card: {
+    marginTop: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 28,
+    padding: 16,
+    gap: 16,
+    shadowColor: "#7E6452",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+  },
+  cardTitle: {
+    color: "#382E28",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  socialButton: {
+    minHeight: 58,
+    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#EFE6DF",
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  socialLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  socialIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#FBF6F1",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  socialLabel: {
+    color: "#41362F",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  separatorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  separatorLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#EFE6DF",
+  },
+  separatorText: {
+    color: "#A18F82",
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+  },
+  formTitle: {
+    color: "#382E28",
+    fontSize: 14,
+    fontWeight: "800",
   },
   inputRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 10,
-    minHeight: 46,
-    paddingHorizontal: 14,
-    backgroundColor: "#fffdfa",
-    borderColor: "#eadfd2",
-    borderRadius: 15,
+    minHeight: 56,
+    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
+    borderColor: "#EFE6DF",
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
   input: {
     flex: 1,
-    minHeight: 40,
-    paddingVertical: 0,
     color: colors.text,
-    fontSize: 14,
-    fontWeight: "500",
+    fontSize: 15,
+    minHeight: 44,
   },
   inputRight: {
+    minWidth: 20,
     alignItems: "center",
     justifyContent: "center",
-    minWidth: 18,
   },
-  helperText: {
-    color: "#7b6b5f",
-    fontSize: 12,
-    fontWeight: "500",
-    lineHeight: 17,
-    marginTop: -2,
+  forgotWrap: {
+    alignSelf: "flex-end",
+    marginTop: -8,
   },
-  primaryButton: {
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 50,
+  forgotText: {
+    color: "#8A603F",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  buttonWrap: {
     marginTop: 4,
-    backgroundColor: "#4a3424",
-    borderRadius: 15,
   },
-  primaryButtonText: {
-    color: "#fff",
+  buttonGradient: {
+    minHeight: 54,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    backgroundColor: "#4C2F1D",
+  },
+  buttonDisabled: {
+    backgroundColor: "#B8A292",
+  },
+  buttonGloss: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#A56F47",
+    opacity: 0.34,
+    transform: [{ translateX: -48 }],
+    borderTopRightRadius: 40,
+    borderBottomRightRadius: 40,
+  },
+  buttonText: {
+    color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "800",
-    lineHeight: 18,
   },
-  forgotButton: {
+  emailFallbackWrap: {
+    paddingVertical: 4,
     alignItems: "center",
-    paddingVertical: 2,
   },
-  forgotButtonText: {
-    color: "#78685b",
+  emailFallbackText: {
+    color: "#8A603F",
     fontSize: 13,
-    fontWeight: "500",
+    fontWeight: "700",
     textDecorationLine: "underline",
   },
   notice: {
     backgroundColor: colors.successBg,
-    borderRadius: 14,
+    borderRadius: 16,
     color: colors.successText,
     fontSize: 13,
     fontWeight: "700",
@@ -448,12 +704,64 @@ const styles = StyleSheet.create({
   },
   error: {
     backgroundColor: colors.dangerBg,
-    borderRadius: 14,
+    borderRadius: 16,
     color: colors.dangerText,
     fontSize: 13,
     fontWeight: "700",
     lineHeight: 19,
     paddingHorizontal: 12,
     paddingVertical: 10,
+  },
+  securityCard: {
+    marginTop: 16,
+    minHeight: 76,
+    borderRadius: 24,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    shadowColor: "#7E6452",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 20,
+  },
+  securityIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#FBF6F1",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  securityText: {
+    flex: 1,
+    color: "#40352E",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  securityMiniBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#FBF6F1",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  supportRow: {
+    marginTop: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  supportLabel: {
+    color: "#918278",
+    fontSize: 13,
+  },
+  supportLink: {
+    color: "#B67C53",
+    fontSize: 13,
+    fontWeight: "700",
   },
 });

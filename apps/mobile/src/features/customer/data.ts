@@ -59,10 +59,10 @@ export const FALLBACK_SERVICES: LookbookService[] = [
 
 export const CATEGORY_ITEMS = [
   { key: "all", label: "Tất cả" },
-  { key: "don-gian", label: "Nail đơn giản" },
-  { key: "sang-trong", label: "Nail sang trọng" },
-  { key: "ca-tinh", label: "Nail cá tính" },
-  { key: "noi-bat", label: "Nail nổi bật" },
+  { key: "don-gian", label: "Đơn giản" },
+  { key: "sang-trong", label: "Sang trọng" },
+  { key: "ca-tinh", label: "Cá tính" },
+  { key: "noi-bat", label: "Nổi bật" },
 ] as const;
 
 export const QUICK_CONTACTS = [
@@ -70,6 +70,80 @@ export const QUICK_CONTACTS = [
   { label: "Messenger", value: "m.me/chambeautyyy", actionLabel: "Chat", href: "https://m.me/chambeautyyy" },
   { label: "Instagram", value: "@cham.beautyy", actionLabel: "Xem", href: "https://www.instagram.com/cham.beautyy" },
 ] as const;
+
+export const EXPLORE_STATS = [
+  { id: "services", label: "Dịch vụ", value: "6 mẫu", icon: "shopping-bag" },
+  { id: "customers", label: "Khách hàng", value: "2k+", icon: "users" },
+  { id: "experience", label: "Kinh nghiệm", value: "+6 năm", icon: "calendar" },
+  { id: "offers", label: "Ưu đãi", value: "4 mới", icon: "tag" },
+] as const;
+
+export const EXPLORE_SHOP_PRODUCTS = [
+  {
+    id: "product-1",
+    title: "Charm đính móng ánh bạc",
+    price: "79.000đ",
+    image: "https://images.unsplash.com/photo-1522337660859-02fbefca4702?q=80&w=1200",
+  },
+  {
+    id: "product-2",
+    title: "Sơn gel nude milk",
+    price: "149.000đ",
+    image: "https://images.unsplash.com/photo-1632345031435-8727f6897d53?q=80&w=1200",
+  },
+  {
+    id: "product-3",
+    title: "Dầu dưỡng viền móng",
+    price: "95.000đ",
+    image: "https://images.unsplash.com/photo-1610992015732-2449b76344bc?q=80&w=1200",
+  },
+  {
+    id: "product-4",
+    title: "Set phụ kiện nail box",
+    price: "169.000đ",
+    image: "https://images.unsplash.com/photo-1604654894610-df63bc536371?q=80&w=1200",
+  },
+] as const;
+
+export const EXPLORE_TEAM = [
+  {
+    id: "staff-1",
+    name: "Linh Chi",
+    role: "Nail Artist",
+    image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=800",
+  },
+  {
+    id: "staff-2",
+    name: "Thảo Vy",
+    role: "Nail Artist",
+    image: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=800",
+  },
+  {
+    id: "staff-3",
+    name: "Quỳnh Anh",
+    role: "Nail Artist",
+    image: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=800",
+  },
+  {
+    id: "staff-4",
+    name: "Minh Thư",
+    role: "Nail Artist",
+    image: "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?q=80&w=800",
+  },
+] as const;
+
+export const EXPLORE_STORE_INFO = {
+  name: "CHAM BEAUTY",
+  category: "Nail & Beauty",
+  rating: "4.9",
+  reviews: "128 đánh giá",
+  coverImage: "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?q=80&w=1200",
+  highlights: ["Uy tín", "Chất lượng", "Tận tâm"],
+  address: "38A ngách 358/40 Bùi Xương Trạch, Khương Định, Thanh Xuân, Hà Nội",
+  openingHours: "Mở cửa: 09:00 - 21:00 (Tất cả ngày)",
+  mapImage: "https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?q=80&w=1200",
+  mapUrl: "https://maps.app.goo.gl/Qu9oyq4emP3iWHDd6",
+} as const;
 
 export const NEWS_ITEMS = [
   {

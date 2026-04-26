@@ -18,7 +18,7 @@ type FilterKey = (typeof FILTERS)[number]["key"];
 
 export default function FavoritesScreen() {
   const [activeFilter, setActiveFilter] = useState<FilterKey>("lookbook");
-  const { services } = useLookbookServices(FALLBACK_SERVICES);
+  const { isLoading, refresh, services } = useLookbookServices(FALLBACK_SERVICES);
   const { favoriteIds, toggleFavorite } = useCustomerFavorites();
 
   const items = useMemo(
@@ -27,7 +27,7 @@ export default function FavoritesScreen() {
   );
 
   return (
-    <CustomerScreen title="Yêu thích">
+    <CustomerScreen title="Yêu thích" onRefresh={() => void refresh()} refreshing={isLoading}>
       <SegmentedTabs activeKey={activeFilter} items={FILTERS} onChange={setActiveFilter} />
 
       <View style={styles.list}>

@@ -1,5 +1,9 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import * as AppleAuthentication from "expo-apple-authentication";
+import * as Linking from "expo-linking";
+import * as WebBrowser from "expo-web-browser";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform } from "react-native";
 import { router } from "expo-router";
 import type {
   AppRole,
@@ -23,7 +27,10 @@ import { mobileEnv } from "@/src/lib/env";
 import { mobileSupabase } from "@/src/lib/supabase";
 
 const SESSION_BOOT_TIMEOUT_MS = 3000;
+const OAUTH_CALLBACK_PATH = "auth/callback";
 const { colors, radius, spacing, shadow } = premiumTheme;
+
+WebBrowser.maybeCompleteAuthSession();
 
 type SessionContextValue = {
   isHydrated: boolean;
@@ -33,6 +40,8 @@ type SessionContextValue = {
   appSession: AppSessionValidation | null;
   error: string | null;
   signIn: (input: { email: string; password: string }) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  signInWithApple: () => Promise<void>;
   signUp: (input: {
     email: string;
     password: string;
@@ -53,6 +62,12 @@ const defaultSessionContextValue: SessionContextValue = {
   appSession: null,
   error: null,
   async signIn() {
+    throw new Error("Mobile session provider chua san sang.");
+  },
+  async signInWithGoogle() {
+    throw new Error("Mobile session provider chua san sang.");
+  },
+  async signInWithApple() {
     throw new Error("Mobile session provider chua san sang.");
   },
   async signUp() {
@@ -90,6 +105,101 @@ async function withSessionTimeout<T>(promise: Promise<T>, fallbackValue: T) {
   return withTimeout(promise, SESSION_BOOT_TIMEOUT_MS, fallbackValue);
 }
 
+function buildAuthRedirectUrl() {
+  return Linking.createURL(OAUTH_CALLBACK_PATH);
+}
+
+function readAuthParams(url: string) {
+  const parsedUrl = new URL(url);
+  const hash = parsedUrl.hash.startsWith("#") ? parsedUrl.hash.slice(1) : parsedUrl.hash;
+  const hashParams = new URLSearchParams(hash);
+  const searchParams = parsedUrl.searchParams;
+
+  return {
+    code: searchParams.get("code"),
+    accessToken: hashParams.get("access_token") ?? searchParams.get("access_token"),
+    refreshToken: hashParams.get("refresh_token") ?? searchParams.get("refresh_token"),
+  };
+}
+
+function buildDisplayNameFromApple(credential: AppleAuthentication.AppleAuthenticationCredential) {
+  const givenName = credential.fullName?.givenName?.trim();
+  const familyName = credential.fullName?.familyName?.trim();
+  return [givenName, familyName].filter(Boolean).join(" ").trim();
+}
+
+async function ensureCustomerUserMetadata() {
+  if (!mobileSupabase) {
+    return;
+  }
+
+  const {
+    data: { user },
+  } = await mobileSupabase.auth.getUser();
+
+  if (!user) {
+    return;
+  }
+
+  const displayName =
+    typeof user.user_metadata?.display_name === "string"
+      ? user.user_metadata.display_name.trim()
+      : typeof user.user_metadata?.full_name === "string"
+        ? user.user_metadata.full_name.trim()
+        : typeof user.user_metadata?.name === "string"
+          ? user.user_metadata.name.trim()
+          : "";
+
+  const nextData = {
+    registration_mode: "USER",
+    ...(displayName
+      ? {
+          display_name: displayName,
+          full_name: displayName,
+        }
+      : {}),
+  };
+
+  const hasRegistrationMode = user.user_metadata?.registration_mode === "USER";
+  const hasDisplayName = !displayName || user.user_metadata?.display_name === displayName;
+
+  if (hasRegistrationMode && hasDisplayName) {
+    return;
+  }
+
+  const { error } = await mobileSupabase.auth.updateUser({ data: nextData });
+  if (error) {
+    throw error;
+  }
+}
+
+function isOAuthCallbackUrl(url: string | null | undefined) {
+  if (!url) return false;
+  const redirectPrefix = buildAuthRedirectUrl().split(OAUTH_CALLBACK_PATH)[0];
+  return url.includes(OAUTH_CALLBACK_PATH) && url.startsWith(redirectPrefix);
+}
+
+function isRecoverableMobileSessionErrorMessage(message: string | null | undefined) {
+  const normalized = (message ?? "").toLowerCase();
+  return (
+    normalized.includes("app_session_rpc_unavailable") ||
+    normalized.includes("ensure_default_workspace") ||
+    normalized.includes("ensure_current_user_profile") ||
+    normalized.includes("create_app_session") ||
+    normalized.includes("validate_app_session") ||
+    normalized.includes("heartbeat_online_user") ||
+    (normalized.includes("does not exist") && normalized.includes("function public."))
+  );
+}
+
+function buildBasicMobileAppSession(userId: string): AppSessionValidation {
+  return {
+    valid: true,
+    userId,
+    message: "APP_SESSION_FALLBACK",
+  };
+}
+
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [isHydrated, setIsHydrated] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
@@ -97,6 +207,96 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthenticatedUserSummary | null>(null);
   const [appSession, setAppSession] = useState<AppSessionValidation | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const hydrateAfterAuth = useCallback(async () => {
+    if (!mobileSupabase) {
+      throw new Error("Thieu cau hinh Supabase mobile.");
+    }
+
+    const summary = await getAuthenticatedUserSummary(mobileSupabase);
+    if (!summary) {
+      throw new Error("Khong tim thay user sau khi dang nhap.");
+    }
+
+    setUser(summary);
+    setRoleState(summary.role);
+
+    const sessionResult = await withSessionTimeout(
+      createAppSessionWithDevice(mobileSupabase, {
+        userId: summary.id,
+        deviceFingerprint: await getMobileDeviceFingerprint(),
+        deviceInfo: await getMobileDeviceInfo(),
+      }),
+      {
+        success: false,
+        error: "App session mobile dang khoi tao cham. Tiep tuc vao app voi che do co ban.",
+      } satisfies AppSessionResult,
+    );
+
+    if (!sessionResult.success || !sessionResult.token) {
+      if (isRecoverableMobileSessionErrorMessage(sessionResult.message || sessionResult.error)) {
+        setAppSession(buildBasicMobileAppSession(summary.id));
+        setError(null);
+        return;
+      }
+
+      setAppSession({
+        valid: false,
+        reason: "INVALID_TOKEN",
+        message: sessionResult.message || sessionResult.error || "Khong tao duoc app session tren mobile.",
+      });
+      setError(sessionResult.message || sessionResult.error || "Khong tao duoc app session tren mobile.");
+      return;
+    }
+
+    await setStoredAppSessionToken(sessionResult.token);
+    const validation = await withSessionTimeout(validateAppSessionToken(mobileSupabase, sessionResult.token), {
+      valid: true,
+      userId: summary.id,
+    } satisfies AppSessionValidation);
+
+    if (!validation.valid && isRecoverableMobileSessionErrorMessage(validation.message)) {
+      setAppSession(buildBasicMobileAppSession(summary.id));
+      setError(null);
+      return;
+    }
+
+    setAppSession(validation);
+    setError(null);
+  }, []);
+
+  const completeOAuthUrl = useCallback(
+    async (url: string) => {
+      if (!mobileSupabase || !isOAuthCallbackUrl(url)) {
+        return false;
+      }
+
+      const { code, accessToken, refreshToken } = readAuthParams(url);
+
+      if (code) {
+        const { error: exchangeError } = await mobileSupabase.auth.exchangeCodeForSession(code);
+        if (exchangeError) {
+          throw exchangeError;
+        }
+      } else if (accessToken && refreshToken) {
+        const { error: setSessionError } = await mobileSupabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (setSessionError) {
+          throw setSessionError;
+        }
+      } else {
+        return false;
+      }
+
+      await ensureCustomerUserMetadata();
+      await hydrateAfterAuth();
+      router.replace("/");
+      return true;
+    },
+    [hydrateAfterAuth],
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -140,7 +340,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             validateAppSessionToken(mobileSupabase, existingToken),
             { valid: false, reason: "INVALID_TOKEN" } satisfies AppSessionValidation,
           );
-          if (!nextValidation.valid) {
+          if (!nextValidation.valid && !isRecoverableMobileSessionErrorMessage(nextValidation.message)) {
             await clearStoredAppSessionToken();
           }
         }
@@ -167,6 +367,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
                 userId: summary.id,
               } satisfies AppSessionValidation,
             );
+          } else if (isRecoverableMobileSessionErrorMessage(sessionResult.message || sessionResult.error)) {
+            nextValidation = buildBasicMobileAppSession(summary.id);
           } else {
             nextValidation = {
               valid: false,
@@ -177,6 +379,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         }
 
         if (!mounted) return;
+        if (!nextValidation.valid && isRecoverableMobileSessionErrorMessage(nextValidation.message)) {
+          nextValidation = buildBasicMobileAppSession(summary.id);
+        }
         setAppSession(nextValidation);
         setError(nextValidation.valid ? null : nextValidation.message ?? null);
       } catch (nextError) {
@@ -194,6 +399,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
 
     void hydrateSession();
+    void Linking.getInitialURL()
+      .then((initialUrl) => {
+        if (!mounted || !initialUrl) return;
+        return completeOAuthUrl(initialUrl).catch((nextError) => {
+          if (!mounted) return;
+          setError(nextError instanceof Error ? nextError.message : "Hoan tat dang nhap mang xa hoi that bai.");
+        });
+      })
+      .catch(() => undefined);
 
     const authListener = mobileSupabase?.auth.onAuthStateChange((_event, session) => {
       if (!mounted || session?.user) return;
@@ -202,55 +416,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setAppSession(null);
     });
 
+    const linkingSubscription = Linking.addEventListener("url", ({ url }) => {
+      void completeOAuthUrl(url).catch((nextError) => {
+        if (!mounted) return;
+        setError(nextError instanceof Error ? nextError.message : "Hoan tat dang nhap mang xa hoi that bai.");
+      });
+    });
+
     return () => {
       mounted = false;
       authListener?.data.subscription.unsubscribe();
+      linkingSubscription.remove();
     };
-  }, []);
-
-  async function hydrateAfterAuth() {
-    if (!mobileSupabase) {
-      throw new Error("Thieu cau hinh Supabase mobile.");
-    }
-
-    const summary = await getAuthenticatedUserSummary(mobileSupabase);
-    if (!summary) {
-      throw new Error("Khong tim thay user sau khi dang nhap.");
-    }
-
-    setUser(summary);
-    setRoleState(summary.role);
-
-    const sessionResult = await withSessionTimeout(
-      createAppSessionWithDevice(mobileSupabase, {
-        userId: summary.id,
-        deviceFingerprint: await getMobileDeviceFingerprint(),
-        deviceInfo: await getMobileDeviceInfo(),
-      }),
-      {
-        success: false,
-        error: "App session mobile dang khoi tao cham. Tiep tuc vao app voi che do co ban.",
-      } satisfies AppSessionResult,
-    );
-
-    if (!sessionResult.success || !sessionResult.token) {
-      setAppSession({
-        valid: false,
-        reason: "INVALID_TOKEN",
-        message: sessionResult.message || sessionResult.error || "Khong tao duoc app session tren mobile.",
-      });
-      setError(sessionResult.message || sessionResult.error || "Khong tao duoc app session tren mobile.");
-      return;
-    }
-
-    await setStoredAppSessionToken(sessionResult.token);
-    const validation = await withSessionTimeout(validateAppSessionToken(mobileSupabase, sessionResult.token), {
-      valid: true,
-      userId: summary.id,
-    } satisfies AppSessionValidation);
-    setAppSession(validation);
-    setError(null);
-  }
+  }, [completeOAuthUrl]);
 
   async function signIn(input: { email: string; password: string }) {
     if (!mobileSupabase) {
@@ -274,6 +452,120 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       router.replace("/");
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Dang nhap that bai.");
+      throw nextError;
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function signInWithGoogle() {
+    if (!mobileSupabase) {
+      throw new Error("Thieu cau hinh Supabase mobile.");
+    }
+
+    setIsBusy(true);
+    setError(null);
+
+    try {
+      const redirectTo = buildAuthRedirectUrl();
+      const { data, error: oauthError } = await mobileSupabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo,
+          skipBrowserRedirect: true,
+          queryParams: {
+            access_type: "offline",
+            prompt: "consent",
+          },
+        },
+      });
+
+      if (oauthError) {
+        throw oauthError;
+      }
+
+      if (!data?.url) {
+        throw new Error("Khong tao duoc duong dan dang nhap Google.");
+      }
+
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+
+      if (result.type === "cancel" || result.type === "dismiss") {
+        return;
+      }
+
+      if (result.type !== "success" || !result.url) {
+        throw new Error("Khong hoan tat duoc dang nhap Google.");
+      }
+
+      const completed = await completeOAuthUrl(result.url);
+      if (!completed) {
+        throw new Error("Google da xac thuc nhung app chua nhan duoc callback hop le.");
+      }
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Dang nhap Google that bai.");
+      throw nextError;
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function signInWithApple() {
+    if (!mobileSupabase) {
+      throw new Error("Thieu cau hinh Supabase mobile.");
+    }
+
+    if (Platform.OS !== "ios") {
+      throw new Error("Apple ID chi ho tro tren iOS.");
+    }
+
+    setIsBusy(true);
+    setError(null);
+
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      if (!credential.identityToken) {
+        throw new Error("Apple khong tra ve identity token.");
+      }
+
+      const { error: authError } = await mobileSupabase.auth.signInWithIdToken({
+        provider: "apple",
+        token: credential.identityToken,
+      });
+
+      if (authError) {
+        throw authError;
+      }
+
+      const displayName = buildDisplayNameFromApple(credential);
+      const { error: updateError } = await mobileSupabase.auth.updateUser({
+        data: {
+          registration_mode: "USER",
+          ...(displayName
+            ? {
+                display_name: displayName,
+                full_name: displayName,
+                given_name: credential.fullName?.givenName ?? null,
+                family_name: credential.fullName?.familyName ?? null,
+              }
+            : {}),
+        },
+      });
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      await hydrateAfterAuth();
+      router.replace("/");
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Dang nhap Apple that bai.");
       throw nextError;
     } finally {
       setIsBusy(false);
@@ -401,6 +693,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     appSession,
     error,
     signIn,
+    signInWithGoogle,
+    signInWithApple,
     signUp,
     requestPasswordReset,
     signOut,

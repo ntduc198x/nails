@@ -7,7 +7,7 @@ const { colors, spacing } = premiumTheme;
 
 export default function AddressesScreen() {
   return (
-    <CustomerScreen title="Địa chỉ">
+    <CustomerScreen title="Địa chỉ" onRefresh={() => {}} refreshing={false}>
       <SurfaceCard>
         <Text style={styles.sectionTitle}>Địa chỉ của tôi</Text>
 

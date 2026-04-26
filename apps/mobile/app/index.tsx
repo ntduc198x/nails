@@ -20,14 +20,14 @@ export default function IndexScreen() {
       <View style={styles.container}>
         <Text style={styles.errorTitle}>Mobile session gap loi</Text>
         <Text style={styles.errorText}>{error}</Text>
-        <Text style={styles.label}>App van mo guest flow de tiep tuc dat lich.</Text>
-        <Redirect href="/(customer)" />
+        <Text style={styles.label}>Vui long dang nhap lai de tiep tuc.</Text>
+        <Redirect href="/(auth)/sign-in" />
       </View>
     );
   }
 
   if (!role) {
-    return <Redirect href="/(customer)" />;
+    return <Redirect href="/(auth)/sign-in" />;
   }
 
   if (isCustomerRole(role)) {

@@ -1,12 +1,12 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { CustomerScreen } from "@/src/features/customer/ui";
+import { CustomerScreen, CustomerTopActions } from "@/src/features/customer/ui";
 import { premiumTheme } from "@/src/design/premium-theme";
 import { mobileSupabase } from "@/src/lib/supabase";
 import { useSession } from "@/src/providers/session-provider";
 
-const { colors, radius, shadow } = premiumTheme;
+const { colors, radius } = premiumTheme;
 
 const FILTERS = [
   { key: "Tất cả", label: "Tất cả", icon: "bell" },
@@ -76,42 +76,46 @@ export default function NotificationsScreen() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function loadNotifications() {
-      if (!mobileSupabase || !user?.id) {
+  async function loadNotifications() {
+    if (!mobileSupabase || !user?.id) {
+      setLoading(false);
+      return;
+    }
+    try {
+      setLoading(true);
+      const { data, error } = await mobileSupabase
+        .from("customer_notifications")
+        .select("id, title, body, kind, is_read, sent_at")
+        .eq("user_id", user.id)
+        .order("sent_at", { ascending: false })
+        .limit(50);
+
+      if (error) {
+        console.error("Notification query error:", error);
         setLoading(false);
         return;
       }
-      try {
-        const { data, error } = await mobileSupabase
-          .from("customer_notifications")
-          .select("id, title, body, kind, is_read, sent_at")
-          .eq("user_id", user.id)
-          .order("sent_at", { ascending: false })
-          .limit(50);
 
-        if (error) {
-          console.error("Notification query error:", error);
-          setLoading(false);
-          return;
-        }
-
-        if (data && data.length > 0) {
-          setNotifications(data.map(n => ({
-            id: n.id,
-            title: n.title || "",
-            body: n.body || "",
-            created_at: n.sent_at || "",
-            type: n.kind || "GENERAL",
-            is_read: n.is_read ?? false,
-          })));
-        }
-      } catch (e) {
-        console.error("Failed to load notifications:", e);
-      } finally {
-        setLoading(false);
+      if (data && data.length > 0) {
+        setNotifications(data.map(n => ({
+          id: n.id,
+          title: n.title || "",
+          body: n.body || "",
+          created_at: n.sent_at || "",
+          type: n.kind || "GENERAL",
+          is_read: n.is_read ?? false,
+        })));
+      } else {
+        setNotifications([]);
       }
+    } catch (e) {
+      console.error("Failed to load notifications:", e);
+    } finally {
+      setLoading(false);
     }
+  }
+
+  useEffect(() => {
     void loadNotifications();
   }, [user?.id]);
 
@@ -135,16 +139,20 @@ export default function NotificationsScreen() {
   }
 
   return (
-    <CustomerScreen hideHeader title="Thông báo" contentContainerStyle={styles.content}>
+    <CustomerScreen
+      hideHeader
+      title="Thông báo"
+      contentContainerStyle={styles.content}
+      onRefresh={() => void loadNotifications()}
+      refreshing={loading}
+    >
       <View style={styles.headerRow}>
         <View style={styles.headerCopy}>
           <Text style={styles.eyebrow}>CHAM BEAUTY</Text>
           <Text style={styles.pageTitle}>Thông báo</Text>
         </View>
 
-        <Pressable style={styles.settingsButton}>
-          <Feather color={colors.text} name="settings" size={18} />
-        </Pressable>
+        <CustomerTopActions />
       </View>
 
       <View style={styles.segmentWrap}>
@@ -235,12 +243,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: -0.8,
     lineHeight: 34,
-  },
-  settingsButton: {
-    alignItems: "center",
-    height: 38,
-    justifyContent: "center",
-    width: 38,
   },
   segmentWrap: {
     alignItems: "center",

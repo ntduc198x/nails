@@ -1,239 +1,158 @@
 import Feather from "@expo/vector-icons/Feather";
 import { router } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { MEMBERSHIP } from "@/src/features/customer/data";
+import { CustomerScreen, CustomerTopActions, SurfaceCard } from "@/src/features/customer/ui";
+import { premiumTheme } from "@/src/design/premium-theme";
+
+const { colors, radius } = premiumTheme;
 
 const PERKS = [
-  {
-    icon: "star" as const,
-    title: "Tích điểm đổi quà",
-    detail: "Tích điểm khi sử dụng dịch vụ và đổi quà hấp dẫn",
-  },
-  {
-    icon: "gift" as const,
-    title: "Ưu đãi sinh nhật",
-    detail: "Nhận ưu đãi đặc biệt trong tháng sinh nhật",
-  },
-  {
-    icon: "calendar" as const,
-    title: "Ưu tiên đặt lịch",
-    detail: "Đặt lịch nhanh chóng, ưu tiên hỗ trợ",
-  },
-  {
-    icon: "tag" as const,
-    title: "Giảm giá đặc biệt",
-    detail: "Nhận các ưu đãi độc quyền dành riêng cho hội viên",
-  },
+  { icon: "star", title: "Tich diem doi qua", detail: "Nhan diem moi khi su dung dich vu va doi qua trong tai khoan thanh vien." },
+  { icon: "gift", title: "Qua tang sinh nhat", detail: "Nhan quyen loi rieng trong thang sinh nhat cua ban." },
+  { icon: "calendar", title: "Uu tien dat lich", detail: "Dat lich nhanh hon va uu tien ho tro trong cac khung gio cao diem." },
+  { icon: "tag", title: "Gia thanh vien", detail: "Tat ca uu dai va voucher se duoc tap trung tai day." },
 ] as const;
 
 export default function MembershipScreen() {
   return (
-    <SafeAreaView edges={["top"]} style={styles.safeArea}>
-      <View style={styles.screen}>
-        <ScrollView bounces={false} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.headerRow}>
-            <Pressable hitSlop={10} onPress={() => router.back()} style={styles.backButton}>
-              <Feather color="#4a3424" name="chevron-left" size={24} />
-            </Pressable>
-            <Text style={styles.title}>Thẻ thành viên</Text>
-            <Pressable style={styles.helpButton}>
-              <Feather color="#7b6b5f" name="help-circle" size={20} />
-            </Pressable>
+    <CustomerScreen hideHeader title="The thanh vien" contentContainerStyle={styles.content} onRefresh={() => {}} refreshing={false}>
+      <View style={styles.headerRow}>
+        <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Feather color={colors.text} name="chevron-left" size={22} />
+        </Pressable>
+        <Text style={styles.title}>The thanh vien</Text>
+        <CustomerTopActions />
+      </View>
+
+      <View style={styles.heroCard}>
+        <View style={styles.patternLarge} />
+        <View style={styles.patternSmall} />
+
+        <Text style={styles.brand}>CHAM BEAUTY</Text>
+        <Text style={styles.tier}>
+          Member <Text style={styles.tierAccent}>{MEMBERSHIP.tier.replace("Member ", "")}</Text>
+        </Text>
+
+        <Text style={styles.pointsLabel}>Diem hien tai</Text>
+        <Text style={styles.points}>{MEMBERSHIP.points} diem</Text>
+
+        <View style={styles.progressRow}>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${Math.max(0, Math.min(MEMBERSHIP.progress, 1)) * 100}%` }]} />
           </View>
 
-          <View style={styles.heroCard}>
-            <View style={styles.patternPrimary} />
-            <View style={styles.patternSecondary} />
+          <View style={styles.heroBadge}>
+            <Feather color="#f1c56d" name="award" size={14} />
+            <Text style={styles.heroBadgeText}>Quyen loi</Text>
+          </View>
+        </View>
 
-            <Text style={styles.brand}>CHAM BEAUTY</Text>
-            <Text style={styles.tier}>
-              Member <Text style={styles.tierAccent}>Gold</Text>
-            </Text>
+        <Text style={styles.helper}>{MEMBERSHIP.renewal}</Text>
 
-            <Text style={styles.pointsLabel}>Điểm hiện tại</Text>
-            <Text style={styles.points}>
-              1.250 <Text style={styles.pointsSuffix}>điểm</Text>
-            </Text>
-
-            <View style={styles.heroActionRow}>
-              <View style={styles.progressTrack}>
-                <View style={styles.progressFill} />
-              </View>
-
-              <Pressable style={styles.heroActionButton} onPress={() => router.push("/(customer)/offers")}>
-                <Feather color="#f0c36f" name="tag" size={15} />
-                <Text style={styles.heroActionText}>Ưu đãi</Text>
-                <Feather color="#f0c36f" name="chevron-right" size={16} />
-              </Pressable>
-            </View>
-
-            <Text style={styles.heroHelper}>Bạn cần thêm 750 điểm để lên hạng Platinum</Text>
-
-            <View style={styles.medalWrap}>
-              <View style={styles.medalOuter}>
-                <View style={styles.medalInner}>
-                  <Feather color="#bd7623" name="award" size={28} />
-                </View>
-              </View>
+        <View style={styles.medalShell}>
+          <View style={styles.medalOuter}>
+            <View style={styles.medalInner}>
+              <Feather color="#bb7723" name="award" size={26} />
             </View>
           </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Quyền lợi thành viên</Text>
-
-            <View style={styles.perkList}>
-              {PERKS.map((perk) => (
-                <Pressable key={perk.title} style={styles.perkRow}>
-                  <View style={styles.perkIcon}>
-                    <Feather color="#4a382c" name={perk.icon} size={20} />
-                  </View>
-
-                  <View style={styles.perkCopy}>
-                    <Text style={styles.perkTitle}>{perk.title}</Text>
-                    <Text style={styles.perkDetail}>{perk.detail}</Text>
-                  </View>
-
-                  <Feather color="#75685d" name="chevron-right" size={20} />
-                </Pressable>
-              ))}
-            </View>
-
-            <Pressable style={styles.historyButton}>
-              <Feather color="#fff" name="calendar" size={16} />
-              <Text style={styles.historyButtonText}>Xem lịch sử điểm</Text>
-              <Feather color="#fff" name="chevron-right" size={18} />
-            </Pressable>
-          </View>
-        </ScrollView>
-
-        <View style={styles.bottomNav}>
-          <Pressable style={styles.navItem} onPress={() => router.push("/(customer)")}>
-            <Feather color="#7d6f64" name="home" size={20} />
-            <Text style={styles.navLabel}>Trang chủ</Text>
-          </Pressable>
-
-          <Pressable style={styles.navItem} onPress={() => router.push("/(customer)/explore")}>
-            <Feather color="#7d6f64" name="compass" size={19} />
-            <Text style={styles.navLabel}>Khám phá</Text>
-          </Pressable>
-
-          <Pressable style={styles.centerButton} onPress={() => router.push("/(customer)/booking")}>
-            <Feather color="#fff" name="plus" size={25} />
-          </Pressable>
-
-          <Pressable style={styles.navItem} onPress={() => router.push("/(customer)/notifications")}>
-            <View style={styles.notificationBadge}>
-              <Text style={styles.notificationBadgeText}>2</Text>
-            </View>
-            <Feather color="#7d6f64" name="bell" size={19} />
-            <Text style={styles.navLabel}>Thông báo</Text>
-          </Pressable>
-
-          <Pressable style={[styles.navItem, styles.navItemActive]} onPress={() => router.push("/(customer)/profile")}>
-            <Feather color="#5e442e" name="user" size={19} />
-            <Text style={[styles.navLabel, styles.navLabelActive]}>Cá nhân</Text>
-          </Pressable>
         </View>
       </View>
-    </SafeAreaView>
+
+      <View style={styles.sectionBlock}>
+        <Text style={styles.sectionTitle}>Quyen loi cua ban</Text>
+
+        <View style={styles.perkList}>
+          {PERKS.map((perk) => (
+            <SurfaceCard key={perk.title} style={styles.perkCard}>
+              <View style={styles.perkIcon}>
+                <Feather color={colors.text} name={perk.icon} size={18} />
+              </View>
+
+              <View style={styles.perkCopy}>
+                <Text style={styles.perkTitle}>{perk.title}</Text>
+                <Text style={styles.perkDetail}>{perk.detail}</Text>
+              </View>
+
+              <Feather color={colors.textSoft} name="chevron-right" size={18} />
+            </SurfaceCard>
+          ))}
+        </View>
+      </View>
+
+      <SurfaceCard style={styles.ctaCard}>
+        <Text style={styles.ctaTitle}>Tat ca uu dai da duoc chuyen vao the thanh vien</Text>
+        <Text style={styles.ctaText}>Tu nay, moi voucher va quyen loi se duoc xem tai day thay vi mot vi uu dai rieng.</Text>
+      </SurfaceCard>
+    </CustomerScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#fbf6ef",
-  },
-  screen: {
-    flex: 1,
-    backgroundColor: "#fbf6ef",
-  },
   content: {
-    paddingBottom: 112,
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    gap: 18,
+    paddingTop: 4,
   },
   headerRow: {
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 18,
-    paddingLeft: 4,
   },
   backButton: {
-    height: 44,
-    width: 44,
     alignItems: "center",
+    height: 40,
     justifyContent: "center",
-    marginLeft: -8,
+    width: 40,
   },
   title: {
-    color: "#15110d",
-    fontSize: 29,
-    fontWeight: "800",
-    letterSpacing: -0.8,
-    lineHeight: 34,
+    color: colors.text,
     flex: 1,
+    fontSize: 26,
+    fontWeight: "800",
+    letterSpacing: -0.6,
     textAlign: "center",
-  },
-  helpButton: {
-    alignItems: "center",
-    backgroundColor: "#fffaf5",
-    borderColor: "#ece0d4",
-    borderRadius: 22,
-    borderWidth: 1,
-    height: 44,
-    justifyContent: "center",
-    shadowColor: "#2a1e14",
-    shadowOffset: { width: 0, height: 7 },
-    shadowOpacity: 0.05,
-    shadowRadius: 14,
-    width: 44,
   },
   heroCard: {
     backgroundColor: "#34291d",
-    borderRadius: 22,
+    borderRadius: 24,
     minHeight: 238,
     overflow: "hidden",
     paddingHorizontal: 18,
     paddingVertical: 18,
     position: "relative",
   },
-  patternPrimary: {
+  patternLarge: {
     borderColor: "rgba(236, 180, 93, 0.08)",
-    borderRadius: 44,
-    borderWidth: 1,
-    height: 160,
-    position: "absolute",
-    right: -8,
-    top: -10,
-    transform: [{ rotate: "18deg" }],
-    width: 160,
-  },
-  patternSecondary: {
-    borderColor: "rgba(236, 180, 93, 0.08)",
-    borderRadius: 54,
+    borderRadius: 52,
     borderWidth: 1,
     height: 210,
     position: "absolute",
-    right: 32,
-    top: -28,
+    right: 28,
+    top: -30,
     transform: [{ rotate: "18deg" }],
     width: 210,
+  },
+  patternSmall: {
+    borderColor: "rgba(236, 180, 93, 0.08)",
+    borderRadius: 42,
+    borderWidth: 1,
+    height: 160,
+    position: "absolute",
+    right: -12,
+    top: -12,
+    transform: [{ rotate: "18deg" }],
+    width: 160,
   },
   brand: {
     color: "#efc26d",
     fontSize: 14,
     fontWeight: "800",
-    letterSpacing: 0.2,
-    lineHeight: 17,
     marginBottom: 14,
   },
   tier: {
-    color: "#fff",
-    fontSize: 31,
+    color: "#ffffff",
+    fontSize: 30,
     fontWeight: "800",
-    letterSpacing: -0.8,
     lineHeight: 35,
     marginBottom: 14,
   },
@@ -243,24 +162,15 @@ const styles = StyleSheet.create({
   pointsLabel: {
     color: "#e7dcd1",
     fontSize: 14,
-    fontWeight: "500",
-    lineHeight: 17,
     marginBottom: 6,
   },
   points: {
-    color: "#fff",
-    fontSize: 29,
+    color: "#ffffff",
+    fontSize: 28,
     fontWeight: "900",
-    letterSpacing: -0.8,
-    lineHeight: 32,
     marginBottom: 14,
   },
-  pointsSuffix: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  heroActionRow: {
+  progressRow: {
     alignItems: "center",
     flexDirection: "row",
     gap: 12,
@@ -268,18 +178,17 @@ const styles = StyleSheet.create({
   },
   progressTrack: {
     backgroundColor: "rgba(255,255,255,0.16)",
-    borderRadius: 999,
+    borderRadius: radius.pill,
     flex: 1,
     height: 9,
     overflow: "hidden",
   },
   progressFill: {
     backgroundColor: "#f4c56f",
-    borderRadius: 999,
+    borderRadius: radius.pill,
     height: "100%",
-    width: "58%",
   },
-  heroActionButton: {
+  heroBadge: {
     alignItems: "center",
     backgroundColor: "rgba(111, 81, 44, 0.76)",
     borderColor: "#d1a45d",
@@ -290,20 +199,18 @@ const styles = StyleSheet.create({
     minHeight: 38,
     paddingHorizontal: 12,
   },
-  heroActionText: {
+  heroBadgeText: {
     color: "#fff4e5",
     fontSize: 14,
     fontWeight: "700",
-    lineHeight: 16,
   },
-  heroHelper: {
+  helper: {
     color: "#eadfd1",
     fontSize: 13,
-    fontWeight: "500",
     lineHeight: 18,
     maxWidth: "82%",
   },
-  medalWrap: {
+  medalShell: {
     position: "absolute",
     right: 18,
     top: 18,
@@ -311,50 +218,37 @@ const styles = StyleSheet.create({
   medalOuter: {
     alignItems: "center",
     backgroundColor: "#eea848",
-    borderRadius: 999,
+    borderRadius: radius.pill,
     height: 78,
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.16,
-    shadowRadius: 12,
     width: 78,
   },
   medalInner: {
     alignItems: "center",
     backgroundColor: "#ffd58e",
     borderColor: "#f5b557",
-    borderRadius: 999,
+    borderRadius: radius.pill,
     borderWidth: 5,
     height: 58,
     justifyContent: "center",
     width: 58,
   },
-  section: {
-    marginTop: 22,
+  sectionBlock: {
+    gap: 12,
   },
   sectionTitle: {
-    color: "#201913",
+    color: colors.text,
     fontSize: 17,
     fontWeight: "800",
-    letterSpacing: -0.4,
-    lineHeight: 21,
-    marginBottom: 14,
   },
   perkList: {
-    gap: 8,
+    gap: 10,
   },
-  perkRow: {
+  perkCard: {
     alignItems: "center",
-    backgroundColor: "#fffdfa",
-    borderColor: "#eee2d6",
-    borderRadius: 18,
-    borderWidth: 1,
     flexDirection: "row",
     gap: 12,
-    minHeight: 74,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    padding: 14,
   },
   perkIcon: {
     alignItems: "center",
@@ -369,100 +263,28 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   perkTitle: {
-    color: "#1f1914",
+    color: colors.text,
     fontSize: 15,
     fontWeight: "700",
-    letterSpacing: -0.2,
-    lineHeight: 18,
   },
   perkDetail: {
-    color: "#6a5f57",
+    color: colors.textSoft,
     fontSize: 13,
-    fontWeight: "500",
-    lineHeight: 17,
-  },
-  historyButton: {
-    alignItems: "center",
-    backgroundColor: "#4a3424",
-    borderRadius: 16,
-    flexDirection: "row",
-    gap: 10,
-    justifyContent: "center",
-    marginTop: 14,
-    minHeight: 56,
-  },
-  historyButtonText: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "800",
     lineHeight: 18,
   },
-  bottomNav: {
-    alignItems: "flex-start",
-    backgroundColor: "#fffdfa",
-    borderTopColor: "#eadfd2",
-    borderTopWidth: 1,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingBottom: 12,
-    paddingHorizontal: 10,
-    paddingTop: 10,
+  ctaCard: {
+    backgroundColor: "#fff7ef",
+    borderColor: "#eaded1",
+    gap: 8,
   },
-  navItem: {
-    alignItems: "center",
-    borderRadius: 20,
-    gap: 5,
-    justifyContent: "center",
-    minHeight: 56,
-    minWidth: 66,
-    paddingHorizontal: 8,
-    position: "relative",
-  },
-  navItemActive: {
-    backgroundColor: "#f3e9df",
-  },
-  navLabel: {
-    color: "#7a6d63",
-    fontSize: 10,
-    fontWeight: "500",
-    lineHeight: 12,
-  },
-  navLabelActive: {
-    color: "#5e442e",
-    fontWeight: "700",
-  },
-  centerButton: {
-    alignItems: "center",
-    backgroundColor: "#4a3424",
-    borderRadius: 29,
-    height: 58,
-    justifyContent: "center",
-    marginTop: -18,
-    shadowColor: "#2a1e14",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    width: 58,
-  },
-  notificationBadge: {
-    alignItems: "center",
-    backgroundColor: "#f14d43",
-    borderColor: "#fffdfa",
-    borderRadius: 9,
-    borderWidth: 1.5,
-    height: 16,
-    justifyContent: "center",
-    minWidth: 16,
-    paddingHorizontal: 3,
-    position: "absolute",
-    right: 14,
-    top: 3,
-    zIndex: 2,
-  },
-  notificationBadgeText: {
-    color: "#fff",
-    fontSize: 9,
+  ctaTitle: {
+    color: colors.text,
+    fontSize: 15,
     fontWeight: "800",
-    lineHeight: 10,
+  },
+  ctaText: {
+    color: colors.textSoft,
+    fontSize: 13,
+    lineHeight: 19,
   },
 });

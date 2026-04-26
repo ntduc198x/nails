@@ -1,5 +1,5 @@
 import Feather from "@expo/vector-icons/Feather";
-import { router } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 import { useMemo, useState } from "react";
 import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import {
@@ -8,7 +8,7 @@ import {
   OFFERS,
   PROFILE_SUMMARY,
 } from "@/src/features/customer/data";
-import { CustomerScreen, SurfaceCard } from "@/src/features/customer/ui";
+import { CustomerScreen, CustomerTopActions, SurfaceCard } from "@/src/features/customer/ui";
 import { premiumTheme } from "@/src/design/premium-theme";
 import { useCustomerFavorites } from "@/src/hooks/use-customer-favorites";
 import { mobileSupabase } from "@/src/lib/supabase";
@@ -24,6 +24,7 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 type FeatherIconName = React.ComponentProps<typeof Feather>["name"];
+type ProfileFieldIcon = "user" | "calendar" | "phone" | "mail" | "map-pin";
 
 const SERVICE_LOOKUP = new Map(
   FALLBACK_SERVICES.map((service) => [
@@ -135,18 +136,10 @@ export default function ProfileScreen() {
   }
 
   return (
-    <CustomerScreen hideHeader scroll contentContainerStyle={styles.content} title="Cá nhân">
-<View style={styles.topBar}>
-        <Pressable hitSlop={12} onPress={() => router.push("/(customer)/offers")} style={styles.walletButton}>
-          <Feather color={colors.text} name="credit-card" size={22} />
-          <View style={styles.walletDot} />
-        </Pressable>
-
+    <CustomerScreen hideHeader scroll contentContainerStyle={styles.content} title="Cá nhân" onRefresh={() => {}} refreshing={false}>
+      <View style={styles.topBar}>
         <View style={styles.topBarSpacer} />
-
-        <Pressable hitSlop={12} onPress={() => router.push("/(customer)/settings")} style={styles.topIconButton}>
-          <Feather color={colors.text} name="settings" size={18} />
-        </Pressable>
+        <CustomerTopActions />
       </View>
 
       <View style={styles.profileHero}>
@@ -271,19 +264,28 @@ export default function ProfileScreen() {
       {activeTab === "info" ? (
         <View style={styles.infoStack}>
           <SurfaceCard style={styles.formCard}>
+            <View style={styles.formHeader}>
+              <Feather color={colors.accentWarm} name="user" size={18} />
+              <Text style={styles.formTitle}>Thông tin cá nhân</Text>
+            </View>
+
             <EditableField
+              icon="user"
               label="Họ và tên"
               onChangeText={(value) => setForm((current) => ({ ...current, name: value }))}
               placeholder="Nhập họ và tên"
               value={form.name}
             />
             <EditableField
+              icon="calendar"
+              keyboardType="numeric"
               label="Ngày sinh"
               onChangeText={(value) => setForm((current) => ({ ...current, birthDate: value }))}
               placeholder="DD/MM/YYYY"
               value={form.birthDate}
             />
             <EditableField
+              icon="phone"
               label="Số điện thoại"
               onChangeText={(value) => setForm((current) => ({ ...current, phone: value }))}
               placeholder="Nhập số điện thoại"
@@ -291,15 +293,16 @@ export default function ProfileScreen() {
             />
             <EditableField
               autoCapitalize="none"
+              icon="mail"
               keyboardType="email-address"
               label="Email"
-              onChangeText={(value) => setForm((current) => ({ ...current, email: value }))}
               placeholder="Nhập email"
+              editable={false}
               value={form.email}
             />
             <EditableField
+              icon="map-pin"
               label="Địa chỉ"
-              multiline
               onChangeText={(value) => setForm((current) => ({ ...current, address: value }))}
               placeholder="Nhập địa chỉ"
               value={form.address}
@@ -395,38 +398,63 @@ function HistoryStatus({
 
 function EditableField({
   autoCapitalize,
+  editable = true,
+  icon,
   keyboardType,
   label,
   multiline = false,
   onChangeText,
   placeholder,
   secureTextEntry = false,
+  trailingIcon,
   value,
 }: {
   autoCapitalize?: "none" | "sentences" | "words" | "characters";
+  editable?: boolean;
+  icon: ProfileFieldIcon;
   keyboardType?: "default" | "email-address" | "numeric" | "phone-pad";
   label: string;
   multiline?: boolean;
-  onChangeText: (value: string) => void;
+  onChangeText?: (value: string) => void;
   placeholder: string;
   secureTextEntry?: boolean;
+  trailingIcon?: FeatherIconName;
   value: string;
 }) {
   return (
     <View style={styles.fieldGroup}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
-        autoCapitalize={autoCapitalize}
-        keyboardType={keyboardType}
-        multiline={multiline}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={colors.textMuted}
-        secureTextEntry={secureTextEntry}
-        style={[styles.input, multiline ? styles.inputMultiline : null]}
-        textAlignVertical={multiline ? "top" : "center"}
-        value={value}
-      />
+      <View style={styles.fieldRow}>
+        <View style={styles.fieldIconBox}>
+          <Feather color={colors.accent} name={icon} size={20} />
+        </View>
+
+        <View style={styles.inputShell}>
+          <TextInput
+            autoCapitalize={autoCapitalize}
+            editable={editable}
+            keyboardType={keyboardType}
+            multiline={multiline}
+            onChangeText={onChangeText}
+            placeholder={placeholder}
+            placeholderTextColor={colors.textMuted}
+            secureTextEntry={secureTextEntry}
+            style={[
+              styles.input,
+              multiline ? styles.inputMultiline : null,
+              trailingIcon ? styles.inputWithTrailingIcon : null,
+            ]}
+            textAlignVertical={multiline ? "top" : "center"}
+            value={value}
+          />
+
+          {trailingIcon ? (
+            <View pointerEvents="none" style={styles.trailingIconWrap}>
+              <Feather color={colors.textSoft} name={trailingIcon} size={20} />
+            </View>
+          ) : null}
+        </View>
+      </View>
     </View>
   );
 }
@@ -434,7 +462,15 @@ function EditableField({
 function PrimaryAction({ label, onPress }: { label: string; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.primaryButton, pressed ? styles.primaryButtonPressed : null]}>
-      <Text style={styles.primaryButtonLabel}>{label}</Text>
+      <LinearGradient
+        colors={["#a45c31", "#bf7442"]}
+        start={{ x: 0, y: 0.5 }}
+        end={{ x: 1, y: 0.5 }}
+        style={styles.primaryButtonGradient}
+      >
+        <Feather color={colors.surface} name="save" size={18} />
+        <Text style={styles.primaryButtonLabel}>{label}</Text>
+      </LinearGradient>
     </Pressable>
   );
 }
@@ -450,30 +486,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 12,
   },
-  topIconButton: {
-    alignItems: "center",
-    height: 34,
-    justifyContent: "center",
-    width: 34,
-  },
   topBarSpacer: {
     flex: 1,
-  },
-  walletButton: {
-    alignItems: "center",
-    height: 44,
-    justifyContent: "center",
-    position: "relative",
-    width: 44,
-  },
-  walletDot: {
-    backgroundColor: "#EF4444",
-    borderRadius: 4,
-    height: 8,
-    position: "absolute",
-    right: 4,
-    top: 4,
-    width: 8,
   },
   profileHero: {
     alignItems: "center",
@@ -744,42 +758,88 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   formCard: {
-    gap: 12,
-    padding: 14,
+    ...shadow.card,
+    gap: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 16,
+  },
+  formHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 2,
+  },
+  formTitle: {
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: "800",
+    letterSpacing: -0.2,
   },
   fieldGroup: {
-    gap: 6,
+    gap: 8,
   },
   fieldLabel: {
     color: colors.textSoft,
     fontSize: 12,
     fontWeight: "700",
+    paddingLeft: 64,
+  },
+  fieldRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 12,
+  },
+  fieldIconBox: {
+    alignItems: "center",
+    backgroundColor: "#fbf2e8",
+    borderRadius: 18,
+    height: 52,
+    justifyContent: "center",
+    width: 52,
+  },
+  inputShell: {
+    flex: 1,
+    justifyContent: "center",
   },
   input: {
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: colors.surface,
     borderColor: colors.border,
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
     color: colors.text,
     fontSize: 14,
-    minHeight: 50,
-    paddingHorizontal: 14,
+    minHeight: 52,
+    paddingHorizontal: 16,
     paddingVertical: 12,
+  },
+  inputWithTrailingIcon: {
+    paddingRight: 46,
   },
   inputMultiline: {
     minHeight: 92,
   },
-  primaryButton: {
-    alignItems: "center",
-    backgroundColor: colors.accent,
-    borderRadius: 16,
+  trailingIconWrap: {
+    height: 52,
     justifyContent: "center",
-    minHeight: 48,
-    marginTop: 4,
-    paddingHorizontal: 14,
+    position: "absolute",
+    right: 16,
+    top: 0,
+  },
+  primaryButton: {
+    borderRadius: 18,
+    marginTop: 6,
+    overflow: "hidden",
   },
   primaryButtonPressed: {
     opacity: 0.88,
+  },
+  primaryButtonGradient: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+    justifyContent: "center",
+    minHeight: 56,
+    paddingHorizontal: 14,
   },
   primaryButtonLabel: {
     color: colors.surface,

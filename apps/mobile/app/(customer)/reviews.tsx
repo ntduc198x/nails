@@ -17,7 +17,7 @@ export default function ReviewsScreen() {
   const [activeFilter, setActiveFilter] = useState<FilterKey>("service");
 
   return (
-    <CustomerScreen title="Đánh giá của tôi">
+    <CustomerScreen title="Đánh giá của tôi" onRefresh={() => {}} refreshing={false}>
       <SegmentedTabs activeKey={activeFilter} items={FILTERS} onChange={setActiveFilter} />
 
       <View style={styles.list}>

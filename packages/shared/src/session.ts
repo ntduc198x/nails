@@ -44,6 +44,169 @@ function mapSessionUser(user: User, role: AppRole): AuthenticatedUserSummary {
   };
 }
 
+function isMissingEnsureProfileFunctionError(error: { code?: string; message?: string } | null | undefined) {
+  const message = error?.message ?? "";
+  return (
+    error?.code === "42883" ||
+    message.includes("ensure_current_user_profile") ||
+    message.includes("ensure_default_workspace") ||
+    (message.includes("does not exist") && message.includes("function public."))
+  );
+}
+
+function isMissingAppSessionFunctionError(error: { code?: string; message?: string } | null | undefined) {
+  const message = error?.message ?? "";
+  return (
+    error?.code === "42883" ||
+    message.includes("create_app_session") ||
+    message.includes("validate_app_session") ||
+    message.includes("heartbeat_online_user") ||
+    message.includes("revoke_app_session") ||
+    message.includes("ensure_default_workspace") ||
+    (message.includes("does not exist") && message.includes("function public."))
+  );
+}
+
+function buildProfileDisplayName(user: User) {
+  const metadataDisplayName =
+    typeof user.user_metadata?.display_name === "string"
+      ? user.user_metadata.display_name
+      : typeof user.user_metadata?.full_name === "string"
+        ? user.user_metadata.full_name
+        : typeof user.user_metadata?.name === "string"
+          ? user.user_metadata.name
+        : null;
+
+  return metadataDisplayName?.trim() || user.email?.split("@")[0] || "User";
+}
+
+async function fallbackEnsureCurrentUserProfile(client: SharedSupabaseClient, user: User) {
+  const { data: currentProfile, error: currentProfileErr } = await client
+    .from("profiles")
+    .select("user_id,org_id,default_branch_id,display_name,email,phone")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (currentProfileErr) {
+    throw currentProfileErr;
+  }
+
+  const profileDisplayName = buildProfileDisplayName(user);
+  const profilePhone =
+    typeof user.phone === "string" && user.phone.trim()
+      ? user.phone.trim()
+      : typeof user.user_metadata?.phone === "string" && user.user_metadata.phone.trim()
+        ? user.user_metadata.phone.trim()
+        : null;
+
+  let orgId = typeof currentProfile?.org_id === "string" ? currentProfile.org_id : undefined;
+  if (!orgId) {
+    const { data: fallbackRole, error: fallbackRoleErr } = await client
+      .from("user_roles")
+      .select("org_id")
+      .eq("user_id", user.id)
+      .limit(1)
+      .maybeSingle();
+
+    if (fallbackRoleErr) {
+      throw fallbackRoleErr;
+    }
+
+    orgId = typeof fallbackRole?.org_id === "string" ? fallbackRole.org_id : undefined;
+  }
+
+  let branchId = typeof currentProfile?.default_branch_id === "string" ? currentProfile.default_branch_id : undefined;
+  if (!branchId && orgId) {
+    const { data: branch, error: branchErr } = await client
+      .from("branches")
+      .select("id")
+      .eq("org_id", orgId)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (branchErr) {
+      throw branchErr;
+    }
+
+    branchId = typeof branch?.id === "string" ? branch.id : undefined;
+  }
+
+  if (!currentProfile) {
+    if (!orgId || !branchId) {
+      return;
+    }
+
+    const { error: insertProfileErr } = await client.from("profiles").insert({
+      user_id: user.id,
+      org_id: orgId,
+      default_branch_id: branchId,
+      display_name: profileDisplayName,
+      email: user.email ?? null,
+      phone: profilePhone,
+    });
+
+    if (insertProfileErr) {
+      throw insertProfileErr;
+    }
+
+    return;
+  }
+
+  const needsUpdate =
+    (!currentProfile.display_name && profileDisplayName) ||
+    currentProfile.email !== (user.email ?? null) ||
+    currentProfile.phone !== profilePhone ||
+    (!currentProfile.default_branch_id && branchId);
+
+  if (!needsUpdate) {
+    return;
+  }
+
+  const { error: updateProfileErr } = await client
+    .from("profiles")
+    .update({
+      display_name: currentProfile.display_name || profileDisplayName,
+      email: user.email ?? null,
+      phone: profilePhone,
+      default_branch_id: currentProfile.default_branch_id ?? branchId ?? null,
+    })
+    .eq("user_id", user.id);
+
+  if (updateProfileErr) {
+    throw updateProfileErr;
+  }
+}
+
+async function ensureCurrentUserProfile(client: SharedSupabaseClient, userId?: string) {
+  const {
+    data: { session },
+  } = await client.auth.getSession();
+
+  const currentUser = session?.user;
+  if (!currentUser) {
+    throw new Error("Chua dang nhap");
+  }
+
+  const targetUserId = userId ?? currentUser.id;
+  if (targetUserId !== currentUser.id) {
+    throw new Error("UNAUTHORIZED_PROFILE_BOOTSTRAP");
+  }
+
+  const { error } = await client.rpc("ensure_current_user_profile", {
+    p_user_id: targetUserId,
+  });
+
+  if (error) {
+    if (isMissingEnsureProfileFunctionError(error)) {
+      await fallbackEnsureCurrentUserProfile(client, currentUser);
+      return;
+    }
+
+    throw error;
+  }
+}
+
 export async function getOrCreateRole(client: SharedSupabaseClient, userId: string): Promise<AppRole> {
   const { data: existing, error: readErr } = await client
     .from("user_roles")
@@ -112,6 +275,7 @@ export async function getAuthenticatedUserSummary(
     return null;
   }
 
+  await ensureCurrentUserProfile(client, user.id);
   const role = await getOrCreateRole(client, user.id);
   return mapSessionUser(user, role);
 }
@@ -124,6 +288,8 @@ export async function createAppSessionWithDevice(
     deviceInfo?: unknown;
   },
 ): Promise<AppSessionResult> {
+  await ensureCurrentUserProfile(client, input.userId);
+
   const { data, error } = await client.rpc("create_app_session", {
     p_user_id: input.userId,
     p_device_fingerprint: input.deviceFingerprint,
@@ -131,6 +297,14 @@ export async function createAppSessionWithDevice(
   });
 
   if (error) {
+    if (isMissingAppSessionFunctionError(error)) {
+      return {
+        success: false,
+        error: "APP_SESSION_RPC_UNAVAILABLE",
+        message: error.message,
+      };
+    }
+
     return { success: false, error: error.message };
   }
 
@@ -152,6 +326,14 @@ export async function validateAppSessionToken(
   });
 
   if (error || !data) {
+    if (isMissingAppSessionFunctionError(error)) {
+      return {
+        valid: false,
+        reason: "INVALID_TOKEN",
+        message: error?.message ?? "APP_SESSION_RPC_UNAVAILABLE",
+      };
+    }
+
     return { valid: false, reason: "INVALID_TOKEN" };
   }
 
@@ -164,7 +346,10 @@ export async function validateAppSessionToken(
     };
   }
 
-  await client.rpc("heartbeat_online_user", { p_user_id: data.user_id });
+  const { error: heartbeatErr } = await client.rpc("heartbeat_online_user", { p_user_id: data.user_id });
+  if (heartbeatErr && !isMissingAppSessionFunctionError(heartbeatErr)) {
+    throw heartbeatErr;
+  }
 
   return {
     valid: true,
@@ -180,7 +365,10 @@ export async function revokeAppSessionToken(client: SharedSupabaseClient, token:
     return;
   }
 
-  await client.rpc("revoke_app_session", { p_token: token });
+  const { error } = await client.rpc("revoke_app_session", { p_token: token });
+  if (error && !isMissingAppSessionFunctionError(error)) {
+    throw error;
+  }
 }
 
 export async function consumeInviteCodeWithClient(

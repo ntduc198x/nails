@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Feather from "@expo/vector-icons/Feather";
 import { router } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Image,
-  Modal,
+  Linking,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,35 +13,44 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { CATEGORY_ITEMS, matchesCategory } from "@/src/features/customer/data";
-import { CustomerScreen, SurfaceCard } from "@/src/features/customer/ui";
+import {
+  CATEGORY_ITEMS,
+  EXPLORE_SHOP_PRODUCTS,
+  EXPLORE_STATS,
+  EXPLORE_STORE_INFO,
+  EXPLORE_TEAM,
+  matchesCategory,
+} from "@/src/features/customer/data";
+import { CustomerScreen, CustomerTopActions, SurfaceCard } from "@/src/features/customer/ui";
+import { premiumTheme } from "@/src/design/premium-theme";
+import { mobileSupabase } from "@/src/lib/supabase";
 import { useCustomerFavorites } from "@/src/hooks/use-customer-favorites";
 import { useLookbookServices, type LookbookService } from "@/src/hooks/use-lookbook-services";
-import { premiumTheme } from "@/src/design/premium-theme";
 
 const { colors, radius, shadow, spacing } = premiumTheme;
 
-const CARD_WIDTH = 140;
-const DOT_GAP = 12;
-const AUTO_SCROLL_INTERVAL = 4000;
+type CategoryKey = (typeof CATEGORY_ITEMS)[number]["key"];
+type TeamMember = {
+  id: string;
+  name: string;
+  role: string;
+  image: string;
+};
 
-function splitIntoColumns<T>(items: T[]) {
-  return items.reduce<[T[], T[]]>(
-    (columns, item, index) => {
-      columns[index % 2].push(item);
-      return columns;
-    },
-    [[], []],
-  );
-}
+const SERVICE_CARD_WIDTH = 182;
+const SERVICE_CARD_GAP = 14;
+const SERVICE_AUTO_SCROLL_INTERVAL = 4000;
 
 export default function ExploreScreen() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeCategory, setActiveCategory] = useState<(typeof CATEGORY_ITEMS)[number]["key"]>("all");
-  const [previewService, setPreviewService] = useState<LookbookService | null>(null);
-  const [activeLookbookIndex, setActiveLookbookIndex] = useState(0);
-  const lookbookScrollerRef = useRef<ScrollView>(null);
-  const { isLoading, services } = useLookbookServices([], { allowFallback: true });
+  const [activeCategory, setActiveCategory] = useState<CategoryKey>("all");
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([...EXPLORE_TEAM]);
+  const [activeServiceIndex, setActiveServiceIndex] = useState(0);
+  const servicesScrollerRef = useRef<ScrollView>(null);
+  const { isLoading, isRefreshing, lastError, refresh, services } = useLookbookServices([], {
+    allowFallback: true,
+    preferApi: false,
+  });
   const { isFavorite, toggleFavorite } = useCustomerFavorites();
 
   const filteredServices = useMemo(() => {
@@ -50,235 +62,391 @@ export default function ExploreScreen() {
     });
   }, [activeCategory, searchQuery, services]);
 
-  const onScroll = useCallback(
-    (event: any) => {
-      const scrollX = event.nativeEvent.contentOffset.x;
-      const cardWidth = CARD_WIDTH + DOT_GAP;
-      const nextIndex = Math.max(0, Math.min(filteredServices.length - 1, Math.round(scrollX / cardWidth)));
-      setActiveLookbookIndex(nextIndex);
-    },
-    [filteredServices.length],
-  );
-
   useEffect(() => {
     let cancelled = false;
-    const interval = setInterval(() => {
-      if (cancelled || !filteredServices.length) return;
 
-      const nextIndex = (activeLookbookIndex + 1) % filteredServices.length;
-      lookbookScrollerRef.current?.scrollTo({ x: nextIndex * (CARD_WIDTH + DOT_GAP), animated: true });
-      setActiveLookbookIndex(nextIndex);
-    }, AUTO_SCROLL_INTERVAL);
+    async function loadTeamMembers() {
+      if (!mobileSupabase) return;
 
+      try {
+        const { data, error } = await mobileSupabase
+          .from("profiles")
+          .select("user_id, display_name, role, avatar_url")
+          .in("role", ["OWNER", "MANAGER", "TECH"])
+          .limit(4);
+
+        if (cancelled || error || !data?.length) return;
+
+        setTeamMembers(
+          data.map((item, index) => ({
+            id: String(item.user_id ?? `staff-${index}`),
+            name: item.display_name?.trim() || `Nhân viên ${index + 1}`,
+            role: item.role === "TECH" ? "Nail Artist" : item.role === "MANAGER" ? "Quản lý" : "Chủ cửa hàng",
+            image: item.avatar_url?.trim() || EXPLORE_TEAM[index % EXPLORE_TEAM.length]?.image || EXPLORE_TEAM[0].image,
+          })),
+        );
+      } catch {
+        // giữ fallback tĩnh
+      }
+    }
+
+    void loadTeamMembers();
     return () => {
       cancelled = true;
-      clearInterval(interval);
     };
-  }, [activeLookbookIndex, filteredServices.length]);
+  }, []);
 
-  const [leftColumn, rightColumn] = useMemo(() => splitIntoColumns(filteredServices), [filteredServices]);
+  useEffect(() => {
+    if (!filteredServices.length) return;
+
+    const interval = setInterval(() => {
+      const nextIndex = (activeServiceIndex + 1) % filteredServices.length;
+      servicesScrollerRef.current?.scrollTo({
+        x: nextIndex * (SERVICE_CARD_WIDTH + SERVICE_CARD_GAP),
+        animated: true,
+      });
+      setActiveServiceIndex(nextIndex);
+    }, SERVICE_AUTO_SCROLL_INTERVAL);
+
+    return () => clearInterval(interval);
+  }, [activeServiceIndex, filteredServices.length]);
+
+  const onServicesScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const scrollX = event.nativeEvent.contentOffset.x;
+    const nextIndex = Math.max(0, Math.min(filteredServices.length - 1, Math.round(scrollX / (SERVICE_CARD_WIDTH + SERVICE_CARD_GAP))));
+    setActiveServiceIndex(nextIndex);
+  }, [filteredServices.length]);
+
+  async function openMap() {
+    await Linking.openURL(EXPLORE_STORE_INFO.mapUrl);
+  }
 
   return (
-    <CustomerScreen title="Khám phá" hideHeader contentContainerStyle={styles.content}>
-      <View style={styles.headerBlock}>
-        <Text style={styles.eyebrow}>CHAM BEAUTY</Text>
-        <Text style={styles.pageTitle}>Khám phá</Text>
+    <CustomerScreen
+      title="Khám phá"
+      hideHeader
+      contentContainerStyle={styles.content}
+      onRefresh={() => void refresh()}
+      refreshing={isRefreshing}
+    >
+      <View style={styles.topBar}>
+        <View style={styles.topBarSpacer} />
+        <CustomerTopActions />
+      </View>
+
+      <View style={styles.storeHero}>
+        <Image alt={EXPLORE_STORE_INFO.name} source={{ uri: EXPLORE_STORE_INFO.coverImage }} style={styles.storeImage} />
+
+        <View style={styles.storeCopy}>
+          <Text style={styles.storeName}>{EXPLORE_STORE_INFO.name}</Text>
+          <Text style={styles.storeCategory}>{EXPLORE_STORE_INFO.category}</Text>
+
+          <View style={styles.ratingRow}>
+            <Feather color="#d7a24c" name="star" size={15} />
+            <Text style={styles.ratingText}>
+              {EXPLORE_STORE_INFO.rating} ({EXPLORE_STORE_INFO.reviews})
+            </Text>
+          </View>
+
+          <View style={styles.highlightRow}>
+            {EXPLORE_STORE_INFO.highlights.map((item) => (
+              <View key={item} style={styles.highlightItem}>
+                <Feather color={colors.textSoft} name="shield" size={13} />
+                <Text style={styles.highlightText}>{item}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.statsGrid}>
+        {EXPLORE_STATS.map((item) => (
+          <SurfaceCard key={item.id} style={styles.statCard}>
+            <Feather color={colors.textSoft} name={item.icon as React.ComponentProps<typeof Feather>["name"]} size={16} />
+            <Text style={styles.statLabel}>{item.label}</Text>
+            <Text style={styles.statValue}>{item.value}</Text>
+          </SurfaceCard>
+        ))}
       </View>
 
       <View style={styles.searchBar}>
-        <Text style={styles.searchIcon}>⌕</Text>
+        <Feather color="#8f8174" name="search" size={16} />
         <TextInput
-          placeholder="Tìm kiếm mẫu nail, màu sắc..."
+          placeholder="Tìm mẫu lookbook..."
           placeholderTextColor="#b7aa9d"
           style={styles.searchInput}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
-        <Pressable style={styles.filterButton}>
-          <Text style={styles.filterIcon}>⚙</Text>
-        </Pressable>
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
         {CATEGORY_ITEMS.map((item) => {
           const active = item.key === activeCategory;
-
           return (
             <Pressable
               key={item.key}
               style={[styles.chip, active ? styles.chipActive : null]}
               onPress={() => setActiveCategory(item.key)}
             >
-              <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>
-                {formatCategoryLabel(item.key, item.label)}
-              </Text>
+              <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>{item.label}</Text>
             </Pressable>
           );
         })}
       </ScrollView>
 
-      {!isLoading && filteredServices.length > 0 && (
-        <View style={styles.lookbookSection}>
-          <Text style={styles.lookbookTitle}>Mẫu nail</Text>
-          <ScrollView
-            ref={lookbookScrollerRef}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.lookbookScroll}
-            onScroll={onScroll}
-            scrollEventThrottle={16}
-          >
-            {filteredServices.map((service) => (
-              <View key={service.id} style={styles.lookbookCard}>
-                {renderLookbookCard(service, isFavorite(service.id), toggleFavorite, setPreviewService)}
-              </View>
-            ))}
-          </ScrollView>
-          <View style={styles.lookbookDots}>
-            {filteredServices.map((_, index) => (
-              <View
-                key={index}
-                style={[styles.lookbookDot, index === activeLookbookIndex ? styles.lookbookDotActive : null]}
-              />
-            ))}
-          </View>
-        </View>
-      )}
+      <SectionHeader title="Dịch vụ nổi bật" actionLabel="Xem tất cả" />
 
-      {!isLoading && filteredServices.length === 0 ? (
-        <SurfaceCard style={styles.emptyCard}>
-          <Text style={styles.emptyTitle}>Chưa có lookbook để hiển thị</Text>
-          <Text style={styles.emptyDescription}>
-            Hãy quay lại sau khi dữ liệu lookbook được cập nhật từ hệ thống.
-          </Text>
+      {isLoading && filteredServices.length === 0 ? (
+        <SurfaceCard style={styles.stateCard}>
+          <Text style={styles.stateTitle}>Đang tải lookbook…</Text>
+          <Text style={styles.stateDescription}>Đang đồng bộ dịch vụ nổi bật từ hệ thống.</Text>
         </SurfaceCard>
       ) : null}
 
-      <Modal animationType="fade" transparent visible={Boolean(previewService)} onRequestClose={() => setPreviewService(null)}>
-        <View style={styles.modalBackdrop}>
-          <Pressable style={styles.modalCloseLayer} onPress={() => setPreviewService(null)} />
+      {!isLoading && filteredServices.length === 0 ? (
+        <SurfaceCard style={styles.stateCard}>
+          <Text style={styles.stateTitle}>Chưa có dịch vụ phù hợp</Text>
+          <Text style={styles.stateDescription}>
+            {lastError ? `Không tải được dữ liệu lúc này. ${lastError}` : "Hãy thử đổi bộ lọc hoặc kéo xuống để làm mới."}
+          </Text>
+          <Pressable style={styles.retryButton} onPress={() => void refresh()}>
+            <Text style={styles.retryButtonText}>Thử lại</Text>
+          </Pressable>
+        </SurfaceCard>
+      ) : null}
 
-          {previewService ? (
-            <View style={styles.modalCard}>
-              <Image alt={previewService.title} source={{ uri: previewService.image }} style={styles.modalImage} />
-              <View style={styles.modalCopy}>
-                <Text style={styles.modalTitle}>{previewService.title}</Text>
-                <Text style={styles.modalPrice}>{previewService.price}</Text>
-              </View>
+      {filteredServices.length > 0 ? (
+        <>
+          <ScrollView
+            ref={servicesScrollerRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.lookbookRow}
+            onScroll={onServicesScroll}
+            scrollEventThrottle={16}
+          >
+            {filteredServices.map((service) => (
+              <ExploreServiceCard
+                key={service.id}
+                service={service}
+                favorite={isFavorite(service.id)}
+                onToggleFavorite={() => void toggleFavorite(service.id)}
+              />
+            ))}
+          </ScrollView>
+
+          <View style={styles.serviceDots}>
+            {filteredServices.map((service, index) => (
+              <View
+                key={service.id}
+                style={[styles.serviceDot, index === activeServiceIndex ? styles.serviceDotActive : null]}
+              />
+            ))}
+          </View>
+
+        </>
+      ) : null}
+
+      <SectionHeader title="Sản phẩm & phụ kiện" actionLabel="Xem tất cả" />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.productRow}>
+        {EXPLORE_SHOP_PRODUCTS.map((item) => (
+          <SurfaceCard key={item.id} style={styles.productCard}>
+            <Image alt={item.title} source={{ uri: item.image }} style={styles.productImage} />
+            <Text numberOfLines={2} style={styles.productTitle}>{item.title}</Text>
+            <Text style={styles.productSubLabel}>Phụ kiện bán tại cửa hàng</Text>
+            <View style={styles.productFooter}>
+              <Text style={styles.productPrice}>{item.price}</Text>
+              <Pressable style={styles.productAddButton}>
+                <Feather color={colors.surface} name="plus" size={14} />
+              </Pressable>
             </View>
-          ) : null}
+          </SurfaceCard>
+        ))}
+      </ScrollView>
+
+      <SectionHeader title="Đội ngũ nhân viên" actionLabel="Xem tất cả" />
+      <View style={styles.teamRow}>
+        {teamMembers.map((member) => (
+          <View key={member.id} style={styles.teamCard}>
+            <Image alt={member.name} source={{ uri: member.image }} style={styles.teamAvatar} />
+            <Text style={styles.teamName}>{member.name}</Text>
+            <Text style={styles.teamRole}>{member.role}</Text>
+          </View>
+        ))}
+      </View>
+
+      <SectionHeader title="Địa chỉ cửa hàng" />
+      <SurfaceCard style={styles.mapCard}>
+        <Image alt="Bản đồ cửa hàng" source={{ uri: EXPLORE_STORE_INFO.mapImage }} style={styles.mapImage} />
+        <View style={styles.mapCopy}>
+          <Text style={styles.mapAddress}>{EXPLORE_STORE_INFO.address}</Text>
+          <View style={styles.mapMetaRow}>
+            <Feather color={colors.textSoft} name="clock" size={14} />
+            <Text style={styles.mapMetaText}>{EXPLORE_STORE_INFO.openingHours}</Text>
+          </View>
         </View>
-      </Modal>
+        <Pressable style={styles.directionButton} onPress={() => void openMap()}>
+          <Feather color={colors.accent} name="navigation" size={15} />
+          <Text style={styles.directionButtonText}>Chỉ đường</Text>
+        </Pressable>
+      </SurfaceCard>
+
+      {isRefreshing ? <Text style={styles.refreshHint}>Đang làm mới nội dung khám phá…</Text> : null}
     </CustomerScreen>
   );
 }
 
-function renderLookbookCard(
-  service: LookbookService,
-  favorite: boolean,
-  toggleFavorite: (serviceId: string) => Promise<void>,
-  setPreviewService: (service: LookbookService | null) => void,
-) {
+function SectionHeader({ title, actionLabel }: { title: string; actionLabel?: string }) {
   return (
-    <Pressable onPress={() => setPreviewService(service)}>
-      <Image source={{ uri: service.image }} style={styles.lookbookCardImage} />
-      <Pressable style={styles.lookbookFavoriteButton} onPress={() => void toggleFavorite(service.id)}>
-        <Text style={[styles.lookbookFavoriteIcon, favorite ? styles.lookbookFavoriteIconActive : null]}>
-          {favorite ? "♥" : "♡"}
-        </Text>
-      </Pressable>
-      <View style={styles.lookbookCardBody}>
-        <Text style={styles.lookbookCardTitle} numberOfLines={1}>
-          {service.title}
-        </Text>
-        <Text style={styles.lookbookCardPrice}>{service.price}</Text>
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {actionLabel ? (
+        <View style={styles.sectionActionWrap}>
+          <Text style={styles.sectionAction}>{actionLabel}</Text>
+          <Feather color={colors.textSoft} name="chevron-right" size={16} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function ExploreServiceCard({
+  service,
+  favorite,
+  onToggleFavorite,
+}: {
+  service: LookbookService;
+  favorite: boolean;
+  onToggleFavorite: () => void;
+}) {
+  return (
+    <Pressable
+      style={styles.serviceCard}
+      onPress={() =>
+        router.push({
+          pathname: "/(customer)/booking",
+          params: { service: service.title },
+        })
+      }
+    >
+      <View>
+        <Image alt={service.title} source={{ uri: service.image }} style={styles.serviceImage} />
+        <View style={styles.serviceToneBadge}>
+          <Text style={styles.serviceToneText}>{service.tone.toUpperCase()}</Text>
+        </View>
+        <Pressable style={styles.favoriteButton} onPress={onToggleFavorite}>
+          <Feather color={favorite ? colors.accent : colors.textSoft} name="heart" size={14} />
+        </Pressable>
+      </View>
+
+      <View style={styles.serviceBody}>
+        <Text numberOfLines={1} style={styles.serviceTitle}>{service.title}</Text>
+        <Text numberOfLines={2} style={styles.serviceBlurb}>{service.blurb}</Text>
+        <View style={styles.serviceMetaRow}>
+          <Text style={styles.servicePrice}>{service.price}</Text>
+          <Pressable style={styles.bookButton}>
+            <Text style={styles.bookButtonText}>Đặt lịch</Text>
+          </Pressable>
+        </View>
       </View>
     </Pressable>
   );
 }
 
-function renderServiceCard(
-  service: LookbookService,
-  favorite: boolean,
-  toggleFavorite: (serviceId: string) => Promise<void>,
-  setPreviewService: (service: LookbookService | null) => void,
-) {
-  return (
-    <SurfaceCard key={service.id} style={styles.card}>
-      <View style={styles.imageWrap}>
-        <Pressable onPress={() => setPreviewService(service)}>
-          <Image alt={service.title} source={{ uri: service.image }} style={styles.cardImage} />
-        </Pressable>
-
-        <Pressable style={styles.favoriteButton} onPress={() => void toggleFavorite(service.id)}>
-          <Text style={[styles.favoriteIcon, favorite ? styles.favoriteIconActive : null]}>
-            {favorite ? "♥" : "♡"}
-          </Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.cardBody}>
-        <View style={styles.titleRow}>
-          <Text style={styles.cardTitle} numberOfLines={1}>
-            {service.title}
-          </Text>
-          <Text style={styles.cardPrice}>{service.price}</Text>
-        </View>
-
-        <View style={styles.brandRow}>
-          <View style={styles.brandMeta}>
-            <View style={styles.brandBadge}>
-              <Text style={styles.brandInitial}>C</Text>
-            </View>
-            <Text style={styles.brandText}>Cham Beauty</Text>
-          </View>
-
-          <Pressable
-            style={styles.chooseButton}
-            onPress={() =>
-              router.push({
-                pathname: "/(customer)/booking",
-                params: { service: service.title },
-              })
-            }
-          >
-            <Text style={styles.chooseButtonText}>Chọn</Text>
-          </Pressable>
-        </View>
-      </View>
-    </SurfaceCard>
-  );
-}
-
-function formatCategoryLabel(key: (typeof CATEGORY_ITEMS)[number]["key"], label: string) {
-  if (key === "don-gian") return "Nail đơn giản";
-  if (key === "sang-trong") return "Nail sang trọng";
-  if (key === "ca-tinh") return "Nail cá tính";
-  if (key === "noi-bat") return "Nail Hàn Quốc";
-  return label;
-}
-
 const styles = StyleSheet.create({
   content: {
-    gap: 12,
+    gap: 14,
     paddingTop: 0,
   },
-  headerBlock: {
-    gap: 4,
+  topBar: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  topBarSpacer: {
+    flex: 1,
+  },
+  storeHero: {
+    flexDirection: "row",
+    gap: 14,
+    alignItems: "flex-start",
+  },
+  storeImage: {
+    width: 112,
+    height: 112,
+    borderRadius: 24,
+  },
+  storeCopy: {
+    flex: 1,
+    gap: 7,
+    paddingTop: 4,
+  },
+  storeName: {
+    color: colors.text,
+    fontSize: 22,
+    fontWeight: "800",
+    letterSpacing: -0.35,
+    lineHeight: 27,
+  },
+  storeCategory: {
+    color: colors.textSoft,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  ratingRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  ratingText: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  highlightRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
     paddingTop: 2,
   },
-  eyebrow: {
-    color: "#4f4034",
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 1.6,
+  highlightItem: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 5,
   },
-  pageTitle: {
-    color: colors.text,
-    fontSize: 29,
+  highlightText: {
+    color: colors.textSoft,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  statsGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  statCard: {
+    width: "23.5%",
+    minHeight: 78,
+    justifyContent: "space-between",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 11,
+    borderRadius: 20,
+    backgroundColor: "#fffaf4",
+  },
+  statLabel: {
+    color: "#9d8a79",
+    fontSize: 10,
+    fontWeight: "600",
+    lineHeight: 13,
+  },
+  statValue: {
+    color: "#2e241d",
+    fontSize: 15,
     fontWeight: "800",
-    letterSpacing: -0.82,
-    lineHeight: 34,
+    letterSpacing: -0.25,
+    lineHeight: 19,
   },
   searchBar: {
     alignItems: "center",
@@ -291,11 +459,6 @@ const styles = StyleSheet.create({
     minHeight: 50,
     paddingHorizontal: 15,
   },
-  searchIcon: {
-    color: "#8f8174",
-    fontSize: 17,
-    marginTop: -1,
-  },
   searchInput: {
     color: "#40342b",
     flex: 1,
@@ -304,19 +467,9 @@ const styles = StyleSheet.create({
     minHeight: 40,
     paddingVertical: 0,
   },
-  filterButton: {
-    alignItems: "center",
-    justifyContent: "center",
-    width: 26,
-  },
-  filterIcon: {
-    color: "#7d6d5e",
-    fontSize: 16,
-  },
   filterRow: {
     gap: 8,
     paddingRight: spacing.lg,
-    paddingTop: 1,
   },
   chip: {
     alignItems: "center",
@@ -325,257 +478,293 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: 1,
     justifyContent: "center",
-    minHeight: 35,
-    paddingHorizontal: 14,
+    minHeight: 36,
+    paddingHorizontal: 15,
     paddingVertical: 7,
   },
   chipActive: {
-    backgroundColor: "#4a392f",
-    borderColor: "#4a392f",
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   chipText: {
     color: "#69594c",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   chipTextActive: {
-    color: "#fff8f2",
+    color: colors.surface,
   },
-  columns: {
-    alignItems: "flex-start",
-    flexDirection: "row",
-    gap: 12,
-  },
-  column: {
-    flex: 1,
-    gap: 12,
-  },
-  card: {
-    ...shadow.card,
-    borderRadius: 18,
-    gap: 0,
-    overflow: "hidden",
-    padding: 0,
-  },
-  imageWrap: {
-    position: "relative",
-  },
-  cardImage: {
-    aspectRatio: 0.83,
-    width: "100%",
-  },
-  favoriteButton: {
+  sectionHeader: {
     alignItems: "center",
-    backgroundColor: "rgba(255, 250, 245, 0.96)",
-    borderRadius: radius.pill,
-    height: 30,
-    justifyContent: "center",
-    position: "absolute",
-    right: 10,
-    top: 10,
-    width: 30,
-  },
-  favoriteIcon: {
-    color: "#8b7b6d",
-    fontSize: 15,
-    lineHeight: 16,
-  },
-  favoriteIconActive: {
-    color: "#4a392f",
-  },
-  cardBody: {
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingBottom: 12,
-    paddingTop: 12,
-  },
-  titleRow: {
-    alignItems: "flex-start",
     flexDirection: "row",
-    gap: 8,
     justifyContent: "space-between",
+    gap: 12,
   },
-  cardTitle: {
-    color: "#41362d",
-    flex: 1,
-    fontSize: 15,
+  sectionTitle: {
+    color: colors.text,
+    fontSize: 19,
+    fontWeight: "800",
+    letterSpacing: -0.25,
+    lineHeight: 24,
+  },
+  sectionActionWrap: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 2,
+  },
+  sectionAction: {
+    color: colors.textSoft,
+    fontSize: 12,
     fontWeight: "700",
-    letterSpacing: -0.2,
-    lineHeight: 20,
   },
-  cardPrice: {
-    color: "#a67a52",
+  stateCard: {
+    borderRadius: 22,
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  stateTitle: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  stateDescription: {
+    color: colors.textSoft,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  retryButton: {
+    alignSelf: "flex-start",
+    backgroundColor: colors.accent,
+    borderRadius: radius.pill,
+    marginTop: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  retryButtonText: {
+    color: colors.surface,
     fontSize: 13,
     fontWeight: "800",
-    lineHeight: 20,
-    paddingTop: 1,
   },
-  brandRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    minHeight: 26,
-  },
-  brandMeta: {
-    alignItems: "center",
-    flexDirection: "row",
-    flex: 1,
-    gap: 6,
+  lookbookRow: {
+    gap: 14,
     paddingRight: 8,
   },
-  brandBadge: {
-    alignItems: "center",
-    backgroundColor: "#2f241d",
-    borderRadius: radius.pill,
-    height: 18,
+  serviceDots: {
+    flexDirection: "row",
     justifyContent: "center",
-    width: 18,
+    gap: 7,
+    marginTop: -2,
   },
-  brandInitial: {
-    color: "#fff8f2",
+  serviceDot: {
+    backgroundColor: "#e2d4c6",
+    borderRadius: 999,
+    height: 8,
+    width: 8,
+  },
+  serviceDotActive: {
+    backgroundColor: colors.accent,
+    width: 20,
+  },
+  serviceCard: {
+    ...shadow.card,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 24,
+    borderWidth: 1,
+    overflow: "hidden",
+    width: 182,
+  },
+  serviceImage: {
+    width: "100%",
+    height: 168,
+  },
+  serviceToneBadge: {
+    position: "absolute",
+    left: 10,
+    bottom: 10,
+    backgroundColor: "rgba(255,250,245,0.92)",
+    borderRadius: radius.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  serviceToneText: {
+    color: colors.accentWarm,
     fontSize: 10,
     fontWeight: "800",
   },
-  brandText: {
-    color: "#6d5f54",
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  chooseButton: {
+  favoriteButton: {
     alignItems: "center",
-    backgroundColor: colors.accentSoft,
-    borderRadius: radius.pill,
-    justifyContent: "center",
-    minHeight: 25,
-    paddingHorizontal: 10,
-  },
-  chooseButtonText: {
-    color: "#4a392f",
-    fontSize: 11,
-    fontWeight: "800",
-  },
-  lookbookSection: {
-    gap: spacing.md,
-  },
-  lookbookTitle: {
-    color: colors.text,
-    fontSize: 17,
-    fontWeight: "800",
-  },
-  lookbookScroll: {
-    gap: DOT_GAP,
-    paddingVertical: spacing.sm,
-  },
-  lookbookCard: {
-    width: CARD_WIDTH,
-  },
-  lookbookCardImage: {
-    aspectRatio: 0.83,
-    borderRadius: radius.lg,
-    width: CARD_WIDTH,
-  },
-  lookbookFavoriteButton: {
-    alignItems: "center",
-    backgroundColor: "rgba(255, 250, 245, 0.96)",
+    backgroundColor: "rgba(255,250,245,0.96)",
     borderRadius: radius.pill,
     height: 28,
     justifyContent: "center",
     position: "absolute",
-    right: 8,
-    top: 8,
+    right: 10,
+    top: 10,
     width: 28,
   },
-  lookbookFavoriteIcon: {
-    color: "#8b7b6d",
-    fontSize: 14,
-    lineHeight: 15,
+  serviceBody: {
+    gap: 8,
+    padding: 12,
   },
-  lookbookFavoriteIconActive: {
-    color: "#4a392f",
-  },
-  lookbookCardBody: {
-    gap: 4,
-    paddingTop: spacing.sm,
-  },
-  lookbookCardTitle: {
-    color: "#41362d",
-    fontSize: 13,
-    fontWeight: "700",
-    letterSpacing: -0.1,
-  },
-  lookbookCardPrice: {
-    color: "#a67a52",
-    fontSize: 12,
+  serviceTitle: {
+    color: colors.text,
+    fontSize: 15,
     fontWeight: "800",
+    lineHeight: 21,
   },
-  lookbookDots: {
+  serviceBlurb: {
+    color: colors.textSoft,
+    fontSize: 12,
+    lineHeight: 18,
+    minHeight: 36,
+  },
+  serviceMetaRow: {
+    alignItems: "center",
     flexDirection: "row",
-    gap: 6,
-    justifyContent: "center",
-    paddingTop: spacing.xs,
+    justifyContent: "space-between",
+    gap: 8,
   },
-  lookbookDot: {
-    backgroundColor: "#e7d9ca",
-    borderRadius: 4,
-    height: 8,
-    width: 8,
-  },
-  lookbookDotActive: {
-    backgroundColor: "#4a392f",
-    borderRadius: 6,
-    height: 10,
-    width: 10,
-  },
-  emptyCard: {
-    borderRadius: 18,
-    gap: 6,
-    marginTop: 2,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  emptyTitle: {
-    color: "#41362d",
+  servicePrice: {
+    color: colors.text,
     fontSize: 15,
     fontWeight: "800",
   },
-  emptyDescription: {
-    color: "#7b6d61",
-    fontSize: 13,
-    lineHeight: 19,
+  bookButton: {
+    backgroundColor: "#fff7ef",
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
   },
-  modalBackdrop: {
-    alignItems: "center",
-    backgroundColor: "rgba(28, 22, 18, 0.72)",
-    flex: 1,
-    justifyContent: "center",
-    padding: 24,
-  },
-  modalCloseLayer: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  modalCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 24,
-    overflow: "hidden",
-    width: "100%",
-  },
-  modalImage: {
-    aspectRatio: 0.82,
-    width: "100%",
-  },
-  modalCopy: {
-    gap: 6,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-  },
-  modalTitle: {
-    color: colors.text,
-    fontSize: 20,
+  bookButtonText: {
+    color: colors.accentWarm,
+    fontSize: 11,
     fontWeight: "800",
   },
-  modalPrice: {
-    color: "#a7744d",
-    fontSize: 16,
+  productRow: {
+    gap: 12,
+    paddingRight: 8,
+  },
+  productCard: {
+    width: 138,
+    gap: 9,
+    padding: 10,
+  },
+  productImage: {
+    width: "100%",
+    height: 110,
+    borderRadius: 16,
+  },
+  productTitle: {
+    color: colors.text,
+    fontSize: 13,
     fontWeight: "700",
+    lineHeight: 18,
+    minHeight: 34,
+  },
+  productSubLabel: {
+    color: colors.textSoft,
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: -3,
+  },
+  productFooter: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  productPrice: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  productAddButton: {
+    alignItems: "center",
+    backgroundColor: colors.accent,
+    borderRadius: radius.pill,
+    height: 28,
+    justifyContent: "center",
+    width: 28,
+  },
+  teamRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  teamCard: {
+    width: "22%",
+    alignItems: "center",
+    gap: 6,
+  },
+  teamAvatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+  },
+  teamName: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "center",
+    lineHeight: 16,
+  },
+  teamRole: {
+    color: colors.textSoft,
+    fontSize: 11,
+    textAlign: "center",
+  },
+  mapCard: {
+    gap: 12,
+    padding: 10,
+  },
+  mapImage: {
+    width: "100%",
+    height: 120,
+    borderRadius: 18,
+    backgroundColor: colors.surfaceMuted,
+  },
+  mapCopy: {
+    gap: 6,
+  },
+  mapAddress: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 19,
+  },
+  mapMetaRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 7,
+  },
+  mapMetaText: {
+    color: colors.textSoft,
+    fontSize: 12,
+  },
+  directionButton: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    borderColor: colors.borderStrong,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 15,
+    paddingVertical: 11,
+  },
+  directionButtonText: {
+    color: colors.accent,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  refreshHint: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginTop: -2,
   },
 });

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useLocalSearchParams } from "expo-router";
 import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { CustomerScreen, Pill, PrimaryButton, SurfaceCard } from "@/src/features/customer/ui";
+import { CustomerScreen, CustomerTopActions, Pill, PrimaryButton, SurfaceCard } from "@/src/features/customer/ui";
 import { QUICK_CONTACTS, UPCOMING_BOOKINGS } from "@/src/features/customer/data";
 import { useGuestBooking } from "@/src/hooks/use-guest-booking";
 import { premiumTheme } from "@/src/design/premium-theme";
@@ -20,7 +20,12 @@ export default function BookingScreen() {
   }, [params.service, updateValue, values.requestedService]);
 
   return (
-    <CustomerScreen title="" hideHeader contentContainerStyle={styles.content}>
+    <CustomerScreen title="" hideHeader contentContainerStyle={styles.content} onRefresh={() => {}} refreshing={false}>
+      <View style={styles.topBar}>
+        <View style={styles.topBarSpacer} />
+        <CustomerTopActions />
+      </View>
+
       <View style={styles.headerBlock}>
         <Text style={styles.eyebrow}>CHAM BEAUTY</Text>
         <Text style={styles.pageTitle}>Đặt lịch</Text>
@@ -188,6 +193,14 @@ const styles = StyleSheet.create({
   content: {
     gap: 16,
     paddingTop: 2,
+  },
+  topBar: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  topBarSpacer: {
+    flex: 1,
   },
   headerBlock: {
     gap: 6,

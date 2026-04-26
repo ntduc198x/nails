@@ -9,3 +9,4 @@ export * from "./appointments";
 export * from "./checkout";
 export * from "./dashboard";
 export * from "./crm";
+export * from "./customer-feed";

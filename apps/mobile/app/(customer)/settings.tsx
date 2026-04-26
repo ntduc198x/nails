@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Alert, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
-import { CustomerScreen, SurfaceCard } from "@/src/features/customer/ui";
+import { CustomerScreen, CustomerTopActions, SurfaceCard } from "@/src/features/customer/ui";
 import { premiumTheme } from "@/src/design/premium-theme";
 import { mobileSupabase } from "@/src/lib/supabase";
 import { useSession } from "@/src/providers/session-provider";
@@ -127,13 +127,13 @@ const [isSavingPassword, setIsSavingPassword] = useState(false);
   }
 
   return (
-    <CustomerScreen title="Cài đặt" hideHeader contentContainerStyle={styles.content}>
+    <CustomerScreen title="Cài đặt" hideHeader contentContainerStyle={styles.content} onRefresh={() => {}} refreshing={false}>
       <View style={styles.headerRow}>
         <Pressable hitSlop={10} onPress={() => router.back()} style={styles.backButton}>
           <Feather color={colors.text} name="chevron-left" size={24} />
         </Pressable>
         <Text style={styles.headerTitle}>Cài đặt</Text>
-        <View style={styles.headerSpacer} />
+        <CustomerTopActions />
       </View>
 
       <SurfaceCard style={styles.groupCard}>
@@ -358,11 +358,9 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     color: colors.text,
+    flex: 1,
     fontSize: 22,
     fontWeight: "800",
-  },
-  headerSpacer: {
-    flex: 1,
   },
   row: {
     alignItems: "center",

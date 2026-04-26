@@ -24,7 +24,7 @@ export default function HistoryScreen() {
   }, [activeFilter]);
 
   return (
-    <CustomerScreen title="Lịch sử đặt lịch">
+    <CustomerScreen title="Lịch sử đặt lịch" onRefresh={() => {}} refreshing={false}>
       <SegmentedTabs activeKey={activeFilter} items={FILTERS} onChange={setActiveFilter} />
 
       <View style={styles.list}>
