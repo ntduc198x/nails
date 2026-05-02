@@ -2,6 +2,7 @@ export type ManageScreenKey =
   | "customers"
   | "reports"
   | "tax-books"
+  | "content"
   | "services"
   | "resources"
   | "team";
@@ -12,21 +13,21 @@ export type ManageScreenItem = {
   subtitle: string;
   route: string;
   group: "insights" | "setup";
-  icon: "user-plus" | "bar-chart-2" | "book-open" | "package" | "grid" | "users";
+  icon: "user-plus" | "bar-chart-2" | "book-open" | "layout" | "package" | "grid" | "users";
 };
 
 export const MANAGE_SCREEN_ITEMS: ManageScreenItem[] = [
   {
     key: "customers",
     title: "CRM khách",
-    subtitle: "Khách mới, quay lại, nguy cơ rời bỏ và tệp VIP.",
+    subtitle: "Khach moi, quay lai, nguy co roi bo va tep VIP.",
     route: "/(admin)/manage-customers",
     group: "insights",
     icon: "user-plus",
   },
   {
     key: "reports",
-    title: "Báo cáo",
+    title: "Bao cao",
     subtitle: "Theo dõi bill, doanh thu, lọc nhân viên và phân tích.",
     route: "/(admin)/manage-reports",
     group: "insights",
@@ -34,31 +35,39 @@ export const MANAGE_SCREEN_ITEMS: ManageScreenItem[] = [
   },
   {
     key: "tax-books",
-    title: "Sổ thuế",
-    subtitle: "Mẫu S1a-HKD, kỳ kê khai và xuất file phục vụ nộp thuế.",
+    title: "So thue",
+    subtitle: "Mau S1a-HKD, ky ke khai va xuat file phuc vu nop thue.",
     route: "/(admin)/manage-tax-books",
     group: "insights",
     icon: "book-open",
   },
   {
+    key: "content",
+    title: "Nội dung khách",
+    subtitle: "Quản lý Home, Explore, storefront, bài feed và ưu đãi hiển thị cho khách hàng.",
+    route: "/(admin)/manage-content",
+    group: "setup",
+    icon: "layout",
+  },
+  {
     key: "services",
     title: "Dịch vụ",
-    subtitle: "Quản lý danh mục dịch vụ, lookbook và thùng rác.",
+    subtitle: "Quản lý danh mục dịch vụ, lookbook và mục ẩn.",
     route: "/(admin)/manage-services",
     group: "setup",
     icon: "package",
   },
   {
     key: "resources",
-    title: "Tài nguyên",
-    subtitle: "Ghế, bàn và trạng thái tài nguyên dùng trong cửa hàng.",
+    title: "Tai nguyen",
+    subtitle: "Ghe, ban va trang thai tai nguyen dung trong cua hang.",
     route: "/(admin)/manage-resources",
     group: "setup",
     icon: "grid",
   },
   {
     key: "team",
-    title: "Nhân sự",
+    title: "Nhan su",
     subtitle: "Vai trò, danh sách nhân sự và quyền truy cập nội bộ.",
     route: "/(admin)/manage-team",
     group: "setup",

@@ -82,7 +82,8 @@ function formatDisplayTime(isoValue: string) {
 
 type AppointmentEditorProps = ReturnType<typeof useAdminOperations>["appointments"][number];
 
-function AppointmentEditor({ appointment, onBack }: { appointment: AppointmentEditorProps; onBack: () => void }) {
+function AppointmentEditor({ appointment, onBack }: { appointment: AppointmentEditorProps; onBack?: () => void }) {
+  void onBack;
   const router = useRouter();
   const {
     resourceOptions,
@@ -451,7 +452,7 @@ export default function AdminAppointmentDetailScreen() {
   const params = useLocalSearchParams<{ appointmentId?: string }>();
   const appointmentId = Array.isArray(params.appointmentId) ? params.appointmentId[0] : params.appointmentId;
 
-  const { appointments, bookingRequests, role, user } = useAdminOperations();
+  const { appointments, bookingRequests, role } = useAdminOperations();
 
   const appointment = useMemo(
     () => appointments.find((item) => item.id === appointmentId) ?? null,

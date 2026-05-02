@@ -25,7 +25,7 @@ const navGroups = [
     label: "Vận hành",
     href: "/manage/booking-requests",
     items: [
-      { href: "/manage/booking-requests", label: "Web Booking", desc: "Booking từ landing page" },
+      { href: "/manage/booking-requests", label: "Đặt lịch từ web", desc: "Yêu cầu đặt lịch từ landing page" },
       { href: "/manage/appointments", label: "Điều phối lịch", desc: "Lịch hẹn, check-in, mở phiếu, vận hành" },
       { href: "/manage/checkout", label: "Thanh toán", desc: "Ticket, thanh toán, hóa đơn" },
       { href: "/manage/shifts", label: "Ca làm", desc: "Chấm công và ca trong ngày" },
@@ -44,7 +44,7 @@ const navGroups = [
     label: "Báo cáo",
     href: "/manage/reports",
     items: [
-      { href: "/manage/customers", label: "CRM khách", desc: "Hồ sơ khách, follow-up, chăm sóc lại" },
+      { href: "/manage/customers", label: "CRM khách", desc: "Hồ sơ khách, chăm sóc lại và theo dõi quay lại" },
       { href: "/manage/reports", label: "Báo cáo", desc: "Doanh thu và phân tích" },
       { href: "/manage/tax-books", label: "Sổ thuế", desc: "Mẫu S1a xuất file" },
     ],
@@ -295,7 +295,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         const items = group.href === "/manage/reports" && canAccess(role, "/manage/customers")
           ? [
-              { href: "/manage/customers", label: "CRM khách", desc: "Hồ sơ khách, follow-up, chăm sóc lại" },
+              { href: "/manage/customers", label: "CRM khách", desc: "Hồ sơ khách, chăm sóc lại và theo dõi quay lại" },
               ...baseItems.filter((item) => item.href !== "/manage/customers"),
             ]
           : baseItems;

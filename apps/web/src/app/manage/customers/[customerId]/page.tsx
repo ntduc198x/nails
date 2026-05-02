@@ -63,7 +63,7 @@ export default function CustomerDetailPage() {
 
   const telegramReminderText = useMemo(() => {
     if (!detail) return "";
-    return `Nhắc chăm sóc khách ${detail.customer.full_name} - ${detail.customer.phone ?? "chưa có SĐT"}.\nGhi chú: ${detail.customer.care_note ?? "chưa có"}\nFollow-up: ${detail.customer.next_follow_up_at ? formatDateTime(detail.customer.next_follow_up_at) : "chưa đặt"}`;
+    return `Nhắc chăm sóc khách ${detail.customer.full_name} - ${detail.customer.phone ?? "chưa có SĐT"}.\nGhi chú: ${detail.customer.care_note ?? "chưa có"}\nLịch chăm sóc lại: ${detail.customer.next_follow_up_at ? formatDateTime(detail.customer.next_follow_up_at) : "chưa đặt"}`;
   }, [detail]);
 
   async function onSave() {
@@ -143,7 +143,7 @@ export default function CustomerDetailPage() {
                     <div className="mt-1 text-sm font-medium text-neutral-900">{detail.customer.total_visits}</div>
                   </div>
                   <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-3">
-                    <div className="text-[11px] text-neutral-500">Follow-up</div>
+                    <div className="text-[11px] text-neutral-500">Chăm sóc lại</div>
                     <div className="mt-1 text-sm font-medium text-neutral-900">{formatDateTime(detail.customer.next_follow_up_at)}</div>
                   </div>
                 </div>
@@ -240,7 +240,7 @@ export default function CustomerDetailPage() {
                   className="input min-h-32 py-3 text-sm"
                   value={careNote}
                   onChange={(e) => setCareNote(e.target.value)}
-                  placeholder="Lưu ý phục vụ, thói quen, sở thích, lưu ý follow-up..."
+                  placeholder="Lưu ý phục vụ, thói quen, sở thích và lịch chăm sóc lại..."
                 />
                 <input
                   className="input py-2.5 text-sm"

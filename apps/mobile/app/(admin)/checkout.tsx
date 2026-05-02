@@ -17,7 +17,6 @@ import { AdminBottomNav, AdminHeaderActions, createCheckoutKey, formatVnd, getAd
 import { getAdminNavHref } from "@/src/features/admin/navigation";
 import { useAdminOperations } from "@/src/hooks/use-admin-operations";
 import { mobileEnv } from "@/src/lib/env";
-import { useSession } from "@/src/providers/session-provider";
 
 const palette = {
   screen: "#FCFAF8",
@@ -69,8 +68,7 @@ export default function AdminCheckoutScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ appointmentId?: string }>();
   const insets = useSafeAreaInsets();
-  const { signOut, isBusy: sessionBusy } = useSession();
-  const { appointments, checkoutServices, createCheckout, reload, loading, role, techShiftOpen, user, busyTargetId, error, mutating } =
+  const { appointments, checkoutServices, createCheckout, reload, loading, role, techShiftOpen, busyTargetId, error, mutating } =
     useAdminOperations();
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
   const [checkoutCustomerName] = useState("");

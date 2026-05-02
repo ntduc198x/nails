@@ -3,9 +3,9 @@ import { CustomerScreen, InfoRow, SectionTitle, SurfaceCard } from "@/src/featur
 
 export default function PaymentMethodsScreen() {
   return (
-    <CustomerScreen title="Phuong thuc thanh toan" subtitle="Danh sach payment methods theo style card + list" onRefresh={() => {}} refreshing={false}>
+    <CustomerScreen title="Phương thức thanh toán" subtitle="Danh sách phương thức thanh toán đang hỗ trợ" onRefresh={() => {}} refreshing={false}>
       <SurfaceCard>
-        <SectionTitle title="Phuong thuc dang ho tro" subtitle="San sang dung cho flow dat lich va checkout sau nay" />
+        <SectionTitle title="Phương thức đang hỗ trợ" subtitle="Sẵn sàng cho luồng đặt lịch và thanh toán" />
         {PAYMENT_METHODS.map((item) => (
           <InfoRow key={item.id} title={item.title} detail={item.detail} />
         ))}

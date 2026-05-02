@@ -241,7 +241,7 @@ function CrmMiniCard({ customer, compact = false }: { customer: NonNullable<Retu
       {customer.last_visit_at ? <div className="mt-1">Lan gan nhat: {formatCompactDate(customer.last_visit_at)}</div> : null}
       {customer.last_service_summary ? <div className="mt-1">Dich vu gan nhat: {customer.last_service_summary}</div> : null}
       {customer.care_note ? <div className="mt-1">Ghi chu: {customer.care_note}</div> : null}
-      {customer.next_follow_up_at ? <div className="mt-1">Follow-up: {formatCompactDate(customer.next_follow_up_at)}</div> : null}
+      {customer.next_follow_up_at ? <div className="mt-1">Chăm sóc lại: {formatCompactDate(customer.next_follow_up_at)}</div> : null}
     </div>
   );
 }

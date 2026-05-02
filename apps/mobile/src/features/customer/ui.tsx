@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { premiumTheme } from "@/src/design/premium-theme";
+import { useSession } from "@/src/providers/session-provider";
 
 const { colors, radius, shadow, spacing } = premiumTheme;
 
@@ -26,7 +27,6 @@ const PROFILE_PATHS = new Set([
   "/payment-methods",
   "/addresses",
   "/settings",
-  "/favorites",
 ]);
 
 type CustomerScreenProps = {
@@ -43,17 +43,24 @@ type CustomerScreenProps = {
 };
 
 type NavItem = {
-  href: "/(customer)" | "/(customer)/explore" | "/(customer)/notifications" | "/(customer)/profile";
+  href: "/(customer)" | "/(customer)/explore" | "/(customer)/booking" | "/(customer)/notifications" | "/(customer)/profile" | "/(auth)/sign-in";
   icon: React.ComponentProps<typeof Feather>["name"];
   label: string;
   match: (pathname: string) => boolean;
 };
 
-const NAV_ITEMS: NavItem[] = [
+const AUTHENTICATED_NAV_ITEMS: NavItem[] = [
   { href: "/(customer)", icon: "home", label: "Trang chủ", match: (pathname) => pathname === "/" || pathname === "" },
   { href: "/(customer)/explore", icon: "search", label: "Khám phá", match: (pathname) => pathname === "/explore" },
   { href: "/(customer)/notifications", icon: "bell", label: "Thông báo", match: (pathname) => pathname === "/notifications" },
   { href: "/(customer)/profile", icon: "user", label: "Cá nhân", match: (pathname) => PROFILE_PATHS.has(pathname) },
+];
+
+const GUEST_NAV_ITEMS: NavItem[] = [
+  { href: "/(customer)", icon: "home", label: "Trang chủ", match: (pathname) => pathname === "/" || pathname === "" },
+  { href: "/(customer)/explore", icon: "search", label: "Khám phá", match: (pathname) => pathname === "/explore" },
+  { href: "/(customer)/booking", icon: "calendar", label: "Tạo lịch", match: (pathname) => pathname === "/booking" },
+  { href: "/(auth)/sign-in", icon: "log-in", label: "Đăng nhập/đăng ký", match: (pathname) => pathname.startsWith("/(auth)") || pathname === "/sign-in" },
 ];
 
 type IconKind = "home" | "explore" | "booking" | "profile" | "plus" | "bell";
@@ -138,6 +145,19 @@ export function CustomerScreen({
 }
 
 export function CustomerTopActions() {
+  const { role } = useSession();
+
+  if (!role) {
+    return (
+      <View style={styles.topActions}>
+        <Pressable style={styles.topGuestButton} onPress={() => router.push("/(auth)/sign-in")}>
+          <Feather color={colors.accent} name="log-in" size={16} />
+          <Text style={styles.topGuestButtonText}>Đăng nhập</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.topActions}>
       <Pressable style={styles.topIconButton} onPress={() => router.replace("/(customer)/membership")}>
@@ -153,8 +173,29 @@ export function CustomerTopActions() {
 
 export function CustomerBottomNav() {
   const pathname = usePathname();
-  const leftItems = NAV_ITEMS.slice(0, 2);
-  const rightItems = NAV_ITEMS.slice(2);
+  const { role } = useSession();
+  const navItems = role ? AUTHENTICATED_NAV_ITEMS : GUEST_NAV_ITEMS;
+
+  if (!role) {
+    return (
+      <View pointerEvents="box-none" style={styles.navWrap}>
+        <View style={styles.navBarSimple}>
+          {navItems.map((item) => {
+            const active = item.match(pathname);
+            return (
+              <Pressable key={item.href} style={styles.navItem} onPress={() => router.push(item.href)}>
+                <Feather color={active ? colors.accent : colors.textMuted} name={item.icon} size={18} />
+                <Text style={[styles.navItemText, active ? styles.navItemTextActive : null]}>{item.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+    );
+  }
+
+  const leftItems = navItems.slice(0, 2);
+  const rightItems = navItems.slice(2);
 
   return (
     <View pointerEvents="box-none" style={styles.navWrap}>
@@ -378,7 +419,7 @@ export function CustomerFloatingButton({
 }) {
   return (
     <Pressable style={styles.fab} onPress={onPress}>
-      <Text style={styles.fabText}>{label ?? "Them"}</Text>
+      <Text style={styles.fabText}>{label ?? "Thêm"}</Text>
     </Pressable>
   );
 }
@@ -392,7 +433,7 @@ export function CustomerAuxMenuList({
 }) {
   return (
     <SurfaceCard>
-      <SectionTitle title="Them" subtitle="Mo nhanh cac man phu can thiet" actionLabel={onClose ? "Dong" : undefined} onPress={onClose} />
+      <SectionTitle title="Thêm" subtitle="Mở nhanh các màn phụ cần thiết" actionLabel={onClose ? "Đóng" : undefined} onPress={onClose} />
       {items.map((item) => (
         <InfoRow key={item.label} title={item.label} detail={item.detail} onPress={item.onPress} />
       ))}
@@ -482,6 +523,22 @@ const styles = StyleSheet.create({
     position: "relative",
     width: 34,
   },
+  topGuestButton: {
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 6,
+    minHeight: 36,
+    paddingHorizontal: 12,
+  },
+  topGuestButtonText: {
+    color: colors.accent,
+    fontSize: 12,
+    fontWeight: "800",
+  },
   topDot: {
     backgroundColor: "#ef4444",
     borderRadius: 4,
@@ -567,6 +624,21 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingBottom: 10,
     paddingHorizontal: 12,
+    paddingTop: 10,
+    width: "94%",
+  },
+  navBarSimple: {
+    ...shadow.floating,
+    alignItems: "stretch",
+    alignSelf: "center",
+    backgroundColor: "#fffdf9",
+    borderColor: "#efe1d4",
+    borderRadius: 30,
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingBottom: 10,
+    paddingHorizontal: 10,
     paddingTop: 10,
     width: "94%",
   },

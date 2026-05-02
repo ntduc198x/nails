@@ -375,7 +375,7 @@ export default function CheckoutPage() {
                   {selectedCustomerCrm.phone ? <div className="mt-1 text-xs text-violet-900">Số điện thoại: {selectedCustomerCrm.phone}</div> : null}
                   {selectedCustomerCrm.last_service_summary ? <div className="mt-1 text-xs text-violet-900">Dịch vụ gần nhất: {selectedCustomerCrm.last_service_summary}</div> : null}
                   {selectedCustomerCrm.care_note ? <div className="mt-1 text-xs text-violet-900">Ghi chú: {selectedCustomerCrm.care_note}</div> : null}
-                  {selectedCustomerCrm.next_follow_up_at ? <div className="mt-1 text-xs text-violet-900">Follow-up hien tai: {formatCompactDate(selectedCustomerCrm.next_follow_up_at)}</div> : null}
+                  {selectedCustomerCrm.next_follow_up_at ? <div className="mt-1 text-xs text-violet-900">Lịch chăm sóc hiện tại: {formatCompactDate(selectedCustomerCrm.next_follow_up_at)}</div> : null}
                 </div>
               ) : null}
 

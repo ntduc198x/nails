@@ -131,7 +131,7 @@ export default function CustomersPage() {
               ) : null}
             </div>
             <div className="shrink-0 text-left text-xs text-neutral-500 md:text-right">
-              <div>Follow-up</div>
+              <div>Chăm sóc lại</div>
               <div className="mt-1 font-medium text-neutral-800">{formatDateTime(row.next_follow_up_at)}</div>
             </div>
           </div>
@@ -252,7 +252,7 @@ export default function CustomersPage() {
 
               {followUps.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">
-                  Chưa có khách nào đến hạn follow-up.
+                  Chưa có khách nào đến hạn chăm sóc lại.
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -268,7 +268,7 @@ export default function CustomersPage() {
                           Mở hồ sơ
                         </Link>
                         <a
-                          href={`https://t.me/share/url?url=${encodeURIComponent("https://chambeauty.example/crm")}&text=${encodeURIComponent(`Nhắc follow-up khách ${row.full_name} - ${row.phone ?? "chưa có SĐT"}`)}`}
+                          href={`https://t.me/share/url?url=${encodeURIComponent("https://chambeauty.example/crm")}&text=${encodeURIComponent(`Nhắc chăm sóc lại khách ${row.full_name} - ${row.phone ?? "chưa có SĐT"}`)}`}
                           target="_blank"
                           rel="noreferrer"
                           className="cursor-pointer rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-medium text-sky-700"

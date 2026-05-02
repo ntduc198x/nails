@@ -181,7 +181,7 @@ export const EXPLORE_STORE_INFO = {
 export const EXPLORE_GALLERY = [
   {
     id: "gallery-1",
-    title: "Khong gian storefront",
+    title: "Không gian storefront",
     image: "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?q=80&w=1200",
     kind: "salon",
   },
@@ -215,7 +215,7 @@ export const NEWS_ITEMS = [
   {
     id: "news-2",
     tag: "Ưu đãi",
-    title: "Cham Beauty mở thêm combo nail art premium + spa tay trong khung giờ sáng",
+    title: "Cham Beauty ra mắt combo nail art premium + spa tay cho khung giờ sáng",
     body: "Booking trước 11:00 sẽ được free spa tay và ưu tiên chọn slot kỹ thuật viên.",
   },
   {

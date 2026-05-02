@@ -35,6 +35,7 @@ export default function ExploreScreen() {
   const servicesScrollerRef = useRef<ScrollView>(null);
   const {
     storefront,
+    branchOptions,
     stats,
     featuredServices,
     products,
@@ -42,10 +43,13 @@ export default function ExploreScreen() {
     gallery,
     offers,
     map,
+    dataSource,
     isLoading,
     isRefreshing,
     lastError,
     refresh,
+    selectedBranchId,
+    selectBranch,
   } = useCustomerExplore();
   const { isFavorite, toggleFavorite } = useCustomerFavorites();
 
@@ -105,7 +109,7 @@ export default function ExploreScreen() {
       refreshing={isRefreshing}
     >
       <View style={styles.topBar}>
-        <View style={styles.topBarSpacer} />
+        {__DEV__ ? <Text style={styles.debugBadge}>Explore · {dataSource.toUpperCase()}</Text> : <View style={styles.topBarSpacer} />}
         <CustomerTopActions />
       </View>
 
@@ -139,6 +143,33 @@ export default function ExploreScreen() {
               ))}
             </View>
           </View>
+        </View>
+      ) : null}
+
+      {branchOptions.length ? (
+        <View style={styles.branchSection}>
+          <SectionHeader title="Chi nhánh đang xem" actionLabel={`${branchOptions.length} chi nhánh`} />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.branchRow}>
+            {branchOptions.map((branch) => {
+              const active = branch.branchId
+                ? branch.branchId === selectedBranchId
+                : branch.storefrontId === storefront?.id;
+              return (
+                <Pressable
+                  key={branch.storefrontId}
+                  style={[styles.branchChip, active ? styles.branchChipActive : null]}
+                  onPress={() => void selectBranch(branch.branchId)}
+                >
+                  <Text style={[styles.branchChipTitle, active ? styles.branchChipTitleActive : null]}>{branch.name}</Text>
+                  {branch.addressLine ? (
+                    <Text numberOfLines={1} style={[styles.branchChipAddress, active ? styles.branchChipAddressActive : null]}>
+                      {branch.addressLine}
+                    </Text>
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
         </View>
       ) : null}
 
@@ -188,8 +219,9 @@ export default function ExploreScreen() {
         <SurfaceCard style={styles.stateCard}>
           <Text style={styles.stateTitle}>Chưa có dịch vụ phù hợp</Text>
           <Text style={styles.stateDescription}>
-            {lastError ? `Hiện chưa tải được dữ liệu Explore. ${lastError}` : "Hãy đổi bộ lọc hoặc kéo xuống để làm mới."}
+            {lastError ? `Hiện chưa tải được dữ liệu Explore. ${lastError}` : "Hãy đổi chi nhánh, đổi bộ lọc hoặc kéo xuống để làm mới."}
           </Text>
+          {__DEV__ ? <Text style={styles.stateDebug}>Nguồn hiện tại: {dataSource}</Text> : null}
           <Pressable style={styles.retryButton} onPress={() => void refresh()}>
             <Text style={styles.retryButtonText}>Thử lại</Text>
           </Pressable>
@@ -348,7 +380,7 @@ function ProductCard({ item }: { item: ExploreProduct }) {
       <View style={styles.productFooter}>
         <Text style={styles.productPrice}>{item.priceLabel ?? "Liên hệ"}</Text>
         <View style={styles.productTag}>
-          <Text style={styles.productTagText}>{item.isFeatured ? "Featured" : item.productType ?? "Item"}</Text>
+          <Text style={styles.productTagText}>{item.isFeatured ? "Nổi bật" : item.productType ?? "Sản phẩm"}</Text>
         </View>
       </View>
     </SurfaceCard>
@@ -401,6 +433,17 @@ const styles = StyleSheet.create({
   },
   topBarSpacer: {
     flex: 1,
+  },
+  debugBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "#f5eee7",
+    borderRadius: radius.pill,
+    color: "#8c6f57",
+    fontSize: 10,
+    fontWeight: "700",
+    overflow: "hidden",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   storeHero: {
     flexDirection: "row",
@@ -459,6 +502,44 @@ const styles = StyleSheet.create({
     color: colors.textSoft,
     fontSize: 12,
     fontWeight: "600",
+  },
+  branchSection: {
+    gap: 10,
+  },
+  branchRow: {
+    gap: 10,
+    paddingRight: 10,
+  },
+  branchChip: {
+    backgroundColor: "#fffdf9",
+    borderColor: "#eadfd3",
+    borderRadius: 18,
+    borderWidth: 1,
+    gap: 4,
+    minWidth: 180,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  branchChipActive: {
+    backgroundColor: "#4a3424",
+    borderColor: "#4a3424",
+  },
+  branchChipTitle: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  branchChipTitleActive: {
+    color: colors.surface,
+  },
+  branchChipAddress: {
+    color: colors.textSoft,
+    fontSize: 11,
+    lineHeight: 16,
+    maxWidth: 220,
+  },
+  branchChipAddressActive: {
+    color: "#f0e5dc",
   },
   statsGrid: {
     flexDirection: "row",
@@ -572,6 +653,11 @@ const styles = StyleSheet.create({
     color: colors.textSoft,
     fontSize: 13,
     lineHeight: 19,
+  },
+  stateDebug: {
+    color: "#9f8b79",
+    fontSize: 11,
+    fontWeight: "700",
   },
   retryButton: {
     alignSelf: "flex-start",

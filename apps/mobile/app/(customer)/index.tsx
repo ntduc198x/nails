@@ -10,63 +10,108 @@ import { premiumTheme } from "@/src/design/premium-theme";
 const { colors, radius, shadow } = premiumTheme;
 
 const HOME_FILTERS = [
-  { key: "all", label: "Tat ca", icon: "clock" },
-  { key: "hot", label: "Mau hot", icon: "star" },
-  { key: "trend", label: "Xu huong", icon: "trending-up" },
-  { key: "offers", label: "Uu dai", icon: "tag" },
+  { key: "all", label: "Tất cả", icon: "clock" },
+  { key: "newest", label: "Mới nhất", icon: "clock" },
+  { key: "hot", label: "Hot", icon: "zap" },
+  { key: "featured", label: "Nổi bật", icon: "star" },
+  { key: "offers", label: "Ưu đãi", icon: "tag" },
 ] as const;
 
 type HomeFilterKey = (typeof HOME_FILTERS)[number]["key"];
 
 function getLookbookTags(item: LookbookItem): HomeFilterKey[] {
-  const tags: HomeFilterKey[] = ["hot"];
+  const tags: HomeFilterKey[] = ["newest"];
   const badge = item.badge.toLowerCase();
   const category = item.category?.toLowerCase() ?? "";
 
-  if (badge.includes("trend") || badge.includes("hot") || category === "sang-trong" || category === "noi-bat") {
-    tags.push("trend");
+  if (badge.includes("hot") || category === "hot") {
+    tags.push("hot");
+  }
+
+  if (badge.includes("noi bat") || badge.includes("best") || category === "noi-bat" || category === "sang-trong") {
+    tags.push("featured");
   }
 
   return tags;
 }
 
-function getPostTags(post: CustomerContentPost): HomeFilterKey[] {
-  if (post.contentType === "offer_hint") return ["offers"];
-  return ["trend"];
+function getPostViewCount(post: CustomerContentPost) {
+  const candidates = [
+    post.metadata?.viewCount,
+    post.metadata?.views,
+    post.metadata?.view_count,
+    post.metadata?.totalViews,
+    post.metadata?.total_views,
+  ];
+
+  for (const value of candidates) {
+    const nextValue = typeof value === "number" ? value : Number(value ?? Number.NaN);
+    if (Number.isFinite(nextValue)) return nextValue;
+  }
+
+  return 0;
+}
+
+function isHotPost(post: CustomerContentPost) {
+  const hotFlag = post.metadata?.isHot ?? post.metadata?.hot ?? post.metadata?.featured;
+  if (hotFlag === true || hotFlag === "true" || hotFlag === 1 || hotFlag === "1") {
+    return true;
+  }
+
+  return post.priority <= 50;
 }
 
 export default function CustomerHomeScreen() {
   const [activeFilter, setActiveFilter] = useState<HomeFilterKey>("all");
-  const { contentPosts, isLoading, lookbook, offers, refresh } = useCustomerHomeFeed();
+  const [postsExpanded, setPostsExpanded] = useState(false);
+  const { contentPosts, dataSource, isLoading, lastError, lookbook, offers, refresh } = useCustomerHomeFeed();
 
   const heroImage = lookbook[1]?.image ?? lookbook[0]?.image ?? null;
 
   const visibleLookbook = useMemo(() => {
-    if (activeFilter === "all") return lookbook.slice(0, 6);
+    if (activeFilter === "all" || activeFilter === "newest") return lookbook.slice(0, 6);
     return lookbook.filter((item) => getLookbookTags(item).includes(activeFilter)).slice(0, 6);
   }, [activeFilter, lookbook]);
 
-  const visiblePosts = useMemo(() => {
-    if (activeFilter === "all") return contentPosts.slice(0, 4);
-    return contentPosts.filter((post) => getPostTags(post).includes(activeFilter)).slice(0, 4);
+  const filteredPosts = useMemo(() => {
+    if (activeFilter === "all" || activeFilter === "newest") return contentPosts;
+    if (activeFilter === "offers") return contentPosts.filter((post) => post.contentType === "offer_hint");
+    if (activeFilter === "hot") {
+      const hotPosts = contentPosts.filter((post) => isHotPost(post));
+      return hotPosts.length ? hotPosts : contentPosts;
+    }
+    if (activeFilter === "featured") {
+      const rankedPosts = [...contentPosts].sort((left, right) => getPostViewCount(right) - getPostViewCount(left));
+      const postsWithViews = rankedPosts.filter((post) => getPostViewCount(post) > 0);
+      return postsWithViews.length ? postsWithViews : rankedPosts;
+    }
+    return contentPosts;
   }, [activeFilter, contentPosts]);
+
+  const visiblePosts = useMemo(() => {
+    if (postsExpanded) return filteredPosts;
+    return filteredPosts.slice(0, 4);
+  }, [filteredPosts, postsExpanded]);
 
   const visibleOffers = useMemo(() => {
     if (activeFilter === "all" || activeFilter === "offers") return offers.slice(0, 2);
     return [];
   }, [activeFilter, offers]);
 
+  const isEmpty = !isLoading && lookbook.length === 0 && contentPosts.length === 0 && offers.length === 0;
+
   return (
     <CustomerScreen
       hideHeader
-      title="Trang chu"
+      title="Trang chủ"
       contentContainerStyle={styles.content}
       onRefresh={() => void refresh()}
       refreshing={isLoading}
     >
       <View style={styles.topBar}>
-        <View>
+        <View style={styles.brandBlock}>
           <Text style={styles.brand}>CHAM BEAUTY</Text>
+          {__DEV__ ? <Text style={styles.debugBadge}>Home · {dataSource.toUpperCase()}</Text> : null}
         </View>
 
         <CustomerTopActions />
@@ -77,16 +122,16 @@ export default function CustomerHomeScreen() {
           <View style={styles.heroMiniBadge}>
             <Feather color="#b98258" name="briefcase" size={12} />
           </View>
-          <Text style={styles.heroTitle}>Dep moi ngay, dat lich nhanh, xem mau hot va uu dai ngay tai trang chu.</Text>
+          <Text style={styles.heroTitle}>Đẹp mỗi ngày, đặt lịch nhanh.</Text>
           <Text style={styles.heroSubtitle}>
             {isLoading
-              ? "Dang cap nhat noi dung moi nhat..."
-              : "Tong hop mau dang hot, xu huong lam dep va uu dai cua cua hang cho tai khoan customer."}
+              ? "Đang cập nhật nội dung mới..."
+              : "Mẫu hot, xu hướng mới và ưu đãi nổi bật."}
           </Text>
 
           <View style={styles.heroActions}>
-            <PrimaryButton label="Dat lich ngay" onPress={() => router.push("/(customer)/booking")} />
-            <PrimaryButton label="Kham pha" subtle onPress={() => router.push("/(customer)/explore")} />
+            <PrimaryButton label="Đặt lịch ngay" onPress={() => router.push("/(customer)/booking")} />
+            <PrimaryButton label="Khám phá" subtle onPress={() => router.push("/(customer)/explore")} />
           </View>
         </View>
 
@@ -109,42 +154,58 @@ export default function CustomerHomeScreen() {
         })}
       </ScrollView>
 
-      <View style={styles.sectionBlock}>
-        <SectionTitle
-          title="Mau dang hot"
-          subtitle="Lookbook dong bo voi landing page, uu tien mau noi bat va de dat lich."
-          actionLabel="Xem tat ca"
-          onPress={() => router.push("/(customer)/explore")}
-        />
+      {isEmpty ? (
+        <SurfaceCard style={styles.emptyCard}>
+          <Text style={styles.emptyTitle}>Trang chủ chưa có dữ liệu hiển thị</Text>
+          <Text style={styles.emptyText}>
+            {lastError
+              ? `Chưa tải được dữ liệu trang chủ. ${lastError}`
+              : "Cần thêm lookbook, bài viết hoặc ưu đãi để hiển thị tại đây."}
+          </Text>
+          {__DEV__ ? <Text style={styles.emptyDebug}>Nguồn hiện tại: {dataSource}</Text> : null}
+        </SurfaceCard>
+      ) : null}
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cardsRow}>
-          {visibleLookbook.map((item) => (
-            <LookbookCard key={item.id} item={item} />
-          ))}
-        </ScrollView>
-      </View>
+      {visibleLookbook.length ? (
+        <View style={styles.sectionBlock}>
+          <SectionTitle
+            title="Mẫu đang hot"
+            subtitle="Lookbook nổi bật, dễ chọn và dễ đặt lịch."
+            actionLabel="Xem tất cả"
+            onPress={() => router.push("/(customer)/explore")}
+          />
 
-      <View style={styles.sectionBlock}>
-        <SectionTitle
-          title="Xu huong lam dep hom nay"
-          subtitle="Noi dung ngan gon tu beauty feed, uu tien bai da publish."
-          actionLabel="Xem them"
-          onPress={() => router.push("/(customer)/favorites")}
-        />
-
-        <View style={styles.postList}>
-          {visiblePosts.map((post) => (
-            <PostCard key={post.id} post={post} />
-          ))}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cardsRow}>
+            {visibleLookbook.map((item) => (
+              <LookbookCard key={item.id} item={item} />
+            ))}
+          </ScrollView>
         </View>
-      </View>
+      ) : null}
+
+      {visiblePosts.length ? (
+        <View style={styles.sectionBlock}>
+          <SectionTitle
+            title="Xu hướng làm đẹp hôm nay"
+            subtitle="Nội dung ngắn gọn, sẵn sàng cho khách xem."
+            actionLabel={filteredPosts.length > 4 ? (postsExpanded ? "Thu gọn" : "Xem thêm") : undefined}
+            onPress={filteredPosts.length > 4 ? () => setPostsExpanded((current) => !current) : undefined}
+          />
+
+          <View style={styles.postList}>
+            {visiblePosts.map((post) => (
+              <PostCard key={post.id} post={post} />
+            ))}
+          </View>
+        </View>
+      ) : null}
 
       {visibleOffers.length ? (
         <View style={styles.sectionBlock}>
           <SectionTitle
-            title="Quyen loi thanh vien"
-            subtitle="Uu dai hien co duoc xem va su dung trong The thanh vien."
-            actionLabel="Mo the"
+            title="Quyền lợi thành viên"
+            subtitle="Toàn bộ ưu đãi và quyền lợi được lưu trong Thẻ thành viên."
+            actionLabel="Mở thẻ"
             onPress={() => router.replace("/(customer)/membership")}
           />
 
@@ -185,7 +246,7 @@ function LookbookCard({ item }: { item: LookbookItem }) {
         <View style={styles.lookbookFooter}>
           <Text style={styles.lookbookPrice}>{item.price}</Text>
           <View style={styles.bookButton}>
-            <Text style={styles.bookButtonText}>Dat lich</Text>
+            <Text style={styles.bookButtonText}>Đặt lịch</Text>
           </View>
         </View>
       </View>
@@ -237,11 +298,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
   },
+  brandBlock: {
+    gap: 4,
+  },
   brand: {
     color: "#b27d58",
     fontSize: 12,
     fontWeight: "800",
     letterSpacing: 3,
+  },
+  debugBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "#f5eee7",
+    borderRadius: radius.pill,
+    color: "#8c6f57",
+    fontSize: 10,
+    fontWeight: "700",
+    overflow: "hidden",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   heroCard: {
     backgroundColor: "#fdf2e8",
@@ -249,6 +324,25 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     padding: 14,
     gap: 10,
+  },
+  emptyCard: {
+    gap: 8,
+    padding: 18,
+  },
+  emptyTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  emptyText: {
+    color: colors.textSoft,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  emptyDebug: {
+    color: "#9f8b79",
+    fontSize: 11,
+    fontWeight: "700",
   },
   heroTextColumn: {
     flex: 1,
