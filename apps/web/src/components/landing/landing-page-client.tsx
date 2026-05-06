@@ -42,6 +42,18 @@ type LandingMobileCarouselProps<T> = {
   itemsPerSlide?: number;
 };
 
+type LandingDesktopCarouselProps<T> = {
+  items: T[];
+  slide: number;
+  onSelectSlide: (index: number) => void;
+  labelPrefix: string;
+  getItemKey: (item: T) => string;
+  renderItem: (item: T) => ReactNode;
+  itemsPerSlide: number;
+  gridClassName: string;
+  dotsClassName?: string;
+};
+
 const FALLBACK_TESTIMONIALS: Testimonial[] = [
   {
     id: "t1",
@@ -209,6 +221,64 @@ function LandingMobileCarousel<T>({
   );
 }
 
+function LandingDesktopCarousel<T>({
+  items,
+  slide,
+  onSelectSlide,
+  labelPrefix,
+  getItemKey,
+  renderItem,
+  itemsPerSlide,
+  gridClassName,
+  dotsClassName,
+}: LandingDesktopCarouselProps<T>) {
+  const slides = useMemo(() => chunkItemsLoopFilled(items, itemsPerSlide), [items, itemsPerSlide]);
+
+  if (!slides.length) return null;
+
+  return (
+    <>
+      <div className="landing-showcase__desktop-carousel">
+        <div
+          className="landing-showcase__desktop-carousel-track"
+          style={{
+            width: `${slides.length * 100}%`,
+            transform: `translateX(-${slide * (100 / slides.length)}%)`,
+          }}
+        >
+          {slides.map((group, index) => (
+            <div
+              key={`${labelPrefix}-${index}`}
+              className="landing-showcase__desktop-carousel-slide"
+              style={{ width: `${100 / slides.length}%` }}
+            >
+              <div className={gridClassName}>
+                {group.map((item) => (
+                  <div key={`${getItemKey(item)}-${index}`}>{renderItem(item)}</div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {slides.length > 1 ? (
+        <div className={dotsClassName ?? "landing-showcase__services-dots"}>
+          {slides.map((_, index) => (
+            <button
+              key={`${labelPrefix}-dot-${index}`}
+              type="button"
+              className={index === slide ? "is-active" : ""}
+              onClick={() => onSelectSlide(index)}
+              aria-label={`${labelPrefix} ${index + 1}`}
+            />
+          ))}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPageClientProps) {
   const router = useRouter();
   const [authOpen, setAuthOpen] = useState(false);
@@ -225,6 +295,8 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
   const [storyMobileSlide, setStoryMobileSlide] = useState(0);
   const [productMobileSlide, setProductMobileSlide] = useState(0);
   const [testimonialMobileSlide, setTestimonialMobileSlide] = useState(0);
+  const [storyDesktopSlide, setStoryDesktopSlide] = useState(0);
+  const [productDesktopSlide, setProductDesktopSlide] = useState(0);
 
   useEffect(() => {
     void getCurrentAuthenticatedSummary()
@@ -238,7 +310,7 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
     () => (homeFeed.lookbook.length ? homeFeed.lookbook : explore.featuredServices).slice(0, 8),
     [explore.featuredServices, homeFeed.lookbook],
   );
-  const serviceDesktopSlides = useMemo(() => chunkItems(featuredServices, 4), [featuredServices]);
+  const serviceDesktopSlides = useMemo(() => chunkItemsLoopFilled(featuredServices, 4), [featuredServices]);
   const serviceMobileSlides = useMemo(() => chunkItems(featuredServices, 2), [featuredServices]);
   useEffect(() => {
     if (serviceDesktopSlides.length <= 1) return;
@@ -259,6 +331,8 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
   const stories = useMemo(() => homeFeed.contentPosts.slice(0, 3), [homeFeed.contentPosts]);
   const products = useMemo(() => explore.products.slice(0, 8), [explore.products]);
   const testimonials = FALLBACK_TESTIMONIALS;
+  const storyDesktopSlides = useMemo(() => chunkItemsLoopFilled(stories, 3), [stories]);
+  const productDesktopSlides = useMemo(() => chunkItemsLoopFilled(products, 4), [products]);
   const storyMobileSlides = useMemo(() => chunkItems(stories, 2), [stories]);
   const productMobileSlides = useMemo(() => chunkItems(products, 2), [products]);
   const testimonialMobileSlides = useMemo(() => chunkItems(testimonials, 2), [testimonials]);
@@ -284,6 +358,16 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
   }, [storyMobileSlides.length]);
 
   useEffect(() => {
+    if (storyDesktopSlides.length <= 1) return;
+
+    const intervalId = window.setInterval(() => {
+      setStoryDesktopSlide((current) => (current + 1) % storyDesktopSlides.length);
+    }, 4600);
+
+    return () => window.clearInterval(intervalId);
+  }, [storyDesktopSlides.length]);
+
+  useEffect(() => {
     if (productMobileSlides.length <= 1) return;
 
     const intervalId = window.setInterval(() => {
@@ -292,6 +376,16 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
 
     return () => window.clearInterval(intervalId);
   }, [productMobileSlides.length]);
+
+  useEffect(() => {
+    if (productDesktopSlides.length <= 1) return;
+
+    const intervalId = window.setInterval(() => {
+      setProductDesktopSlide((current) => (current + 1) % productDesktopSlides.length);
+    }, 4400);
+
+    return () => window.clearInterval(intervalId);
+  }, [productDesktopSlides.length]);
 
   useEffect(() => {
     if (testimonialMobileSlides.length <= 1) return;
@@ -316,10 +410,22 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
   }, [storyMobileSlide, storyMobileSlides.length]);
 
   useEffect(() => {
+    if (storyDesktopSlide >= storyDesktopSlides.length) {
+      setStoryDesktopSlide(0);
+    }
+  }, [storyDesktopSlide, storyDesktopSlides.length]);
+
+  useEffect(() => {
     if (productMobileSlide >= productMobileSlides.length) {
       setProductMobileSlide(0);
     }
   }, [productMobileSlide, productMobileSlides.length]);
+
+  useEffect(() => {
+    if (productDesktopSlide >= productDesktopSlides.length) {
+      setProductDesktopSlide(0);
+    }
+  }, [productDesktopSlide, productDesktopSlides.length]);
 
   useEffect(() => {
     if (testimonialMobileSlide >= testimonialMobileSlides.length) {
@@ -556,14 +662,18 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
             <span className="landing-section-subcopy">Xu hướng móng hè 2026 — lên tay sẵn sàng cho những lễ hội, vui chơi.</span>
           </div>
 
-          <div className="landing-showcase__services-carousel landing-showcase__services-carousel--desktop">
-            <div
-              id="pricing"
-              className="landing-showcase__services-grid landing-showcase__services-grid--slider"
-              style={{ transform: `translateX(-${serviceDesktopSlide * 50}%)` }}
-            >
-              {featuredServices.map((service) => (
-                <article key={service.id} className="landing-showcase__service-card landing-showcase-motion-card">
+          <div id="pricing" className="landing-showcase__services-carousel landing-showcase__services-carousel--desktop">
+            <LandingDesktopCarousel
+              items={featuredServices}
+              slide={serviceDesktopSlide}
+              onSelectSlide={setServiceDesktopSlide}
+              labelPrefix="Xem slide dịch vụ"
+              getItemKey={(service) => service.id}
+              gridClassName="landing-showcase__services-grid landing-showcase__services-grid--desktop-carousel"
+              dotsClassName="landing-showcase__services-dots landing-showcase__services-dots--desktop"
+              itemsPerSlide={4}
+              renderItem={(service) => (
+                <article className="landing-showcase__service-card landing-showcase-motion-card">
                   <div className="landing-showcase__service-image">
                     <img src={service.image} alt={service.title} loading="lazy" decoding="async" />
                     <span>{service.badge}</span>
@@ -579,8 +689,8 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
                     </div>
                   </div>
                 </article>
-              ))}
-            </div>
+              )}
+            />
           </div>
 
           <LandingMobileCarousel
@@ -609,18 +719,6 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
             )}
           />
 
-          <div className="landing-showcase__services-dots landing-showcase__services-dots--desktop">
-            {serviceDesktopSlides.map((_, index) => (
-              <button
-                key={`service-dot-${index}`}
-                type="button"
-                className={index === serviceDesktopSlide ? "is-active" : ""}
-                onClick={() => setServiceDesktopSlide(index)}
-                aria-label={`Xem slide dịch vụ ${index + 1}`}
-              />
-            ))}
-          </div>
-
           <div className="landing-showcase__section-cta">
             <button
               type="button"
@@ -643,9 +741,17 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
             </Link>
           </div>
 
-          <div className="landing-showcase__stories-grid landing-showcase__stories-grid--desktop">
-            {stories.map((post) => (
-              <Link key={post.id} href={`/stories/${post.id}`} className="landing-showcase__story-card landing-showcase-motion-card">
+          <LandingDesktopCarousel
+            items={stories}
+            slide={storyDesktopSlide}
+            onSelectSlide={setStoryDesktopSlide}
+            labelPrefix="Xem slide blog"
+            getItemKey={(post) => post.id}
+            gridClassName="landing-showcase__stories-grid landing-showcase__stories-grid--desktop-carousel"
+            dotsClassName="landing-showcase__services-dots landing-showcase__services-dots--desktop"
+            itemsPerSlide={3}
+            renderItem={(post) => (
+              <Link href={`/stories/${post.id}`} className="landing-showcase__story-card landing-showcase-motion-card">
                 {post.coverImageUrl ? <img src={post.coverImageUrl} alt={post.title} loading="lazy" decoding="async" /> : null}
                 <div className="landing-showcase__story-card-body">
                   <span>{post.publishedAt ? formatViDate(post.publishedAt) : "Mới cập nhật"}</span>
@@ -654,8 +760,8 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
                   <strong>Đọc chi tiết</strong>
                 </div>
               </Link>
-            ))}
-          </div>
+            )}
+          />
 
           <LandingMobileCarousel
             items={stories}
@@ -681,13 +787,19 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
           <div className="landing-showcase__section-heading landing-showcase-reveal landing-showcase-reveal--up">
             <span className="landing-showcase__eyebrow">Store & Products</span>
             <h2>Sản phẩm được chọn lọc</h2>
-            </div>
-
-          <div className="landing-showcase__products-grid landing-showcase__products-grid--desktop">
-            {products.map((product) => (
-              <ProductGridCard key={product.id} product={product} />
-            ))}
           </div>
+
+          <LandingDesktopCarousel
+            items={products}
+            slide={productDesktopSlide}
+            onSelectSlide={setProductDesktopSlide}
+            labelPrefix="Xem slide sản phẩm"
+            getItemKey={(product) => product.id}
+            gridClassName="landing-showcase__products-grid landing-showcase__products-grid--desktop-carousel"
+            dotsClassName="landing-showcase__services-dots landing-showcase__services-dots--desktop"
+            itemsPerSlide={4}
+            renderItem={(product) => <ProductGridCard product={product} />}
+          />
 
           <LandingMobileCarousel
             items={products}
