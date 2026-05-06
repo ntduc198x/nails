@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   type AppRole,
   type AppointmentStatus,
+  type CustomerCrmSummary,
   type MobileCheckoutService,
   type MobileRecentTicketSummary,
   type CrmDashboardMetrics,
@@ -18,6 +19,7 @@ import {
   hasOpenShiftForMobile,
   listAppointmentsForMobile,
   listBookingRequestsForMobile,
+  listCustomersCrmForMobile,
   listRecentTicketsForMobile,
   listServicesForMobile,
   saveAppointmentForMobile,
@@ -50,6 +52,7 @@ type AdminOperationsState = {
   checkoutServices: MobileCheckoutService[];
   recentTickets: MobileRecentTicketSummary[];
   techShiftOpen: boolean | null;
+  customerCrmByPhone: Record<string, CustomerCrmSummary>;
 };
 
 const INITIAL_STATE: AdminOperationsState = {
@@ -62,7 +65,57 @@ const INITIAL_STATE: AdminOperationsState = {
   checkoutServices: [],
   recentTickets: [],
   techShiftOpen: null,
+  customerCrmByPhone: {},
 };
+
+const ADMIN_OPERATIONS_CACHE_TTL_MS = 60 * 1000;
+
+let cachedAdminState: AdminOperationsState = INITIAL_STATE;
+let cachedAdminStateAt = 0;
+let cachedAdminScopeKey: string | null = null;
+let inflightAdminLoad: Promise<AdminOperationsState> | null = null;
+const adminStateListeners = new Set<(state: AdminOperationsState) => void>();
+
+function emitAdminState(nextState: AdminOperationsState) {
+  cachedAdminState = nextState;
+  cachedAdminStateAt = Date.now();
+  adminStateListeners.forEach((listener) => listener(nextState));
+}
+
+function resetAdminStateCache(scopeKey?: string | null) {
+  cachedAdminState = INITIAL_STATE;
+  cachedAdminStateAt = 0;
+  inflightAdminLoad = null;
+  cachedAdminScopeKey = scopeKey ?? null;
+  adminStateListeners.forEach((listener) => listener(INITIAL_STATE));
+}
+
+function isAdminStateCacheFresh() {
+  return cachedAdminStateAt > 0 && Date.now() - cachedAdminStateAt < ADMIN_OPERATIONS_CACHE_TTL_MS;
+}
+
+function hasCachedAdminState() {
+  return (
+    cachedAdminState.bookingRequests.length > 0 ||
+    cachedAdminState.appointments.length > 0 ||
+    cachedAdminState.checkoutServices.length > 0 ||
+    cachedAdminState.staffOptions.length > 0 ||
+    cachedAdminState.resourceOptions.length > 0 ||
+    cachedAdminState.recentTickets.length > 0 ||
+    cachedAdminState.dashboard !== null ||
+    cachedAdminState.crmMetrics !== null
+  );
+}
+
+function normalizePhone(raw: string | null | undefined) {
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return null;
+  if (digits.startsWith("84") && digits.length >= 11) {
+    return `0${digits.slice(2)}`;
+  }
+  return digits;
+}
 
 async function listStaffOptions(): Promise<StaffOption[]> {
   if (!mobileSupabase) {
@@ -179,23 +232,68 @@ async function listResourceOptions(): Promise<ResourceOption[]> {
 
 export function useAdminOperations() {
   const { isHydrated, role, user } = useSession();
-  const [state, setState] = useState<AdminOperationsState>(INITIAL_STATE);
+  const userId = user?.id ?? null;
+  const scopeKey = isHydrated && role && userId ? `${role}:${userId}` : null;
+  const [state, setState] = useState<AdminOperationsState>(
+    scopeKey && cachedAdminScopeKey === scopeKey ? cachedAdminState : INITIAL_STATE,
+  );
   const [loading, setLoading] = useState(false);
   const [mutating, setMutating] = useState(false);
   const [busyTargetId, setBusyTargetId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  useEffect(() => {
+    if (scopeKey && cachedAdminScopeKey !== scopeKey) {
+      resetAdminStateCache(scopeKey);
+    }
+  }, [scopeKey]);
+
+  useEffect(() => {
+    const listener = (nextState: AdminOperationsState) => {
+      setState(nextState);
+    };
+
+    adminStateListeners.add(listener);
+    if (scopeKey && cachedAdminScopeKey === scopeKey) {
+      listener(cachedAdminState);
+    }
+
+    return () => {
+      adminStateListeners.delete(listener);
+    };
+  }, [scopeKey]);
+
+  const load = useCallback(async (force = false) => {
     if (!mobileSupabase || !isHydrated || !role) {
-      setState(INITIAL_STATE);
-      return;
+      if (cachedAdminScopeKey !== null) {
+        resetAdminStateCache(null);
+      }
+      return INITIAL_STATE;
+    }
+
+    const nextScopeKey = userId ? `${role}:${userId}` : null;
+    if (!nextScopeKey) {
+      return INITIAL_STATE;
+    }
+
+    if (cachedAdminScopeKey !== nextScopeKey) {
+      resetAdminStateCache(nextScopeKey);
+    }
+
+    if (!force && hasCachedAdminState() && isAdminStateCacheFresh()) {
+      setState(cachedAdminState);
+      return cachedAdminState;
+    }
+
+    if (inflightAdminLoad && !force) {
+      return inflightAdminLoad;
     }
 
     setLoading(true);
     setError(null);
 
-    try {
-      const [dashboard, bookingRequests, appointments, crmMetrics, staffOptions, resourceOptions, checkoutServices, recentTickets, techShiftOpen] = await Promise.all([
+    inflightAdminLoad = (async () => {
+      const [dashboard, bookingRequests, appointments, crmMetrics, staffOptions, resourceOptions, checkoutServices, recentTickets, techShiftOpen, customersCrm] = await Promise.all([
         getDashboardSnapshotForMobile(mobileSupabase),
         listBookingRequestsForMobile(mobileSupabase),
         listAppointmentsForMobile(mobileSupabase),
@@ -205,11 +303,23 @@ export function useAdminOperations() {
         listServicesForMobile(mobileSupabase),
         listRecentTicketsForMobile(mobileSupabase, { limit: 12 }),
         role === "TECH" ? hasOpenShiftForMobile(mobileSupabase).catch(() => false) : Promise.resolve(null),
+        listCustomersCrmForMobile(mobileSupabase).catch(() => []),
       ]);
 
-      setState({
+      const customerCrmByPhone = Object.fromEntries(
+        customersCrm
+          .map((customer) => {
+            const phone = normalizePhone(customer.phone);
+            return phone ? [phone, customer] : null;
+          })
+          .filter((entry): entry is [string, CustomerCrmSummary] => Boolean(entry)),
+      );
+
+      const nextState: AdminOperationsState = {
         dashboard,
-        bookingRequests,
+        bookingRequests: bookingRequests.filter(
+          (bookingRequest) => bookingRequest.status === "NEW" || bookingRequest.status === "NEEDS_RESCHEDULE",
+        ),
         appointments,
         crmMetrics,
         staffOptions,
@@ -217,17 +327,35 @@ export function useAdminOperations() {
         checkoutServices,
         recentTickets,
         techShiftOpen,
-      });
+        customerCrmByPhone,
+      };
+
+      emitAdminState(nextState);
+      return nextState;
+    })();
+
+    try {
+      return await inflightAdminLoad;
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Khong tai duoc du lieu van hanh");
+      throw nextError;
     } finally {
+      inflightAdminLoad = null;
       setLoading(false);
     }
-  }, [isHydrated, role]);
+  }, [isHydrated, role, userId]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      void load();
+      if (!hasCachedAdminState()) {
+        void load();
+        return;
+      }
+
+      setState(cachedAdminState);
+      if (!isAdminStateCacheFresh()) {
+        void load();
+      }
     }, 0);
 
     return () => {
@@ -243,7 +371,7 @@ export function useAdminOperations() {
 
       try {
         await action();
-        await load();
+        await load(true);
       } catch (nextError) {
         setError(nextError instanceof Error ? nextError.message : "Thao tac that bai");
         throw nextError;
@@ -449,7 +577,7 @@ export function useAdminOperations() {
     mutating,
     busyTargetId,
     error,
-    reload: load,
+    reload: () => load(true),
     updateBookingRequestStatus,
     saveBookingRequest,
     deleteBookingRequest,

@@ -1,9 +1,9 @@
 import Feather from "@expo/vector-icons/Feather";
 import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import {
-  BOOKING_HISTORY,
   FALLBACK_SERVICES,
   OFFERS,
   PROFILE_SUMMARY,
@@ -11,6 +11,8 @@ import {
 import { CustomerScreen, CustomerTopActions, SurfaceCard } from "@/src/features/customer/ui";
 import { premiumTheme } from "@/src/design/premium-theme";
 import { useCustomerFavorites } from "@/src/hooks/use-customer-favorites";
+import { useCustomerHistory } from "@/src/hooks/use-customer-history";
+import { useLookbookServices } from "@/src/hooks/use-lookbook-services";
 import { mobileSupabase } from "@/src/lib/supabase";
 import { useSession } from "@/src/providers/session-provider";
 
@@ -25,18 +27,6 @@ const TABS = [
 type TabKey = (typeof TABS)[number]["key"];
 type FeatherIconName = React.ComponentProps<typeof Feather>["name"];
 type ProfileFieldIcon = "user" | "calendar" | "phone" | "mail" | "map-pin";
-
-const SERVICE_LOOKUP = new Map(
-  FALLBACK_SERVICES.map((service) => [
-    service.title.toLowerCase(),
-    { image: service.image, price: service.price },
-  ]),
-);
-
-function splitHistoryTime(value: string) {
-  const [time, date] = value.split(" ");
-  return { date: date ?? value, time: time ?? "" };
-}
 
 function normalizeVietnamese(value: string) {
   return value
@@ -54,9 +44,26 @@ function getHistoryTone(status: string): "success" | "warning" | "danger" {
   return "success";
 }
 
+function formatHistoryDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "--/--/----";
+  }
+
+  return date.toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default function ProfileScreen() {
   const { isBusy, signOut, user } = useSession();
   const { favoriteIds } = useCustomerFavorites();
+  const { historyItems, isHydrated: historyHydrated, isLoading: historyLoading } = useCustomerHistory(8);
+  const { services } = useLookbookServices(FALLBACK_SERVICES);
   const [activeTab, setActiveTab] = useState<TabKey>("history");
   const [form, setForm] = useState(() => ({
     name: user?.email?.split("@")[0] ?? PROFILE_SUMMARY.name,
@@ -68,26 +75,27 @@ export default function ProfileScreen() {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   const summary = useMemo(() => {
-    const totalSpent = BOOKING_HISTORY.reduce((sum, item) => {
-      const service = SERVICE_LOOKUP.get(item.service.toLowerCase());
-      const numericPrice = Number((service?.price ?? "0").replace(/[^\d]/g, ""));
+    const totalSpent = historyItems.reduce((sum, item) => {
+      const numericPrice = Number((item.servicePriceLabel ?? "0").replace(/[^\d]/g, ""));
       return sum + numericPrice;
     }, 0);
 
-    const latestBooking = BOOKING_HISTORY[0];
-    const latestDate = latestBooking ? splitHistoryTime(latestBooking.time).date : "--/--/----";
+    const latestBooking = historyItems[0];
+    const latestDate = latestBooking
+      ? new Date(latestBooking.occurredAt).toLocaleDateString("vi-VN")
+      : "--/--/----";
 
     return {
       totalSpent: `${totalSpent.toLocaleString("vi-VN")}đ`,
-      totalVisits: String(BOOKING_HISTORY.length),
+      totalVisits: String(historyItems.length),
       lastVisit: latestDate,
       offerWallet: String(Math.max(1, OFFERS.length - 1)),
     };
-  }, []);
+  }, [historyItems]);
 
   const favoriteServices = useMemo(
-    () => FALLBACK_SERVICES.filter((service) => favoriteIds.includes(service.id)),
-    [favoriteIds],
+    () => services.filter((service) => favoriteIds.includes(service.id)),
+    [favoriteIds, services],
   );
 
   async function handleSaveProfile() {
@@ -141,6 +149,16 @@ export default function ProfileScreen() {
         <View style={styles.topBarSpacer} />
         <CustomerTopActions />
       </View>
+
+      <Pressable onPress={() => router.push("/(customer)/membership")}>
+        <LinearGradient colors={["#f4e1cb", "#fff5ea"]} end={{ x: 1, y: 1 }} start={{ x: 0, y: 0 }} style={styles.membershipCard}>
+          <View style={styles.membershipCopy}>
+            <Text style={styles.membershipEyebrow}>Thẻ thành viên</Text>
+            <Text style={styles.membershipTitle}>Mở ví ưu đãi, điểm tích lũy và quyền lợi của bạn</Text>
+          </View>
+          <Feather color={colors.text} name="chevron-right" size={18} />
+        </LinearGradient>
+      </Pressable>
 
       <View style={styles.profileHero}>
         <View style={styles.avatarWrap}>
@@ -198,43 +216,64 @@ export default function ProfileScreen() {
 
       {activeTab === "history" ? (
         <View style={styles.cardList}>
-          {BOOKING_HISTORY.map((item) => {
-            const service = SERVICE_LOOKUP.get(item.service.toLowerCase());
-            const schedule = splitHistoryTime(item.time);
-
-            return (
-              <SurfaceCard key={item.id} style={styles.historyCard}>
+          {historyItems.map((item) => (
+            <Pressable
+              key={item.id}
+              onPress={() =>
+                router.push({
+                  pathname: "/(customer)/booking",
+                  params: { service: item.serviceName },
+                })
+              }
+            >
+              <SurfaceCard style={styles.historyCard}>
                 <Image
-                  alt={item.service}
-                  source={{ uri: service?.image ?? PROFILE_SUMMARY.avatar }}
+                  alt={item.serviceName}
+                  source={{ uri: item.serviceImageUrl ?? PROFILE_SUMMARY.avatar }}
                   style={styles.historyImage}
                 />
 
                 <View style={styles.historyCopy}>
-                  <Text style={styles.historyTime}>
-                    {schedule.date}
-                    {schedule.time ? ` • ${schedule.time}` : ""}
-                  </Text>
+                  <Text style={styles.historyTime}>{formatHistoryDate(item.occurredAt)}</Text>
                   <Text numberOfLines={1} style={styles.historyTitle}>
-                    {item.service}
+                    {item.serviceName}
                   </Text>
-                  <Text style={styles.historyPrice}>{service?.price ?? "0đ"}</Text>
+                  <Text style={styles.historyPrice}>{item.servicePriceLabel ?? "0đ"}</Text>
                 </View>
 
                 <View style={styles.historyAside}>
-                  <HistoryStatus label={item.status} tone={getHistoryTone(item.status)} />
+                  <HistoryStatus label="Đã hoàn tất" tone={getHistoryTone("Đã đến")} />
                   <Feather color={colors.textSoft} name="chevron-right" size={18} />
                 </View>
               </SurfaceCard>
-            );
-          })}
+            </Pressable>
+          ))}
+
+          {historyHydrated && !historyLoading && !historyItems.length ? (
+            <SurfaceCard style={styles.emptyCard}>
+              <Feather color={colors.textSoft} name="calendar" size={18} />
+              <Text style={styles.emptyTitle}>Chưa có lịch sử dịch vụ</Text>
+              <Text style={styles.emptyText}>
+                Lịch sử sẽ tự cập nhật từ các dịch vụ khách đã hoàn tất tại tiệm.
+              </Text>
+            </SurfaceCard>
+          ) : null}
         </View>
       ) : null}
 
       {activeTab === "favorites" ? (
         <View style={styles.cardList}>
           {favoriteServices.map((service) => (
-            <SurfaceCard key={service.id} style={styles.favoriteCard}>
+            <Pressable
+              key={service.id}
+              onPress={() =>
+                router.push({
+                  pathname: "/(customer)/booking",
+                  params: { service: service.title },
+                })
+              }
+            >
+              <SurfaceCard style={styles.favoriteCard}>
               <Image alt={service.title} source={{ uri: service.image }} style={styles.favoriteImage} />
               <View style={styles.favoriteCopy}>
                 <Text numberOfLines={1} style={styles.favoriteTitle}>
@@ -247,6 +286,7 @@ export default function ProfileScreen() {
               </View>
               <Feather color={colors.textSoft} name="chevron-right" size={18} />
             </SurfaceCard>
+            </Pressable>
           ))}
 
           {favoriteServices.length === 0 ? (
@@ -488,6 +528,33 @@ const styles = StyleSheet.create({
   },
   topBarSpacer: {
     flex: 1,
+  },
+  membershipCard: {
+    alignItems: "center",
+    borderRadius: radius.xl,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
+  },
+  membershipCopy: {
+    flex: 1,
+    gap: 4,
+    paddingRight: spacing.md,
+  },
+  membershipEyebrow: {
+    color: colors.textSoft,
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+  },
+  membershipTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: "800",
+    lineHeight: 22,
   },
   profileHero: {
     alignItems: "center",

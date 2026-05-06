@@ -1,6 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
 import * as ImagePicker from "expo-image-picker";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -13,6 +14,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import type {
   MobileAdminContentPost,
   MobileAdminContentPostInput,
@@ -208,8 +210,8 @@ function stringifyMetadata(metadata: Record<string, unknown>) {
   return Object.keys(metadata).length ? JSON.stringify(metadata, null, 2) : "";
 }
 
-function isLookbookService(service: MobileAdminMerchService) {
-  return service.active && service.featuredInLookbook;
+function isLandingService(service: MobileAdminMerchService) {
+  return service.active;
 }
 
 function buildMerchForm(service: MobileAdminMerchService): MerchFormState {
@@ -483,7 +485,7 @@ function ModalShell({
 }) {
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalScreen}>
+      <SafeAreaView style={styles.modalScreen} edges={["top", "bottom"]}>
         <View style={styles.modalHeader}>
           <Pressable style={styles.headerIconButton} onPress={onClose}>
             <Feather name="x" size={20} color={palette.text} />
@@ -492,12 +494,13 @@ function ModalShell({
           <View style={styles.headerIconButton} />
         </View>
         <ScrollView contentContainerStyle={styles.modalContent}>{children}</ScrollView>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 }
 
 export default function AdminManageContentScreen() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<ContentTab>("home");
   const [snapshot, setSnapshot] = useState<MobileAdminContentSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -521,6 +524,9 @@ export default function AdminManageContentScreen() {
   const [teamForm, setTeamForm] = useState<TeamFormState | null>(null);
   const [productForm, setProductForm] = useState<ProductFormState | null>(null);
   const [galleryForm, setGalleryForm] = useState<GalleryFormState | null>(null);
+  const hasFocusedOnceRef = useRef(false);
+  const loadSnapshotRef = useRef<() => Promise<void>>(async () => {});
+  const loadServicesRef = useRef<(force?: boolean) => Promise<void>>(async () => {});
 
   const loadSnapshot = useCallback(async () => {
     if (!mobileSupabase) {
@@ -567,6 +573,14 @@ export default function AdminManageContentScreen() {
   );
 
   useEffect(() => {
+    loadSnapshotRef.current = loadSnapshot;
+  }, [loadSnapshot]);
+
+  useEffect(() => {
+    loadServicesRef.current = loadServices;
+  }, [loadServices]);
+
+  useEffect(() => {
     const timeoutId = setTimeout(() => {
       void loadSnapshot();
     }, 0);
@@ -581,10 +595,22 @@ export default function AdminManageContentScreen() {
     return () => clearTimeout(timeoutId);
   }, [loadServices, snapshot]);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasFocusedOnceRef.current) {
+        hasFocusedOnceRef.current = true;
+        return;
+      }
+
+      void loadSnapshotRef.current();
+      void loadServicesRef.current(true);
+    }, []),
+  );
+
   const lookbookServices = useMemo(
     () =>
       services
-        .filter((item) => isLookbookService(item))
+        .filter((item) => isLandingService(item))
         .sort((left, right) => left.name.localeCompare(right.name, "vi")),
     [services],
   );
@@ -592,7 +618,7 @@ export default function AdminManageContentScreen() {
   const regularServices = useMemo(
     () =>
       services
-        .filter((item) => item.active && !item.featuredInLookbook)
+        .filter((item) => item.active && !item.featuredInExplore)
         .sort((left, right) => left.name.localeCompare(right.name, "vi")),
     [services],
   );
@@ -934,7 +960,7 @@ export default function AdminManageContentScreen() {
 
   if (loading && !snapshot) {
     return (
-      <ManageScreenShell title="Nội dung khách" subtitle="Đang tải dữ liệu Home và Explore..." currentKey="content" group="setup">
+      <ManageScreenShell title="Landing Feed" subtitle="Đang tải dữ liệu Home và Explore..." currentKey="content" group="setup">
         <View style={styles.stateCard}>
           <ActivityIndicator color={palette.accent} />
           <Text style={styles.stateTitle}>Đang đồng bộ nội dung hiển thị cho khách hàng...</Text>
@@ -945,7 +971,7 @@ export default function AdminManageContentScreen() {
 
   return (
     <ManageScreenShell
-      title="Nội dung khách"
+      title="Landing Feed"
       subtitle={snapshot ? `Explore theo chi nhánh ${snapshot.branchName} · Home dùng chung toàn hệ thống` : "Quản lý Home và Explore cho ứng dụng khách hàng"}
       currentKey="content"
       group="setup"
@@ -1009,12 +1035,17 @@ export default function AdminManageContentScreen() {
             ) : null}
           </SectionCard>
 
-          <SectionCard title={`Ưu đãi (${snapshot?.offers.length ?? 0})`} subtitle="Ưu đãi dùng chung cho Home và Explore." actionLabel="Thêm ưu đãi" onActionPress={() => setOfferForm(emptyOfferForm())}>
+          <SectionCard
+            title={`Ưu đãi (${snapshot?.offers.length ?? 0})`}
+            subtitle="Ưu đãi dùng chung cho Home và Explore."
+            actionLabel="Thêm ưu đãi"
+            onActionPress={() => void router.push("/(admin)/manage-content-offer/new" as never)}
+          >
             <View style={styles.listColumn}>
               {(snapshot?.offers ?? []).map((offer) => (
                 <View key={offer.id} style={styles.rowCard}>
                   <ItemThumbnail uri={offer.imageUrl} label={offer.title} />
-                  <Pressable style={styles.rowCopy} onPress={() => setOfferForm(buildOfferForm(offer))}>
+                  <Pressable style={styles.rowCopy} onPress={() => void router.push(`/(admin)/manage-content-offer/${offer.id}` as never)}>
                     <Text style={styles.rowTitle}>{offer.title}</Text>
                     <Text style={styles.rowSubtitle}>{offer.isActive ? "Đang bật" : "Đang tắt"} · {offer.badge || "Không có badge"}</Text>
                   </Pressable>
@@ -1029,7 +1060,12 @@ export default function AdminManageContentScreen() {
             </View>
           </SectionCard>
 
-          <SectionCard title={`Bài feed (${snapshot?.posts.length ?? 0})`} subtitle="Tạo, sửa và xuất bản bài hiển thị ở Home." actionLabel="Thêm bài" onActionPress={() => setPostForm(emptyPostForm())}>
+          <SectionCard
+            title={`Bài feed (${snapshot?.posts.length ?? 0})`}
+            subtitle="Tạo, sửa và xuất bản bài hiển thị ở Home."
+            actionLabel="Thêm bài"
+            onActionPress={() => void router.push("/(admin)/manage-content-post/new" as never)}
+          >
             <View style={styles.inlineButtons}>
               <Pressable style={styles.secondaryButton} onPress={() => void seedDummyPosts()}>
                 <Text style={styles.secondaryButtonText}>Tạo 3 bài mẫu</Text>
@@ -1039,7 +1075,7 @@ export default function AdminManageContentScreen() {
               {(snapshot?.posts ?? []).map((post) => (
                 <View key={post.id} style={styles.rowCard}>
                   <ItemThumbnail uri={post.coverImageUrl} label={post.title} />
-                  <Pressable style={styles.rowCopy} onPress={() => setPostForm(buildPostForm(post))}>
+                  <Pressable style={styles.rowCopy} onPress={() => void router.push(`/(admin)/manage-content-post/${post.id}` as never)}>
                     <Text style={styles.rowTitle}>{post.title}</Text>
                     <Text style={styles.rowSubtitle}>{post.status} · {post.contentType} · nguồn {post.sourcePlatform}</Text>
                   </Pressable>

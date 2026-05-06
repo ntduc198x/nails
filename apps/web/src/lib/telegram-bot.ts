@@ -670,7 +670,7 @@ export async function handleBookingCommand(orgId: string, chatId: string) {
     if (b.customer_phone) lines.push(`   SĐT: ${b.customer_phone}`);
   }
 
-  lines.push("", `👉 ${publicBaseUrl}/manage/booking-requests`);
+  lines.push("", `👉 ${publicBaseUrl}/manage/appointments?tab=web-booking`);
   keyboardRows.push([{ text: "◀️ Quay lại", callback_data: "menu:admin" }]);
 
   await sendManagedReplyPanel(chatId, lines.join("\n"), { inline_keyboard: keyboardRows });
@@ -1784,7 +1784,7 @@ export async function handleQuickCheckinAction(orgId: string, chatId: string, ap
 
 export async function handleBookingDetailCommand(orgId: string, chatId: string, bookingId: string) {
   const supabase = getAdminSupabase();
-  const manageUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://chambeauty.io.vn"}/manage/booking-requests`;
+  const manageUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://chambeauty.io.vn"}/manage/appointments?tab=web-booking`;
   const isLocalManageUrl = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(manageUrl);
   const { data: booking, error } = await supabase
     .from("booking_requests")

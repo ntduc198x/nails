@@ -345,7 +345,7 @@ export async function loadManageNotifications(role: AppRole) {
       kind: "booking_request" as const,
       title: row.status === "NEEDS_RESCHEDULE" ? "Booking cần đổi lịch" : "Booking mới từ web",
       message: `${row.customer_name} · ${row.requested_service || "Dịch vụ chưa rõ"} · ${formatTime(row.requested_start_at)} ${formatDate(row.requested_start_at)}.`,
-      href: "/manage/booking-requests",
+      href: "/manage/appointments?tab=web-booking",
       createdAt: row.created_at,
       actionRequired: true,
     })),

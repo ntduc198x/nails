@@ -1,22 +1,77 @@
 import Feather from "@expo/vector-icons/Feather";
 import { router } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { MEMBERSHIP } from "@/src/features/customer/data";
 import { CustomerScreen, CustomerTopActions, SurfaceCard } from "@/src/features/customer/ui";
 import { premiumTheme } from "@/src/design/premium-theme";
+import { useCustomerMembership } from "@/src/hooks/use-customer-membership";
 
 const { colors, radius } = premiumTheme;
 
-const PERKS = [
-  { icon: "star", title: "Tich diem doi qua", detail: "Nhan diem moi khi su dung dich vu va doi qua trong tai khoan thanh vien." },
-  { icon: "gift", title: "Qua tang sinh nhat", detail: "Nhan quyen loi rieng trong thang sinh nhat cua ban." },
-  { icon: "calendar", title: "Uu tien dat lich", detail: "Dat lich nhanh hon va uu tien ho tro trong cac khung gio cao diem." },
-  { icon: "tag", title: "Gia thanh vien", detail: "Tat ca uu dai va voucher se duoc tap trung tai day." },
-] as const;
+function formatNumber(value: number) {
+  return value.toLocaleString("vi-VN");
+}
+
+function formatDate(value: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString("vi-VN");
+}
+
+function buildHelperText(input: {
+  hasMembership: boolean;
+  nextTierName: string | null;
+  pointsBalance: number;
+  totalSpent: number;
+  totalVisits: number;
+  expiresAt: string | null;
+}) {
+  if (!input.hasMembership) {
+    return "Dang san sang kich hoat the thanh vien that tu du lieu cua cua hang.";
+  }
+
+  if (input.nextTierName) {
+    return `Dang tich luy ${formatNumber(input.pointsBalance)} diem. Muc chi tieu hien tai ${formatNumber(input.totalSpent)} va ${formatNumber(input.totalVisits)} luot hen, muc tieu tiep theo la ${input.nextTierName}.`;
+  }
+
+  const expiresText = formatDate(input.expiresAt);
+  if (expiresText) {
+    return `Ban dang o hang cao nhat. Quyen loi hien tai co hieu luc den ${expiresText}.`;
+  }
+
+  return "Ban dang o hang cao nhat va co the tiep tuc su dung cac quyen loi hien co.";
+}
 
 export default function MembershipScreen() {
+  const {
+    currentTier,
+    expiresAt,
+    hasMembership,
+    isLoading,
+    offers,
+    perks,
+    pointsBalance,
+    progress,
+    refresh,
+    totalSpent,
+    totalVisits,
+    nextTier,
+  } = useCustomerMembership();
+
+  const tierName = currentTier?.name || "Thanh vien";
+  const tierAccent = currentTier?.accentColor || "#efc26d";
+  const helperText = buildHelperText({
+    hasMembership,
+    nextTierName: nextTier?.name ?? null,
+    pointsBalance,
+    totalSpent,
+    totalVisits,
+    expiresAt,
+  });
+  const progressWidth = `${Math.max(0, Math.min(progress, 1)) * 100}%` as `${number}%`;
+
   return (
-    <CustomerScreen hideHeader title="The thanh vien" contentContainerStyle={styles.content} onRefresh={() => {}} refreshing={false}>
+    <CustomerScreen hideHeader title="The thanh vien" contentContainerStyle={styles.content} onRefresh={() => void refresh()} refreshing={isLoading}>
       <View style={styles.headerRow}>
         <Pressable style={styles.backButton} onPress={() => router.back()}>
           <Feather color={colors.text} name="chevron-left" size={22} />
@@ -31,24 +86,24 @@ export default function MembershipScreen() {
 
         <Text style={styles.brand}>CHAM BEAUTY</Text>
         <Text style={styles.tier}>
-          Member <Text style={styles.tierAccent}>{MEMBERSHIP.tier.replace("Member ", "")}</Text>
+          Member <Text style={[styles.tierAccent, { color: tierAccent }]}>{tierName}</Text>
         </Text>
 
         <Text style={styles.pointsLabel}>Diem hien tai</Text>
-        <Text style={styles.points}>{MEMBERSHIP.points} diem</Text>
+        <Text style={styles.points}>{formatNumber(pointsBalance)} diem</Text>
 
         <View style={styles.progressRow}>
           <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${Math.max(0, Math.min(MEMBERSHIP.progress, 1)) * 100}%` }]} />
+            <View style={[styles.progressFill, { width: progressWidth }]} />
           </View>
 
           <View style={styles.heroBadge}>
             <Feather color="#f1c56d" name="award" size={14} />
-            <Text style={styles.heroBadgeText}>Quyen loi</Text>
+            <Text style={styles.heroBadgeText}>{nextTier?.name ? `Len ${nextTier.name}` : "Quyen loi"}</Text>
           </View>
         </View>
 
-        <Text style={styles.helper}>{MEMBERSHIP.renewal}</Text>
+        <Text style={styles.helper}>{helperText}</Text>
 
         <View style={styles.medalShell}>
           <View style={styles.medalOuter}>
@@ -63,27 +118,46 @@ export default function MembershipScreen() {
         <Text style={styles.sectionTitle}>Quyen loi cua ban</Text>
 
         <View style={styles.perkList}>
-          {PERKS.map((perk) => (
-            <SurfaceCard key={perk.title} style={styles.perkCard}>
+          {(perks.length ? perks : ["Khong co quyen loi nao duoc cau hinh cho hang hien tai."]).map((perk) => (
+            <SurfaceCard key={perk} style={styles.perkCard}>
               <View style={styles.perkIcon}>
-                <Feather color={colors.text} name={perk.icon} size={18} />
+                <Feather color={colors.text} name="star" size={18} />
               </View>
 
               <View style={styles.perkCopy}>
-                <Text style={styles.perkTitle}>{perk.title}</Text>
-                <Text style={styles.perkDetail}>{perk.detail}</Text>
+                <Text style={styles.perkTitle}>{perk}</Text>
+                <Text style={styles.perkDetail}>Du lieu quyen loi dang doc truc tiep tu hang thanh vien that.</Text>
               </View>
-
-              <Feather color={colors.textSoft} name="chevron-right" size={18} />
             </SurfaceCard>
           ))}
         </View>
       </View>
 
-      <SurfaceCard style={styles.ctaCard}>
-        <Text style={styles.ctaTitle}>Tat ca uu dai da duoc chuyen vao the thanh vien</Text>
-        <Text style={styles.ctaText}>Tu nay, moi voucher va quyen loi se duoc xem tai day thay vi mot vi uu dai rieng.</Text>
-      </SurfaceCard>
+      <View style={styles.sectionBlock}>
+        <Text style={styles.sectionTitle}>Uu dai dang ap dung</Text>
+
+        <View style={styles.perkList}>
+          {offers.length ? (
+            offers.map((offer) => (
+              <SurfaceCard key={offer.id} style={styles.perkCard}>
+                <View style={styles.perkIcon}>
+                  <Feather color={colors.text} name="tag" size={18} />
+                </View>
+
+                <View style={styles.perkCopy}>
+                  <Text style={styles.perkTitle}>{offer.title}</Text>
+                  <Text style={styles.perkDetail}>{offer.description}</Text>
+                </View>
+              </SurfaceCard>
+            ))
+          ) : (
+            <SurfaceCard style={styles.ctaCard}>
+              <Text style={styles.ctaTitle}>Chua co uu dai dang bat</Text>
+              <Text style={styles.ctaText}>Khi admin cap nhat Landing Feed, uu dai se tu dong hien tai day.</Text>
+            </SurfaceCard>
+          )}
+        </View>
+      </View>
     </CustomerScreen>
   );
 }

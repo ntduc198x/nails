@@ -655,7 +655,7 @@ export default function AdminShiftsScreen() {
             styles.content,
             {
               paddingTop: getAdminHeaderTopPadding(insets.top),
-              paddingBottom: 120 + getAdminBottomBarPadding(insets.bottom),
+              paddingBottom: 112 + getAdminBottomBarPadding(insets.bottom),
             },
           ]}
           refreshControl={
@@ -1211,10 +1211,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(255,255,255,0.96)",
-    borderTopWidth: 1,
-    borderTopColor: "rgba(47, 36, 29, 0.05)",
-    paddingTop: 8,
-    paddingHorizontal: 14,
+    backgroundColor: "transparent",
+    paddingTop: 6,
+    paddingHorizontal: 16,
   },
 });

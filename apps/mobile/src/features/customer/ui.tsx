@@ -43,7 +43,7 @@ type CustomerScreenProps = {
 };
 
 type NavItem = {
-  href: "/(customer)" | "/(customer)/explore" | "/(customer)/notifications" | "/(customer)/profile";
+  href: "/(customer)" | "/(customer)/explore" | "/(customer)/membership" | "/(customer)/profile";
   icon: React.ComponentProps<typeof Feather>["name"];
   label: string;
   match: (pathname: string) => boolean;
@@ -52,7 +52,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { href: "/(customer)", icon: "home", label: "Trang chủ", match: (pathname) => pathname === "/" || pathname === "" },
   { href: "/(customer)/explore", icon: "search", label: "Khám phá", match: (pathname) => pathname === "/explore" },
-  { href: "/(customer)/notifications", icon: "bell", label: "Thông báo", match: (pathname) => pathname === "/notifications" },
+  { href: "/(customer)/membership", icon: "award", label: "Thẻ thành viên", match: (pathname) => pathname === "/membership" },
   { href: "/(customer)/profile", icon: "user", label: "Cá nhân", match: (pathname) => PROFILE_PATHS.has(pathname) },
 ];
 
@@ -140,8 +140,8 @@ export function CustomerScreen({
 export function CustomerTopActions() {
   return (
     <View style={styles.topActions}>
-      <Pressable style={styles.topIconButton} onPress={() => router.replace("/(customer)/membership")}>
-        <Feather color={colors.text} name="award" size={18} />
+      <Pressable style={styles.topIconButton} onPress={() => router.replace("/(customer)/notifications")}>
+        <Feather color={colors.text} name="bell" size={18} />
         <View style={styles.topDot} />
       </Pressable>
       <Pressable style={styles.topIconButton} onPress={() => router.replace("/(customer)/settings")}>

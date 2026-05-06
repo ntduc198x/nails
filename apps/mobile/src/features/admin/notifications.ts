@@ -116,7 +116,10 @@ function pickCustomerName(
 function mapNotificationHref(kind: ManageNotificationKind): Href {
   switch (kind) {
     case "booking_request":
-      return "/(admin)/booking";
+      return {
+        pathname: "/(admin)/scheduling",
+        params: { tab: "bookings" },
+      };
     case "customer_arrival_overdue":
     case "customer_checked_in":
     case "customer_checked_in_stale":

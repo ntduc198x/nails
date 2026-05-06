@@ -1,10 +1,10 @@
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAdminOperations } from "@/src/hooks/use-admin-operations";
-import { addMinutesToIso, AdminBottomNav } from "@/src/features/admin/ui";
+import { addMinutesToIso, AdminBottomNavDock, getAdminBottomBarPadding } from "@/src/features/admin/ui";
 import { getAdminNavHref } from "@/src/features/admin/navigation";
 
 const palette = {
@@ -36,7 +36,6 @@ type BookingRequestDetailProps = {
   staffOptions: ReturnType<typeof useAdminOperations>["staffOptions"];
   user: ReturnType<typeof useAdminOperations>["user"];
   convertBookingRequest: ReturnType<typeof useAdminOperations>["convertBookingRequest"];
-  newBookingCount: number;
 };
 
 function getInitials(name: string) {
@@ -136,7 +135,6 @@ function BookingRequestEditor({
   staffOptions,
   user,
   convertBookingRequest,
-  newBookingCount,
 }: BookingRequestDetailProps) {
   const [scheduledDateInput, setScheduledDateInput] = useState(() => toLocalDateInput(booking.requestedStartAt));
   const [scheduledTimeInput, setScheduledTimeInput] = useState(() => toLocalTimeInput(booking.requestedStartAt));
@@ -549,7 +547,7 @@ export default function BookingRequestDetailScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingTop: insets.top + 8, paddingBottom: 100 + insets.bottom },
+          { paddingTop: insets.top + 8, paddingBottom: 108 + getAdminBottomBarPadding(insets.bottom) },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -596,21 +594,19 @@ export default function BookingRequestDetailScreen() {
             staffOptions={staffOptions}
             user={user}
             convertBookingRequest={convertBookingRequest}
-            newBookingCount={newBookingCount}
           />
         )}
       </ScrollView>
 
       {/* Bottom Navigation */}
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 8 }]}>
-        <AdminBottomNav
-          current="booking"
-          role={role}
-          onNavigate={(target) => {
-            void router.replace(getAdminNavHref(target, role));
-          }}
-        />
-      </View>
+      <AdminBottomNavDock
+        current="booking"
+        role={role}
+        insetBottom={insets.bottom}
+        onNavigate={(target) => {
+          void router.replace(getAdminNavHref(target, role));
+        }}
+      />
     </View>
   );
 }
@@ -950,11 +946,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(255,255,255,0.98)",
-    borderTopWidth: 1,
-    borderTopColor: palette.border,
-    paddingHorizontal: 14,
-    paddingTop: 8,
+    backgroundColor: "transparent",
+    paddingHorizontal: 16,
+    paddingTop: 6,
   },
   modalOverlay: {
     flex: 1,

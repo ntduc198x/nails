@@ -1,9 +1,9 @@
 ﻿import Feather from "@expo/vector-icons/Feather";
 import { useMemo, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { AdminBottomNav, AdminHeaderActions, getAdminBottomBarPadding, getAdminHeaderTopPadding } from "@/src/features/admin/ui";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { AdminBottomNavDock, AdminHeaderActions, getAdminHeaderTopPadding } from "@/src/features/admin/ui";
 import { getAdminNavHref } from "@/src/features/admin/navigation";
 import { useAdminOperations } from "@/src/hooks/use-admin-operations";
 
@@ -22,6 +22,8 @@ const palette = {
 };
 
 type SchedulingFilter = "ALL" | "BOOKED" | "CHECKED_IN" | "DONE" | "OTHER";
+type SchedulingTab = "appointments" | "bookings";
+type BookingStatusGroup = "NEW" | "NEEDS_RESCHEDULE";
 
 const FILTER_OPTIONS = [
   { value: "ALL" as const, label: "Tất cả" },
@@ -29,6 +31,11 @@ const FILTER_OPTIONS = [
   { value: "CHECKED_IN" as const, label: "Đang phục vụ" },
   { value: "DONE" as const, label: "Hoàn tất" },
   { value: "OTHER" as const, label: "Khác" },
+];
+
+const TAB_OPTIONS: Array<{ key: SchedulingTab; label: string }> = [
+  { key: "appointments", label: "Lịch hẹn" },
+  { key: "bookings", label: "Booking web" },
 ];
 
 const STATUS_META = {
@@ -45,6 +52,11 @@ const STATUS_WEIGHT: Record<string, number> = {
   DONE: 2,
   NO_SHOW: 3,
   CANCELLED: 4,
+};
+
+const BOOKING_STATUS_WEIGHT: Record<BookingStatusGroup, number> = {
+  NEW: 0,
+  NEEDS_RESCHEDULE: 1,
 };
 
 function normalizeFilter(value: string | string[] | undefined): SchedulingFilter {
@@ -93,23 +105,46 @@ function combineDateAndTimeToIso(dateValue: string, timeValue: string) {
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 }
 
+function getBookingStatusLabel(status: BookingStatusGroup) {
+  return status === "NEW" ? "Moi" : "Can doi lich";
+}
+
+function getBookingSourceLabel(source: string | null) {
+  if (!source) return "Khach tu do";
+  if (source === "landing_page") return "Landing web";
+  if (source === "mobile_guest") return "Mobile guest";
+  return source.replace(/_/g, " ");
+}
+
+function normalizePhone(raw: string | null | undefined) {
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return null;
+  if (digits.startsWith("84") && digits.length >= 11) {
+    return `0${digits.slice(2)}`;
+  }
+  return digits;
+}
+
 export default function AdminSchedulingScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ filter?: string }>();
+  const params = useLocalSearchParams<{ filter?: string; tab?: string }>();
   const {
     appointments,
+    bookingRequests,
     resourceOptions,
     role,
     staffOptions,
     user,
+    customerCrmByPhone,
     loading,
     mutating,
-    reload,
     saveAppointment,
   } = useAdminOperations();
 
   const [filterOverride, setFilterOverride] = useState<SchedulingFilter | null>(null);
+  const activeTab: SchedulingTab = params.tab === "bookings" ? "bookings" : "appointments";
   const [customerName, setCustomerName] = useState("");
   const defaultStartAt = useMemo(() => createDefaultStartAt(), []);
   const [dateInput, setDateInput] = useState(() => toDateInput(defaultStartAt));
@@ -195,6 +230,29 @@ export default function AdminSchedulingScreen() {
     });
   }, [activeFilter, appointments]);
 
+  const visibleBookingRequests = useMemo(
+    () =>
+      [...bookingRequests]
+        .filter(
+          (item): item is typeof item & { status: BookingStatusGroup } =>
+            item.status === "NEW" || item.status === "NEEDS_RESCHEDULE",
+        )
+        .sort((left, right) => {
+          const statusDelta = BOOKING_STATUS_WEIGHT[left.status] - BOOKING_STATUS_WEIGHT[right.status];
+          if (statusDelta !== 0) return statusDelta;
+          return new Date(left.requestedStartAt).getTime() - new Date(right.requestedStartAt).getTime();
+        }),
+    [bookingRequests],
+  );
+
+  const groupedBookingRequests = useMemo(
+    () => ({
+      NEW: visibleBookingRequests.filter((item) => item.status === "NEW"),
+      NEEDS_RESCHEDULE: visibleBookingRequests.filter((item) => item.status === "NEEDS_RESCHEDULE"),
+    }),
+    [visibleBookingRequests],
+  );
+
   async function handleCreateAppointment() {
     const startAt = combineDateAndTimeToIso(dateInput, timeInput);
     const duration = Number(durationMinutes);
@@ -216,7 +274,7 @@ export default function AdminSchedulingScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={["top"]}>
       <ScrollView
         contentContainerStyle={[styles.content, { paddingTop: getAdminHeaderTopPadding(insets.top), paddingBottom: 112 + Math.max(insets.bottom, 8) }]}
         showsVerticalScrollIndicator={false}
@@ -312,72 +370,187 @@ export default function AdminSchedulingScreen() {
         </View>
 
         <View style={styles.card}>
-          <View style={styles.filterWrap}>
-            {FILTER_OPTIONS.map((option) => {
-              const active = activeFilter === option.value;
+          <View style={styles.tabWrap}>
+            {TAB_OPTIONS.map((option) => {
+              const active = activeTab === option.key;
               return (
                 <Pressable
-                  key={option.value}
-                  onPress={() => setFilterOverride(option.value)}
-                  style={[styles.filterChip, active ? styles.filterChipActive : null]}
+                  key={option.key}
+                  onPress={() =>
+                    void router.replace({
+                      pathname: "/(admin)/scheduling",
+                      params: option.key === "bookings" ? { tab: "bookings" } : {},
+                    })
+                  }
+                  style={[styles.tabChip, active ? styles.tabChipActive : null]}
                 >
-                  <Text style={[styles.filterChipText, active ? styles.filterChipTextActive : null]}>
-                    {option.label}
-                  </Text>
+                  <Text style={[styles.tabChipText, active ? styles.tabChipTextActive : null]}>{option.label}</Text>
                 </Pressable>
               );
             })}
           </View>
         </View>
 
+        {activeTab === "appointments" ? (
+          <View style={styles.card}>
+            <View style={styles.filterWrap}>
+              {FILTER_OPTIONS.map((option) => {
+                const active = activeFilter === option.value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    onPress={() => setFilterOverride(option.value)}
+                    style={[styles.filterChip, active ? styles.filterChipActive : null]}
+                  >
+                    <Text style={[styles.filterChipText, active ? styles.filterChipTextActive : null]}>
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
         <View style={styles.card}>
           <View style={styles.listWrap}>
-          {filteredAppointments.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyText}>{loading ? "Đang tải lịch..." : "Chưa có lịch phù hợp"}</Text>
-            </View>
-          ) : null}
+            {activeTab === "appointments" && filteredAppointments.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyText}>{loading ? "Đang tải lịch..." : "Chưa có lịch phù hợp"}</Text>
+              </View>
+            ) : null}
 
-          {filteredAppointments.map((item) => {
-            const meta = STATUS_META[item.status as keyof typeof STATUS_META] ?? STATUS_META.NO_SHOW;
-            const dateTime = toHumanDateTime(item.startAt);
-            const actionable = item.status === "BOOKED" || item.status === "CHECKED_IN";
+            {activeTab === "bookings" && visibleBookingRequests.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyText}>{loading ? "Đang tải booking..." : "Chưa có booking web cần xử lý"}</Text>
+              </View>
+            ) : null}
 
-            return (
-              <Pressable
-                key={item.id}
-                onPress={() => {
-                  if (!actionable) return;
-                  void router.push({
-                    pathname: "/(admin)/scheduling/[appointmentId]",
-                    params: { appointmentId: item.id },
-                  });
-                }}
-                style={styles.appointmentCard}
-              >
-                <View style={styles.appointmentAvatar}>
-                  <Text style={styles.appointmentAvatarText}>{item.customerName.slice(0, 1)}</Text>
-                </View>
+            {activeTab === "appointments"
+              ? filteredAppointments.map((item) => {
+                  const meta = STATUS_META[item.status as keyof typeof STATUS_META] ?? STATUS_META.NO_SHOW;
+                  const dateTime = toHumanDateTime(item.startAt);
+                  const actionable = item.status === "BOOKED" || item.status === "CHECKED_IN";
 
-                <View style={styles.appointmentCopy}>
-                  <View style={styles.appointmentHeaderRow}>
-                    <Text numberOfLines={1} style={styles.appointmentName}>
-                      {item.customerName}
-                    </Text>
-                    <View style={[styles.statusPill, { backgroundColor: meta.bg }]}>
-                      <Text style={[styles.statusPillText, { color: meta.fg }]}>{meta.label}</Text>
+                  return (
+                    <Pressable
+                      key={item.id}
+                      onPress={() => {
+                        if (!actionable) return;
+                        void router.push({
+                          pathname: "/(admin)/scheduling/[appointmentId]",
+                          params: { appointmentId: item.id },
+                        });
+                      }}
+                      style={styles.appointmentCard}
+                    >
+                      <View style={styles.appointmentAvatar}>
+                        <Text style={styles.appointmentAvatarText}>{item.customerName.slice(0, 1)}</Text>
+                      </View>
+
+                      <View style={styles.appointmentCopy}>
+                        <View style={styles.appointmentHeaderRow}>
+                          <Text numberOfLines={1} style={styles.appointmentName}>
+                            {item.customerName}
+                          </Text>
+                          <View style={[styles.statusPill, { backgroundColor: meta.bg }]}>
+                            <Text style={[styles.statusPillText, { color: meta.fg }]}>{meta.label}</Text>
+                          </View>
+                        </View>
+                        <Text style={styles.appointmentMeta}>
+                          {dateTime.time} • {dateTime.date}
+                        </Text>
+                        <Text style={styles.appointmentPhone}>{item.customerPhone ?? "-"}</Text>
+                      </View>
+
+                      <Feather color={palette.mutedSoft} name="chevron-right" size={20} />
+                    </Pressable>
+                  );
+                })
+              : (["NEW", "NEEDS_RESCHEDULE"] as const).map((groupKey) => {
+                  const rows = groupedBookingRequests[groupKey];
+                  if (!rows.length) return null;
+
+                  return (
+                    <View key={groupKey} style={styles.bookingSection}>
+                      <View style={styles.bookingSectionHeader}>
+                        <Text style={styles.bookingSectionTitle}>
+                          {groupKey === "NEW" ? "Booking moi" : "Can doi lich"}
+                        </Text>
+                        <Text style={styles.bookingSectionCount}>{rows.length}</Text>
+                      </View>
+
+                      {rows.map((item) => {
+                        const dateTime = toHumanDateTime(item.requestedStartAt);
+                        const crm = customerCrmByPhone[normalizePhone(item.customerPhone) ?? ""] ?? null;
+
+                        return (
+                          <Pressable
+                            key={item.id}
+                            onPress={() =>
+                              void router.push({
+                                pathname: "/booking-request/[bookingRequestId]",
+                                params: { bookingRequestId: item.id },
+                              })
+                            }
+                            style={styles.appointmentCard}
+                          >
+                            <View style={styles.appointmentAvatar}>
+                              <Text style={styles.appointmentAvatarText}>{item.customerName.slice(0, 1)}</Text>
+                            </View>
+
+                            <View style={styles.appointmentCopy}>
+                              <View style={styles.appointmentHeaderRow}>
+                                <Text numberOfLines={1} style={styles.appointmentName}>
+                                  {item.customerName}
+                                </Text>
+                                <View
+                                  style={[
+                                    styles.statusPill,
+                                    {
+                                      backgroundColor: groupKey === "NEW" ? "#fff2e7" : "#f7efe8",
+                                    },
+                                  ]}
+                                >
+                                  <Text
+                                    style={[
+                                      styles.statusPillText,
+                                      {
+                                        color: groupKey === "NEW" ? "#d97706" : "#8b5e34",
+                                      },
+                                    ]}
+                                  >
+                                    {getBookingStatusLabel(groupKey)}
+                                  </Text>
+                                </View>
+                              </View>
+                              <Text style={styles.appointmentMeta}>
+                                {dateTime.time} • {dateTime.date} • {getBookingSourceLabel(item.source)}
+                              </Text>
+                              <Text style={styles.bookingDetailLine}>{item.requestedService ?? "Chua chon dich vu"}</Text>
+                              <Text style={styles.bookingDetailLine}>
+                                {item.customerPhone ?? "-"}
+                                {item.preferredStaff ? ` • Uu tien: ${item.preferredStaff}` : ""}
+                              </Text>
+                              {crm ? (
+                                <Text style={styles.bookingCrmLine}>
+                                  CRM: {crm.customerStatus} • {crm.totalVisits} luot • {crm.totalSpend.toLocaleString("vi-VN")} VND
+                                </Text>
+                              ) : null}
+                              {item.note ? (
+                                <Text numberOfLines={2} style={styles.bookingNoteLine}>
+                                  Ghi chu: {item.note}
+                                </Text>
+                              ) : null}
+                            </View>
+
+                            <Feather color={palette.mutedSoft} name="chevron-right" size={20} />
+                          </Pressable>
+                        );
+                      })}
                     </View>
-                  </View>
-                  <Text style={styles.appointmentMeta}>
-                    {dateTime.time} • {dateTime.date}
-                  </Text>
-                  <Text style={styles.appointmentPhone}>{item.customerPhone ?? "-"}</Text>
-                </View>
-
-                <Feather color={palette.mutedSoft} name="chevron-right" size={20} />
-              </Pressable>
-            );
-          })}
+                  );
+                })}
           </View>
         </View>
       </ScrollView>
@@ -460,9 +633,7 @@ export default function AdminSchedulingScreen() {
         </Pressable>
       </Modal>
 
-      <View style={[styles.footerShell, { paddingBottom: getAdminBottomBarPadding(insets.bottom) }]}>
-        <AdminBottomNav current="scheduling" role={role} onNavigate={(target) => void router.replace(getAdminNavHref(target, role))} />
-      </View>
+      <AdminBottomNavDock current="scheduling" role={role} insetBottom={insets.bottom} onNavigate={(target) => void router.replace(getAdminNavHref(target, role))} />
     </SafeAreaView>
   );
 }
@@ -679,6 +850,33 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
   },
+  tabWrap: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  tabChip: {
+    alignItems: "center",
+    backgroundColor: "#fffdfa",
+    borderColor: "#ece0d5",
+    borderRadius: 999,
+    borderWidth: 1,
+    flex: 1,
+    justifyContent: "center",
+    minHeight: 40,
+    paddingHorizontal: 14,
+  },
+  tabChipActive: {
+    backgroundColor: "#4a3528",
+    borderColor: "#4a3528",
+  },
+  tabChipText: {
+    color: "#6c5d52",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  tabChipTextActive: {
+    color: "#fff",
+  },
   filterWrap: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -708,6 +906,26 @@ const styles = StyleSheet.create({
   },
   listWrap: {
     gap: 10,
+  },
+  bookingSection: {
+    gap: 8,
+  },
+  bookingSectionHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 2,
+  },
+  bookingSectionTitle: {
+    color: "#2b241f",
+    fontSize: 13,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  bookingSectionCount: {
+    color: "#7f7064",
+    fontSize: 12,
+    fontWeight: "700",
   },
   appointmentCard: {
     alignItems: "center",
@@ -760,6 +978,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "500",
   },
+  bookingDetailLine: {
+    color: "#6f6155",
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  bookingCrmLine: {
+    color: "#6b4db5",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  bookingNoteLine: {
+    color: "#8b5e34",
+    fontSize: 11,
+    fontWeight: "500",
+    lineHeight: 16,
+  },
   statusPill: {
     borderRadius: 999,
     paddingHorizontal: 8,
@@ -784,11 +1018,9 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   footerShell: {
-    backgroundColor: "#fffaf5",
-    borderTopColor: "#eadbc8",
-    borderTopWidth: 1,
-    paddingHorizontal: 14,
-    paddingTop: 8,
+    backgroundColor: "transparent",
+    paddingHorizontal: 16,
+    paddingTop: 6,
   },
   field: {
     alignItems: "center",

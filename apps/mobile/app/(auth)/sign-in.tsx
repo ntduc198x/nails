@@ -3,15 +3,16 @@ import { Redirect } from "expo-router";
 import { useMemo, useState } from "react";
 import {
   Image,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { premiumTheme } from "@/src/design/premium-theme";
 import { useSession } from "@/src/providers/session-provider";
 
@@ -124,8 +125,18 @@ export default function SignInScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 24 : 0}
+        style={styles.keyboardShell}
+      >
+        <ScrollView
+          automaticallyAdjustKeyboardInsets
+          contentContainerStyle={styles.scrollContent}
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+          keyboardShouldPersistTaps="handled"
+        >
         <View style={styles.brandMark}>
           <Text style={styles.brandMarkText}>C</Text>
         </View>
@@ -316,7 +327,8 @@ export default function SignInScreen() {
           </Pressable>
           <Feather color="#C08A63" name="message-circle" size={14} />
         </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -416,10 +428,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FCFAF8",
   },
+  keyboardShell: {
+    flex: 1,
+  },
   scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 16,
-    paddingBottom: 24,
+    paddingBottom: 40,
   },
   brandMark: {
     alignItems: "center",

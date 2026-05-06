@@ -14,7 +14,10 @@ export default function AdminTabsLayout() {
       <Tabs.Screen name="index" options={{ tabBarButton: () => null }} />
       <Tabs.Screen name="overview" options={{ tabBarButton: () => null }} />
       <Tabs.Screen name="queue" options={{ tabBarButton: () => null }} />
-      <Tabs.Screen name="booking" options={{ title: "Booking" }} />
+      <Tabs.Screen name="booking" options={{ title: "Landing Feed" }} />
+      <Tabs.Screen name="manage-content" options={{ tabBarButton: () => null }} />
+      <Tabs.Screen name="manage-content-offer/[offerId]" options={{ tabBarButton: () => null }} />
+      <Tabs.Screen name="manage-content-post/[postId]" options={{ tabBarButton: () => null }} />
       <Tabs.Screen name="scheduling" options={{ title: "\u0110i\u1ec1u ph\u1ed1i" }} />
       <Tabs.Screen name="scheduling/[appointmentId]" options={{ tabBarButton: () => null }} />
       <Tabs.Screen name="checkout" options={{ title: "Thu ti\u1ec1n" }} />

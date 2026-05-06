@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { FALLBACK_SERVICES } from "@/src/features/customer/data";
@@ -19,7 +20,7 @@ type FilterKey = (typeof FILTERS)[number]["key"];
 export default function FavoritesScreen() {
   const [activeFilter, setActiveFilter] = useState<FilterKey>("lookbook");
   const { isLoading, refresh, services } = useLookbookServices(FALLBACK_SERVICES);
-  const { favoriteIds, toggleFavorite } = useCustomerFavorites();
+  const { favoriteIds, isHydrated, toggleFavorite } = useCustomerFavorites();
 
   const items = useMemo(
     () => services.filter((service) => favoriteIds.includes(service.id)),
@@ -32,7 +33,16 @@ export default function FavoritesScreen() {
 
       <View style={styles.list}>
         {items.map((service) => (
-          <SurfaceCard key={service.id} style={styles.card}>
+          <Pressable
+            key={service.id}
+            onPress={() =>
+              router.push({
+                pathname: "/(customer)/booking",
+                params: { service: service.title },
+              })
+            }
+          >
+            <SurfaceCard style={styles.card}>
             <Image alt={service.title} source={{ uri: service.image }} style={styles.image} />
 
             <View style={styles.copy}>
@@ -40,13 +50,20 @@ export default function FavoritesScreen() {
               <Text style={styles.price}>{service.price}</Text>
             </View>
 
-            <Pressable style={styles.heartWrap} onPress={() => void toggleFavorite(service.id)}>
+              <Pressable
+                style={styles.heartWrap}
+                onPress={(event) => {
+                  event.stopPropagation();
+                  void toggleFavorite(service.id);
+                }}
+              >
               <Text style={styles.heart}>♥</Text>
             </Pressable>
-          </SurfaceCard>
+            </SurfaceCard>
+          </Pressable>
         ))}
 
-        {!items.length ? (
+        {isHydrated && !items.length ? (
           <SurfaceCard>
             <Text style={styles.emptyTitle}>Chưa có mẫu yêu thích</Text>
             <Text style={styles.emptyText}>Nhấn vào biểu tượng tim ở màn Khám phá để lưu các mẫu bạn muốn xem lại.</Text>

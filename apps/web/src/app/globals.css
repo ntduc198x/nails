@@ -4187,6 +4187,34 @@ img {
   margin: 0 auto;
 }
 
+.landing-auth-page__container--narrow {
+  width: min(100%, 640px);
+}
+
+.landing-auth-page__panel {
+  width: min(100%, 560px);
+  margin: 0 auto;
+}
+
+.landing-auth-page--login {
+  display: grid;
+  place-items: center;
+}
+
+.landing-auth-page--login .landing-auth-page__shell {
+  width: 100%;
+}
+
+.landing-auth-page--login .landing-account-page {
+  align-items: center;
+  width: 100%;
+}
+
+.landing-auth-page--login .landing-account-page__topbar,
+.landing-auth-page--login .landing-auth-page__panel {
+  width: min(100%, 560px);
+}
+
 .landing-account-page {
   display: flex;
   flex-direction: column;
@@ -4196,7 +4224,7 @@ img {
 .landing-account-page__topbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 16px;
 }
 

@@ -13,7 +13,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { AdminBottomNav, AdminHeaderActions, createCheckoutKey, formatVnd, getAdminBottomBarPadding, getAdminHeaderTopPadding } from "@/src/features/admin/ui";
+import { AdminBottomNavDock, AdminHeaderActions, createCheckoutKey, formatVnd, getAdminBottomBarPadding, getAdminHeaderTopPadding } from "@/src/features/admin/ui";
 import { getAdminNavHref } from "@/src/features/admin/navigation";
 import { useAdminOperations } from "@/src/hooks/use-admin-operations";
 import { mobileEnv } from "@/src/lib/env";
@@ -69,8 +69,8 @@ export default function AdminCheckoutScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ appointmentId?: string }>();
   const insets = useSafeAreaInsets();
-  const { signOut, isBusy: sessionBusy } = useSession();
-  const { appointments, checkoutServices, createCheckout, reload, loading, role, techShiftOpen, user, busyTargetId, error, mutating } =
+  useSession();
+  const { appointments, checkoutServices, createCheckout, reload, loading, role, techShiftOpen, busyTargetId, error, mutating } =
     useAdminOperations();
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
   const [checkoutCustomerName] = useState("");
@@ -371,9 +371,7 @@ export default function AdminCheckoutScreen() {
           ) : null}
         </ScrollView>
 
-        <View style={[styles.bottomBar, { paddingBottom: getAdminBottomBarPadding(insets.bottom) }]}>
-          <AdminBottomNav current="checkout" role={role} onNavigate={(target) => void router.replace(getAdminNavHref(target, role))} />
-        </View>
+        <AdminBottomNavDock current="checkout" role={role} insetBottom={insets.bottom} onNavigate={(target) => void router.replace(getAdminNavHref(target, role))} />
       </View>
     </SafeAreaView>
   );
@@ -472,5 +470,5 @@ const styles = StyleSheet.create({
   accountText: { fontSize: 14, lineHeight: 18, color: "#4F443A", flex: 1 },
   signOutButton: { minHeight: 34, borderRadius: 17, backgroundColor: palette.beige, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
   signOutText: { fontSize: 13, lineHeight: 16, color: palette.brown, fontWeight: "700" },
-  bottomBar: { position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: "rgba(255,255,255,0.98)", borderTopWidth: 1, borderTopColor: palette.border, paddingHorizontal: 14, paddingTop: 8 },
+  bottomBar: { position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: "transparent", paddingHorizontal: 16, paddingTop: 6 },
 });

@@ -16,4 +16,6 @@ export * from "./team";
 export * from "./tax-books";
 export * from "./customer-feed";
 export * from "./customer-explore";
+export * from "./customer-personalization";
+export * from "./admin-content";
 export * from "./auto-schedule";

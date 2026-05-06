@@ -8,15 +8,15 @@ import { SessionActions, useSession } from "@/src/providers/session-provider";
 import { getAdminProfileDestination, isOwnerRole, type AdminNavTarget } from "@/src/features/admin/navigation";
 
 export type AppointmentFilter = "ALL" | "BOOKED" | "CHECKED_IN" | "DONE" | "NO_SHOW" | "CANCELLED";
-export const ADMIN_HEADER_TOP_OFFSET = 12;
+export const ADMIN_HEADER_TOP_OFFSET = 8;
 export const ADMIN_BOTTOM_BAR_BOTTOM_OFFSET = 0;
 
 export function getAdminBottomBarPadding(insetBottom: number) {
-  return ADMIN_BOTTOM_BAR_BOTTOM_OFFSET + Math.max(insetBottom, 6);
+  return ADMIN_BOTTOM_BAR_BOTTOM_OFFSET + Math.max(insetBottom, 8);
 }
 
 export function getAdminHeaderTopPadding(insetTop: number) {
-  return Math.max(insetTop, 10) + ADMIN_HEADER_TOP_OFFSET;
+  return Math.max(insetTop, 8) + ADMIN_HEADER_TOP_OFFSET;
 }
 
 const ADMIN_NAV_ITEMS: Array<{
@@ -24,7 +24,7 @@ const ADMIN_NAV_ITEMS: Array<{
   label: string;
   icon: React.ComponentProps<typeof Feather>["name"];
 }> = [
-  { key: "booking", label: "Booking", icon: "calendar" },
+  { key: "booking", label: "Landing", icon: "layout" },
   { key: "scheduling", label: "\u0110i\u1ec1u ph\u1ed1i", icon: "users" },
   { key: "checkout", label: "Thu ti\u1ec1n", icon: "briefcase" },
   { key: "profile", label: "C\u00e1 nh\u00e2n", icon: "user" },
@@ -258,6 +258,24 @@ export function AdminBottomNav({
   );
 }
 
+export function AdminBottomNavDock({
+  current,
+  role,
+  insetBottom,
+  onNavigate,
+}: {
+  current: AdminNavTarget | null;
+  role: string | null | undefined;
+  insetBottom: number;
+  onNavigate: (target: AdminNavTarget) => void;
+}) {
+  return (
+    <View style={[styles.bottomNavDock, { paddingBottom: getAdminBottomBarPadding(insetBottom) }]}>
+      <AdminBottomNav current={current} role={role} onNavigate={onNavigate} />
+    </View>
+  );
+}
+
 export function AdminHeaderActions({
   onSettingsPress,
 }: {
@@ -277,8 +295,7 @@ export function AdminHeaderActions({
   useEffect(() => {
     if (!notificationsOpen) return;
     void markSeen();
-    setNotificationTab(actionNotifications.length ? "action" : "feed");
-  }, [actionNotifications.length, markSeen, notificationsOpen]);
+  }, [markSeen, notificationsOpen]);
 
   const visibleNotifications = notificationTab === "action" ? actionNotifications : feedNotifications;
 
@@ -292,7 +309,13 @@ export function AdminHeaderActions({
   return (
     <>
       <View style={styles.headerActions}>
-        <Pressable style={styles.headerIconButton} onPress={() => setNotificationsOpen(true)}>
+        <Pressable
+          style={styles.headerIconButton}
+          onPress={() => {
+            setNotificationTab(actionNotifications.length ? "action" : "feed");
+            setNotificationsOpen(true);
+          }}
+        >
           <View>
             <Feather name="bell" size={20} color="#2b241f" />
             {unreadCount > 0 ? (
@@ -768,26 +791,35 @@ export const styles = StyleSheet.create({
   },
   footerShell: {
     backgroundColor: "transparent",
-    paddingHorizontal: 14,
-    paddingTop: 8,
-    paddingBottom: 8,
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 0,
+  },
+  bottomNavDock: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 12,
+    paddingTop: 4,
   },
   bottomNav: {
+    width: "100%",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 6,
-    borderRadius: 24,
+    gap: 4,
+    borderRadius: 28,
     borderWidth: 1,
-    borderColor: "#efe4d8",
-    backgroundColor: "rgba(255,255,255,0.96)",
+    borderColor: "#ead7c6",
+    backgroundColor: "rgba(255,250,244,0.98)",
     paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingVertical: 8,
     shadowColor: "#2a1e14",
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 4,
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 6,
   },
   bottomNavItem: {
     flex: 1,
@@ -1000,27 +1032,27 @@ export const styles = StyleSheet.create({
   },
   bottomNavPill: {
     minWidth: 76,
-    height: 50,
-    borderRadius: 16,
+    height: 54,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    gap: 3,
+    gap: 4,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 7,
   },
   bottomNavPillActive: {
-    backgroundColor: "#f4ece3",
+    backgroundColor: "#f6e7d6",
   },
   bottomNavText: {
     textAlign: "center",
-    color: "#9e9184",
+    color: "#8c7e71",
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: "700",
     letterSpacing: -0.1,
   },
   bottomNavTextActive: {
     color: "#2b241f",
-    fontWeight: "600",
+    fontWeight: "800",
   },
   ticketRow: {
     flexDirection: "row",

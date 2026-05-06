@@ -5,6 +5,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import type { CustomerContentPost, LookbookItem, MarketingOfferCard } from "@nails/shared";
 import { CustomerScreen, CustomerTopActions, PrimaryButton, SectionTitle, SurfaceCard } from "@/src/features/customer/ui";
 import { useCustomerHomeFeed } from "@/src/hooks/use-customer-home-feed";
+import { useCustomerFavorites } from "@/src/hooks/use-customer-favorites";
 import { premiumTheme } from "@/src/design/premium-theme";
 
 const { colors, radius, shadow } = premiumTheme;
@@ -38,6 +39,7 @@ function getPostTags(post: CustomerContentPost): HomeFilterKey[] {
 export default function CustomerHomeScreen() {
   const [activeFilter, setActiveFilter] = useState<HomeFilterKey>("all");
   const { contentPosts, isLoading, lookbook, offers, refresh } = useCustomerHomeFeed();
+  const { isFavorite, toggleFavorite } = useCustomerFavorites();
 
   const heroImage = lookbook[1]?.image ?? lookbook[0]?.image ?? null;
 
@@ -119,7 +121,12 @@ export default function CustomerHomeScreen() {
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cardsRow}>
           {visibleLookbook.map((item) => (
-            <LookbookCard key={item.id} item={item} />
+            <LookbookCard
+              key={item.id}
+              item={item}
+              favorite={isFavorite(item.id)}
+              onToggleFavorite={() => void toggleFavorite(item.id)}
+            />
           ))}
         </ScrollView>
       </View>
@@ -159,7 +166,15 @@ export default function CustomerHomeScreen() {
   );
 }
 
-function LookbookCard({ item }: { item: LookbookItem }) {
+function LookbookCard({
+  item,
+  favorite,
+  onToggleFavorite,
+}: {
+  item: LookbookItem;
+  favorite: boolean;
+  onToggleFavorite: () => void;
+}) {
   return (
     <Pressable
       style={styles.lookbookCard}
@@ -172,8 +187,14 @@ function LookbookCard({ item }: { item: LookbookItem }) {
     >
       <View>
         <Image alt={item.title} source={{ uri: item.image }} style={styles.lookbookImage} />
-        <Pressable style={styles.favoriteButton}>
-          <Feather color="#f5f0ea" name="heart" size={14} />
+        <Pressable
+          style={styles.favoriteButton}
+          onPress={(event) => {
+            event.stopPropagation();
+            onToggleFavorite();
+          }}
+        >
+          <Feather color={favorite ? "#f97316" : "#f5f0ea"} name="heart" size={14} />
         </Pressable>
       </View>
 

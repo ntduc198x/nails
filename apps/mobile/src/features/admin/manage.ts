@@ -1,4 +1,5 @@
 export type ManageScreenKey =
+  | "content"
   | "customers"
   | "reports"
   | "tax-books"
@@ -12,10 +13,18 @@ export type ManageScreenItem = {
   subtitle: string;
   route: string;
   group: "insights" | "setup";
-  icon: "user-plus" | "bar-chart-2" | "book-open" | "package" | "grid" | "users";
+  icon: "layout" | "user-plus" | "bar-chart-2" | "book-open" | "package" | "grid" | "users";
 };
 
 export const MANAGE_SCREEN_ITEMS: ManageScreenItem[] = [
+  {
+    key: "content",
+    title: "Landing Feed",
+    subtitle: "Home-feed, explore và nội dung đang hiển thị cho customer.",
+    route: "/(admin)/booking",
+    group: "setup",
+    icon: "layout",
+  },
   {
     key: "customers",
     title: "CRM khách",

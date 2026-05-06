@@ -1,45 +1,86 @@
+import { router } from "expo-router";
 import { useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
-import { BOOKING_HISTORY } from "@/src/features/customer/data";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { CustomerScreen, SegmentedTabs, StatusTag, SurfaceCard } from "@/src/features/customer/ui";
 import { premiumTheme } from "@/src/design/premium-theme";
+import { useCustomerHistory } from "@/src/hooks/use-customer-history";
 
 const { colors, spacing } = premiumTheme;
 
 const FILTERS = [
   { key: "all", label: "Tất cả" },
-  { key: "arrived", label: "Đã đến" },
-  { key: "cancelled", label: "Đã hủy" },
+  { key: "recent", label: "Gần đây" },
 ] as const;
 
 type FilterKey = (typeof FILTERS)[number]["key"];
 
+function formatOccurredAt(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "--/--/----";
+  }
+
+  return date.toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default function HistoryScreen() {
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
+  const { historyItems, isHydrated, isLoading, refresh } = useCustomerHistory();
 
   const items = useMemo(() => {
-    if (activeFilter === "all") return BOOKING_HISTORY;
-    if (activeFilter === "arrived") return BOOKING_HISTORY.filter((item) => item.status === "Đã đến");
-    return BOOKING_HISTORY.filter((item) => item.status === "Đã hủy");
-  }, [activeFilter]);
+    if (activeFilter === "recent") {
+      return historyItems.slice(0, 8);
+    }
+    return historyItems;
+  }, [activeFilter, historyItems]);
 
   return (
-    <CustomerScreen title="Lịch sử đặt lịch" onRefresh={() => {}} refreshing={false}>
+    <CustomerScreen title="Lịch sử đặt lịch" onRefresh={() => void refresh()} refreshing={isLoading}>
       <SegmentedTabs activeKey={activeFilter} items={FILTERS} onChange={setActiveFilter} />
 
       <View style={styles.list}>
         {items.map((item) => (
-          <SurfaceCard key={item.id} style={styles.card}>
-            <View style={styles.row}>
-              <View style={styles.copy}>
-                <Text style={styles.time}>{item.time}</Text>
-                <Text style={styles.staff}>{item.staff}</Text>
-                <Text style={styles.service}>{item.service}</Text>
+          <Pressable
+            key={item.id}
+            onPress={() =>
+              router.push({
+                pathname: "/(customer)/booking",
+                params: { service: item.serviceName },
+              })
+            }
+          >
+            <SurfaceCard style={styles.card}>
+              {item.serviceImageUrl ? <Image alt={item.serviceName} source={{ uri: item.serviceImageUrl }} style={styles.image} /> : null}
+
+              <View style={styles.row}>
+                <View style={styles.copy}>
+                  <Text style={styles.time}>{formatOccurredAt(item.occurredAt)}</Text>
+                  <Text style={styles.staff}>{item.serviceName}</Text>
+                  <Text style={styles.service}>
+                    {item.servicePriceLabel ?? "Đã hoàn tất tại tiệm"}
+                    {item.serviceSummary ? ` · ${item.serviceSummary}` : ""}
+                  </Text>
+                </View>
+                <View style={styles.aside}>
+                  <StatusTag label="Đã hoàn tất" tone="success" />
+                </View>
               </View>
-              <StatusTag label={item.status} tone={item.tone} />
-            </View>
-          </SurfaceCard>
+            </SurfaceCard>
+          </Pressable>
         ))}
+
+        {isHydrated && !items.length ? (
+          <SurfaceCard>
+            <Text style={styles.emptyTitle}>Chưa có lịch sử dịch vụ</Text>
+            <Text style={styles.emptyText}>Lịch sử sẽ tự cập nhật từ các dịch vụ khách đã hoàn tất tại tiệm.</Text>
+          </SurfaceCard>
+        ) : null}
       </View>
     </CustomerScreen>
   );
@@ -50,8 +91,14 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   card: {
+    gap: spacing.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.lg,
+  },
+  image: {
+    borderRadius: 16,
+    height: 168,
+    width: "100%",
   },
   row: {
     alignItems: "flex-start",
@@ -75,5 +122,19 @@ const styles = StyleSheet.create({
   service: {
     color: colors.textSoft,
     fontSize: 15,
+    lineHeight: 21,
+  },
+  aside: {
+    paddingTop: 2,
+  },
+  emptyTitle: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  emptyText: {
+    color: colors.textSoft,
+    fontSize: 14,
+    lineHeight: 20,
   },
 });

@@ -2,11 +2,11 @@ import Feather from "@expo/vector-icons/Feather";
 import { useRouter } from "expo-router";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { MANAGE_SCREEN_ITEMS, type ManageScreenItem, type ManageScreenKey } from "@/src/features/admin/manage";
 import { getAdminNavHref, isOwnerRole, type AdminNavTarget } from "@/src/features/admin/navigation";
-import { AdminBottomNav, AdminHeaderActions, getAdminBottomBarPadding, getAdminHeaderTopPadding } from "@/src/features/admin/ui";
+import { AdminBottomNavDock, AdminHeaderActions, getAdminBottomBarPadding, getAdminHeaderTopPadding } from "@/src/features/admin/ui";
 import { useSession } from "@/src/providers/session-provider";
 
 const palette = {
@@ -20,6 +20,8 @@ const palette = {
 
 function getManageCardTone(key: ManageScreenKey) {
   switch (key) {
+    case "content":
+      return { iconBg: "#F5EFFC", iconBorder: "#E6DBF8", iconColor: "#8A63D2" };
     case "customers":
       return { iconBg: "#FFF3E8", iconBorder: "#F6DEC7", iconColor: "#E58A3A" };
     case "reports":
@@ -120,12 +122,20 @@ export function ManageScreenShell({
   subtitle,
   currentKey,
   group,
+  backHref,
+  onRefresh,
+  refreshing,
+  showTabs = true,
   children,
 }: {
   title: string;
   subtitle: string;
   currentKey: ManageScreenKey;
   group: ManageScreenItem["group"];
+  backHref?: string;
+  onRefresh?: (() => void) | null;
+  refreshing?: boolean;
+  showTabs?: boolean;
   children: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
@@ -133,11 +143,11 @@ export function ManageScreenShell({
   const { allowed, isHydrated, role } = useManageOwnerGuard();
 
   if (!isHydrated || !allowed) {
-    return <SafeAreaView style={styles.safeArea} />;
+    return <SafeAreaView style={styles.safeArea} edges={["top"]} />;
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.screen}>
         <ScrollView
           contentContainerStyle={[
@@ -148,9 +158,19 @@ export function ManageScreenShell({
             },
           ]}
           showsVerticalScrollIndicator={false}
-        >
+          refreshControl={
+            onRefresh ? (
+              <RefreshControl
+                refreshing={Boolean(refreshing)}
+                onRefresh={onRefresh}
+                tintColor={palette.accent}
+                colors={[palette.accent]}
+              />
+            ) : undefined
+          }
+          >
           <View style={styles.header}>
-            <Pressable style={styles.headerButton} onPress={() => void router.replace("/(admin)/manage")}>
+            <Pressable style={styles.headerButton} onPress={() => void router.replace((backHref ?? "/(admin)/manage") as never)}>
               <Feather name="chevron-left" size={22} color={palette.text} />
             </Pressable>
             <View style={styles.headerCopy}>
@@ -160,18 +180,17 @@ export function ManageScreenShell({
             <AdminHeaderActions onSettingsPress={() => void router.push("/(admin)/settings")} />
           </View>
 
-          <ManageModuleTabs currentKey={currentKey} group={group} />
+          {showTabs ? <ManageModuleTabs currentKey={currentKey} group={group} /> : null}
 
           {children}
         </ScrollView>
 
-        <View style={[styles.bottomBar, { paddingBottom: getAdminBottomBarPadding(insets.bottom) }]}>
-          <AdminBottomNav
-            current="profile"
-            role={role}
-            onNavigate={(target: AdminNavTarget) => void router.replace(getAdminNavHref(target, role))}
-          />
-        </View>
+        <AdminBottomNavDock
+          current="profile"
+          role={role}
+          insetBottom={insets.bottom}
+          onNavigate={(target: AdminNavTarget) => void router.replace(getAdminNavHref(target, role))}
+        />
       </View>
     </SafeAreaView>
   );
@@ -294,8 +313,8 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: "transparent",
-    paddingHorizontal: 14,
-    paddingTop: 8,
+    paddingHorizontal: 16,
+    paddingTop: 6,
   },
 });
 

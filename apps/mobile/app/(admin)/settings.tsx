@@ -5,7 +5,7 @@ import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ensureOrgContext } from "@nails/shared";
 import { canSelectAdminBranch, getAdminNavHref, getAdminProfileDestination } from "@/src/features/admin/navigation";
-import { AdminBottomNav, AdminHeaderActions, getAdminBottomBarPadding, getAdminHeaderTopPadding } from "@/src/features/admin/ui";
+import { AdminBottomNavDock, AdminHeaderActions, getAdminHeaderTopPadding } from "@/src/features/admin/ui";
 import { mobileSupabase } from "@/src/lib/supabase";
 import { useSession } from "@/src/providers/session-provider";
 
@@ -325,9 +325,7 @@ export default function AdminSettingsScreen() {
           </Pressable>
         </Modal>
 
-        <View style={[styles.bottomBar, { paddingBottom: getAdminBottomBarPadding(insets.bottom) }]}>
-          <AdminBottomNav current="profile" role={role} onNavigate={(target) => void router.replace(getAdminNavHref(target, role))} />
-        </View>
+        <AdminBottomNavDock current="profile" role={role} insetBottom={insets.bottom} onNavigate={(target) => void router.replace(getAdminNavHref(target, role))} />
       </View>
     </SafeAreaView>
   );
@@ -412,7 +410,7 @@ const styles = StyleSheet.create({
   securitySubtitle: { fontSize: 13, color: palette.textMuted },
   logoutButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, height: 52, borderRadius: 16, borderWidth: 1, borderColor: palette.danger, backgroundColor: palette.card },
   logoutButtonText: { fontSize: 15, fontWeight: "700", color: palette.danger },
-  bottomBar: { position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: "rgba(255,255,255,0.98)", borderTopWidth: 1, borderTopColor: palette.border, paddingHorizontal: 14, paddingTop: 8 },
+  bottomBar: { position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: "transparent", paddingHorizontal: 16, paddingTop: 6 },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center" },
   modalCard: { backgroundColor: palette.card, borderRadius: 24, padding: 24, width: "85%", maxWidth: 420 },
   modalTitle: { fontSize: 18, fontWeight: "800", color: palette.textPrimary, textAlign: "center", marginBottom: 20 },

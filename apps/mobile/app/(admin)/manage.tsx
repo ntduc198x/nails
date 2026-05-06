@@ -1,11 +1,11 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useRouter } from "expo-router";
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { MANAGE_SCREEN_ITEMS } from "@/src/features/admin/manage";
 import { ManageHubCard, useManageOwnerGuard } from "@/src/features/admin/manage-ui";
 import { getAdminNavHref, type AdminNavTarget } from "@/src/features/admin/navigation";
-import { AdminBottomNav, AdminHeaderActions, getAdminBottomBarPadding, getAdminHeaderTopPadding } from "@/src/features/admin/ui";
+import { AdminBottomNavDock, AdminHeaderActions, getAdminBottomBarPadding, getAdminHeaderTopPadding } from "@/src/features/admin/ui";
 
 const palette = {
   bg: "#FCFAF8",
@@ -23,14 +23,14 @@ export default function AdminManageHubScreen() {
   const { isHydrated, allowed, role } = useManageOwnerGuard();
 
   if (!isHydrated || !allowed) {
-    return <SafeAreaView style={styles.safeArea} />;
+    return <SafeAreaView style={styles.safeArea} edges={["top"]} />;
   }
 
   const insightItems = MANAGE_SCREEN_ITEMS.filter((item) => item.group === "insights");
   const setupItems = MANAGE_SCREEN_ITEMS.filter((item) => item.group === "setup");
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.screen}>
         <ScrollView
           contentContainerStyle={[
@@ -87,13 +87,12 @@ export default function AdminManageHubScreen() {
           </Pressable>
         </ScrollView>
 
-        <View style={[styles.bottomBar, { paddingBottom: getAdminBottomBarPadding(insets.bottom) }]}>
-          <AdminBottomNav
-            current="profile"
-            role={role}
-            onNavigate={(target: AdminNavTarget) => void router.replace(getAdminNavHref(target, role))}
-          />
-        </View>
+        <AdminBottomNavDock
+          current="profile"
+          role={role}
+          insetBottom={insets.bottom}
+          onNavigate={(target: AdminNavTarget) => void router.replace(getAdminNavHref(target, role))}
+        />
       </View>
     </SafeAreaView>
   );
@@ -208,7 +207,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: "transparent",
-    paddingHorizontal: 14,
-    paddingTop: 8,
+    paddingHorizontal: 16,
+    paddingTop: 6,
   },
 });

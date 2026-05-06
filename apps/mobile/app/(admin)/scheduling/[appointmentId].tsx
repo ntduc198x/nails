@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAdminOperations } from "@/src/hooks/use-admin-operations";
-import { AdminBottomNav, getAdminBottomBarPadding, getAdminHeaderTopPadding } from "@/src/features/admin/ui";
+import { AdminBottomNavDock, getAdminBottomBarPadding, getAdminHeaderTopPadding } from "@/src/features/admin/ui";
 import { getAdminNavHref } from "@/src/features/admin/navigation";
 
 const palette = {
@@ -82,7 +82,7 @@ function formatDisplayTime(isoValue: string) {
 
 type AppointmentEditorProps = ReturnType<typeof useAdminOperations>["appointments"][number];
 
-function AppointmentEditor({ appointment, onBack }: { appointment: AppointmentEditorProps; onBack: () => void }) {
+function AppointmentEditor({ appointment }: { appointment: AppointmentEditorProps }) {
   const router = useRouter();
   const {
     resourceOptions,
@@ -451,7 +451,7 @@ export default function AdminAppointmentDetailScreen() {
   const params = useLocalSearchParams<{ appointmentId?: string }>();
   const appointmentId = Array.isArray(params.appointmentId) ? params.appointmentId[0] : params.appointmentId;
 
-  const { appointments, bookingRequests, role, user } = useAdminOperations();
+  const { appointments, bookingRequests, role } = useAdminOperations();
 
   const appointment = useMemo(
     () => appointments.find((item) => item.id === appointmentId) ?? null,
@@ -473,9 +473,7 @@ export default function AdminAppointmentDetailScreen() {
           <Text style={styles.headerTitle}>Không tìm thấy lịch</Text>
           <View style={styles.headerActions} />
         </View>
-        <View style={[styles.bottomBar, { paddingBottom: getAdminBottomBarPadding(insets.bottom) }]}>
-          <AdminBottomNav current="scheduling" role={role} onNavigate={(target) => void router.replace(getAdminNavHref(target, role))} />
-        </View>
+        <AdminBottomNavDock current="scheduling" role={role} insetBottom={insets.bottom} onNavigate={(target) => void router.replace(getAdminNavHref(target, role))} />
       </View>
     );
   }
@@ -483,7 +481,7 @@ export default function AdminAppointmentDetailScreen() {
   return (
     <View style={styles.screen}>
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: getAdminHeaderTopPadding(insets.top) + 8, paddingBottom: 120 + insets.bottom }]}
+        contentContainerStyle={[styles.content, { paddingTop: getAdminHeaderTopPadding(insets.top) + 8, paddingBottom: 112 + getAdminBottomBarPadding(insets.bottom) }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}
@@ -508,13 +506,11 @@ export default function AdminAppointmentDetailScreen() {
           </View>
         </View>
 
-        <AppointmentEditor appointment={appointment} onBack={() => router.replace("/(admin)/scheduling")} />
+        <AppointmentEditor appointment={appointment} />
       </ScrollView>
 
       {/* Bottom Navigation */}
-      <View style={[styles.bottomBar, { paddingBottom: getAdminBottomBarPadding(insets.bottom) }]}>
-        <AdminBottomNav current="scheduling" role={role} onNavigate={(target) => void router.replace(getAdminNavHref(target, role))} />
-      </View>
+      <AdminBottomNavDock current="scheduling" role={role} insetBottom={insets.bottom} onNavigate={(target) => void router.replace(getAdminNavHref(target, role))} />
     </View>
   );
 }
@@ -573,7 +569,7 @@ const styles = StyleSheet.create({
   dangerButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 52, borderRadius: 18, borderWidth: 1, borderColor: palette.danger, backgroundColor: palette.card },
   dangerButtonText: { fontSize: 15, fontWeight: "700", color: palette.danger },
   errorText: { fontSize: 13, color: palette.danger, fontWeight: "600", textAlign: "center" },
-  bottomBar: { position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: "rgba(255,255,255,0.98)", borderTopWidth: 1, borderTopColor: palette.border, paddingHorizontal: 14, paddingTop: 8 },
+  bottomBar: { position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: "transparent", paddingHorizontal: 16, paddingTop: 6 },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center" },
   pickerCard: { backgroundColor: palette.card, borderRadius: 24, padding: 20, width: "85%", maxHeight: "70%" },
   pickerTitle: { fontSize: 18, fontWeight: "800", color: palette.textPrimary, textAlign: "center", marginBottom: 16 },

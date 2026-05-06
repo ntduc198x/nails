@@ -1,71 +1,69 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { FAVORITES } from "@/src/features/customer/data";
-
-const STORAGE_KEY = "@nails/customer-favorites";
-
-function getDefaultFavorites() {
-  return FAVORITES.map((item) => item.serviceId);
-}
+import { listCustomerFavoriteServiceIds, setCustomerFavoriteService } from "@nails/shared";
+import { mobileSupabase } from "@/src/lib/supabase";
+import { useSession } from "@/src/providers/session-provider";
 
 export function useCustomerFavorites() {
-  const [favoriteIds, setFavoriteIds] = useState<string[]>(getDefaultFavorites);
+  const { isHydrated: sessionHydrated, user } = useSession();
+  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const refresh = useCallback(async () => {
+    if (!sessionHydrated) {
+      return;
+    }
+
+    if (!mobileSupabase || !user) {
+      setFavoriteIds([]);
+      setIsHydrated(true);
+      return;
+    }
+
+    setIsSyncing(true);
+
+    try {
+      const nextIds = await listCustomerFavoriteServiceIds(mobileSupabase);
+      setFavoriteIds(nextIds);
+    } catch {
+      setFavoriteIds([]);
+    } finally {
+      setIsHydrated(true);
+      setIsSyncing(false);
+    }
+  }, [sessionHydrated, user]);
 
   useEffect(() => {
-    let isActive = true;
+    const handle = setTimeout(() => {
+      void refresh();
+    }, 0);
 
-    async function hydrate() {
-      try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        if (!isActive) return;
-
-        if (!raw) {
-          setFavoriteIds(getDefaultFavorites());
-          setIsHydrated(true);
-          return;
-        }
-
-        const parsed = JSON.parse(raw) as unknown;
-        if (Array.isArray(parsed)) {
-          setFavoriteIds(parsed.filter((item): item is string => typeof item === "string"));
-        } else {
-          setFavoriteIds(getDefaultFavorites());
-        }
-      } catch {
-        if (isActive) {
-          setFavoriteIds(getDefaultFavorites());
-        }
-      } finally {
-        if (isActive) {
-          setIsHydrated(true);
-        }
-      }
-    }
-
-    void hydrate();
-
-    return () => {
-      isActive = false;
-    };
-  }, []);
-
-  const persist = useCallback(async (nextIds: string[]) => {
-    setFavoriteIds(nextIds);
-    try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextIds));
-    } catch {
-      // Keep UI responsive even if persistence fails.
-    }
-  }, []);
+    return () => clearTimeout(handle);
+  }, [refresh]);
 
   const toggleFavorite = useCallback(
     async (serviceId: string) => {
-      const exists = favoriteIds.includes(serviceId);
-      const nextIds = exists ? favoriteIds.filter((id) => id !== serviceId) : [...favoriteIds, serviceId];
-      await persist(nextIds);
+      if (!mobileSupabase || !user) {
+        return;
+      }
+
+      const nextFavoriteState = !favoriteIds.includes(serviceId);
+      const optimisticIds = nextFavoriteState
+        ? [...favoriteIds, serviceId]
+        : favoriteIds.filter((id) => id !== serviceId);
+
+      setFavoriteIds(optimisticIds);
+
+      try {
+        await setCustomerFavoriteService(mobileSupabase, {
+          serviceId,
+          isFavorite: nextFavoriteState,
+        });
+      } catch {
+        setFavoriteIds(favoriteIds);
+      }
     },
-    [favoriteIds, persist],
+    [favoriteIds, user],
   );
 
   const favoritesSet = useMemo(() => new Set(favoriteIds), [favoriteIds]);
@@ -75,6 +73,8 @@ export function useCustomerFavorites() {
     favoritesSet,
     isFavorite: (serviceId: string) => favoritesSet.has(serviceId),
     isHydrated,
+    isSyncing,
+    refresh,
     toggleFavorite,
   };
 }
