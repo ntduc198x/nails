@@ -6,4 +6,9 @@ const config = getDefaultConfig(__dirname);
 // In restricted Windows environments Metro worker child-processes can fail to spawn.
 // Running with a single worker keeps transforms in-process and unblocks local AVD verification.
 config.maxWorkers = 1;
+config.resolver.alias = {
+  ...(config.resolver.alias ?? {}),
+  "@": __dirname,
+};
+
 module.exports = config;

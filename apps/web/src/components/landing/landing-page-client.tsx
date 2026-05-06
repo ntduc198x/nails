@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { createPublicBookingRequest } from "@/lib/landing-booking";
 import type { HomeFeedPayload } from "@/lib/landing-content";
@@ -30,6 +30,16 @@ type Testimonial = {
 type LandingPageClientProps = {
   initialHomeFeed: HomeFeedPayload;
   initialExplore: CustomerExplorePayload;
+};
+
+type LandingMobileCarouselProps<T> = {
+  items: T[];
+  slide: number;
+  onSelectSlide: (index: number) => void;
+  labelPrefix: string;
+  getItemKey: (item: T) => string;
+  renderItem: (item: T) => ReactNode;
+  itemsPerSlide?: number;
 };
 
 const FALLBACK_TESTIMONIALS: Testimonial[] = [
@@ -122,6 +132,83 @@ function getProfileInitials(summary: AuthenticatedUserSummary | null) {
   return source.slice(0, 2).toUpperCase();
 }
 
+function chunkItems<T>(items: T[], chunkSize: number) {
+  if (chunkSize <= 0) return [items];
+  return Array.from({ length: Math.ceil(items.length / chunkSize) }, (_, index) =>
+    items.slice(index * chunkSize, index * chunkSize + chunkSize),
+  );
+}
+
+function chunkItemsLoopFilled<T>(items: T[], chunkSize: number) {
+  const chunks = chunkItems(items, chunkSize);
+  if (!chunks.length || !items.length) return chunks;
+
+  return chunks.map((chunk) => {
+    if (chunk.length >= chunkSize) return chunk;
+    const filled = [...chunk];
+    let sourceIndex = 0;
+    while (filled.length < chunkSize) {
+      filled.push(items[sourceIndex % items.length]);
+      sourceIndex += 1;
+    }
+    return filled;
+  });
+}
+
+function LandingMobileCarousel<T>({
+  items,
+  slide,
+  onSelectSlide,
+  labelPrefix,
+  getItemKey,
+  renderItem,
+  itemsPerSlide = 2,
+}: LandingMobileCarouselProps<T>) {
+  const slides = useMemo(() => chunkItemsLoopFilled(items, itemsPerSlide), [items, itemsPerSlide]);
+
+  if (!slides.length) return null;
+
+  return (
+    <>
+      <div className="landing-showcase__mobile-carousel">
+        <div
+          className="landing-showcase__mobile-carousel-track"
+          style={{
+            width: `${slides.length * 100}%`,
+            transform: `translateX(-${slide * (100 / slides.length)}%)`,
+          }}
+        >
+          {slides.map((group, index) => (
+            <div
+              key={`${labelPrefix}-${index}`}
+              className="landing-showcase__mobile-carousel-slide"
+              style={{ width: `${100 / slides.length}%` }}
+            >
+              {group.map((item) => (
+                <div key={`${getItemKey(item)}-${index}`}>{renderItem(item)}</div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {slides.length > 1 ? (
+        <div className="landing-showcase__mobile-carousel-dots">
+          {slides.map((_, index) => (
+            <button
+              key={`${labelPrefix}-dot-${index}`}
+              type="button"
+              className={index === slide ? "is-active" : ""}
+              onClick={() => onSelectSlide(index)}
+              aria-label={`${labelPrefix} ${index + 1}`}
+            />
+          ))}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPageClientProps) {
   const router = useRouter();
   const [authOpen, setAuthOpen] = useState(false);
@@ -133,7 +220,11 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [currentUser, setCurrentUser] = useState<AuthenticatedUserSummary | null>(null);
   const [authResolved, setAuthResolved] = useState(false);
-  const [serviceSlide, setServiceSlide] = useState(0);
+  const [serviceDesktopSlide, setServiceDesktopSlide] = useState(0);
+  const [serviceMobileSlide, setServiceMobileSlide] = useState(0);
+  const [storyMobileSlide, setStoryMobileSlide] = useState(0);
+  const [productMobileSlide, setProductMobileSlide] = useState(0);
+  const [testimonialMobileSlide, setTestimonialMobileSlide] = useState(0);
 
   useEffect(() => {
     void getCurrentAuthenticatedSummary()
@@ -147,39 +238,94 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
     () => (homeFeed.lookbook.length ? homeFeed.lookbook : explore.featuredServices).slice(0, 8),
     [explore.featuredServices, homeFeed.lookbook],
   );
-  const serviceSlides = useMemo(() => {
-    const chunkSize = 4;
-    return Array.from({ length: Math.ceil(featuredServices.length / chunkSize) }, (_, index) =>
-      featuredServices.slice(index * chunkSize, index * chunkSize + chunkSize),
-    );
-  }, [featuredServices]);
+  const serviceDesktopSlides = useMemo(() => chunkItems(featuredServices, 4), [featuredServices]);
+  const serviceMobileSlides = useMemo(() => chunkItems(featuredServices, 2), [featuredServices]);
   useEffect(() => {
-    if (serviceSlides.length <= 1) return;
+    if (serviceDesktopSlides.length <= 1) return;
 
     const intervalId = window.setInterval(() => {
-      setServiceSlide((current) => (current + 1) % serviceSlides.length);
+      setServiceDesktopSlide((current) => (current + 1) % serviceDesktopSlides.length);
     }, 4200);
 
     return () => window.clearInterval(intervalId);
-  }, [serviceSlides.length]);
+  }, [serviceDesktopSlides.length]);
 
   useEffect(() => {
-    if (serviceSlide >= serviceSlides.length) {
-      setServiceSlide(0);
+    if (serviceDesktopSlide >= serviceDesktopSlides.length) {
+      setServiceDesktopSlide(0);
     }
-  }, [serviceSlide, serviceSlides.length]);
+  }, [serviceDesktopSlide, serviceDesktopSlides.length]);
 
   const stories = useMemo(() => homeFeed.contentPosts.slice(0, 3), [homeFeed.contentPosts]);
   const products = useMemo(() => explore.products.slice(0, 8), [explore.products]);
-  const productList = useMemo(() => explore.products.slice(0, 5), [explore.products]);
   const testimonials = FALLBACK_TESTIMONIALS;
+  const storyMobileSlides = useMemo(() => chunkItems(stories, 2), [stories]);
+  const productMobileSlides = useMemo(() => chunkItems(products, 2), [products]);
+  const testimonialMobileSlides = useMemo(() => chunkItems(testimonials, 2), [testimonials]);
 
-  const productFeaturePills = [
-    { title: "Sản phẩm chính hãng", subtitle: "Nguồn gốc rõ ràng" },
-    { title: "An toàn cho móng", subtitle: "Lành tính, dịu nhẹ" },
-    { title: "Chuẩn salon cao cấp", subtitle: "Đồng bộ dịch vụ" },
-    { title: "Tư vấn tận tâm", subtitle: "Hỗ trợ lựa chọn" },
-  ];
+  useEffect(() => {
+    if (serviceMobileSlides.length <= 1) return;
+
+    const intervalId = window.setInterval(() => {
+      setServiceMobileSlide((current) => (current + 1) % serviceMobileSlides.length);
+    }, 4200);
+
+    return () => window.clearInterval(intervalId);
+  }, [serviceMobileSlides.length]);
+
+  useEffect(() => {
+    if (storyMobileSlides.length <= 1) return;
+
+    const intervalId = window.setInterval(() => {
+      setStoryMobileSlide((current) => (current + 1) % storyMobileSlides.length);
+    }, 4600);
+
+    return () => window.clearInterval(intervalId);
+  }, [storyMobileSlides.length]);
+
+  useEffect(() => {
+    if (productMobileSlides.length <= 1) return;
+
+    const intervalId = window.setInterval(() => {
+      setProductMobileSlide((current) => (current + 1) % productMobileSlides.length);
+    }, 4400);
+
+    return () => window.clearInterval(intervalId);
+  }, [productMobileSlides.length]);
+
+  useEffect(() => {
+    if (testimonialMobileSlides.length <= 1) return;
+
+    const intervalId = window.setInterval(() => {
+      setTestimonialMobileSlide((current) => (current + 1) % testimonialMobileSlides.length);
+    }, 4800);
+
+    return () => window.clearInterval(intervalId);
+  }, [testimonialMobileSlides.length]);
+
+  useEffect(() => {
+    if (serviceMobileSlide >= serviceMobileSlides.length) {
+      setServiceMobileSlide(0);
+    }
+  }, [serviceMobileSlide, serviceMobileSlides.length]);
+
+  useEffect(() => {
+    if (storyMobileSlide >= storyMobileSlides.length) {
+      setStoryMobileSlide(0);
+    }
+  }, [storyMobileSlide, storyMobileSlides.length]);
+
+  useEffect(() => {
+    if (productMobileSlide >= productMobileSlides.length) {
+      setProductMobileSlide(0);
+    }
+  }, [productMobileSlide, productMobileSlides.length]);
+
+  useEffect(() => {
+    if (testimonialMobileSlide >= testimonialMobileSlides.length) {
+      setTestimonialMobileSlide(0);
+    }
+  }, [testimonialMobileSlide, testimonialMobileSlides.length]);
 
   const heroImage =
     REFERENCE_HERO_IMAGE ??
@@ -231,7 +377,12 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
   function handleBookingDateTimeChange(nextValue: string) {
     const nextDate = new Date(nextValue);
     if (Number.isNaN(nextDate.getTime())) return;
+    if (nextDate.getTime() <= Date.now()) {
+      setBookingError("Thời gian đặt lịch phải lớn hơn thời điểm hiện tại.");
+      return;
+    }
 
+    setBookingError(null);
     updateBookingState("selectedDateTime", nextValue);
     updateBookingState("selectedDate", nextValue.slice(0, 10));
     updateBookingState(
@@ -265,6 +416,9 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
       if (Number.isNaN(startAt.getTime())) {
         throw new Error("Thời gian đặt lịch không hợp lệ.");
       }
+      if (startAt.getTime() <= Date.now()) {
+        throw new Error("Thời gian đặt lịch phải lớn hơn thời điểm hiện tại.");
+      }
 
       await createPublicBookingRequest({
         customerName: customerName.trim(),
@@ -297,7 +451,6 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
 
             <nav className="landing-showcase__nav">
               <a href="#services">Dịch vụ</a>
-              <a href="#pricing">Bảng giá</a>
               <a href="#products">Sản phẩm</a>
               <a href="#stories">Blog</a>
               <a href="#contact">Liên hệ</a>
@@ -399,15 +552,15 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
         <section id="services" className="landing-showcase__section">
           <div className="landing-showcase__section-heading landing-showcase-reveal landing-showcase-reveal--up">
             <span className="landing-showcase__eyebrow">Dịch vụ nổi bật</span>
-            <h2>Dịch vụ được yêu thích</h2>
-            <p>Đa dạng phong cách, xu hướng mới nhất và kỹ thuật chuẩn salon.</p>
+            <h2>Mùa Hè Rực Rỡ</h2>
+            <span className="landing-section-subcopy">Xu hướng móng hè 2026 — lên tay sẵn sàng cho những lễ hội, vui chơi.</span>
           </div>
 
-          <div className="landing-showcase__services-carousel">
+          <div className="landing-showcase__services-carousel landing-showcase__services-carousel--desktop">
             <div
               id="pricing"
               className="landing-showcase__services-grid landing-showcase__services-grid--slider"
-              style={{ transform: `translateX(-${serviceSlide * 50}%)` }}
+              style={{ transform: `translateX(-${serviceDesktopSlide * 50}%)` }}
             >
               {featuredServices.map((service) => (
                 <article key={service.id} className="landing-showcase__service-card landing-showcase-motion-card">
@@ -430,13 +583,39 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
             </div>
           </div>
 
-          <div className="landing-showcase__services-dots">
-            {serviceSlides.map((_, index) => (
+          <LandingMobileCarousel
+            items={featuredServices}
+            slide={serviceMobileSlide}
+            onSelectSlide={setServiceMobileSlide}
+            labelPrefix="Xem slide dịch vụ"
+            getItemKey={(service) => service.id}
+            renderItem={(service) => (
+              <article className="landing-showcase__service-card landing-showcase-motion-card">
+                <div className="landing-showcase__service-image">
+                  <img src={service.image} alt={service.title} loading="lazy" decoding="async" />
+                  <span>{service.badge}</span>
+                </div>
+                <div className="landing-showcase__service-body">
+                  <h3>{service.title}</h3>
+                  <p>{service.blurb}</p>
+                  <div className="landing-showcase__service-footer">
+                    <strong>{service.price}</strong>
+                    <button type="button" onClick={() => handleSelectService(service.title)}>
+                      Đặt lịch
+                    </button>
+                  </div>
+                </div>
+              </article>
+            )}
+          />
+
+          <div className="landing-showcase__services-dots landing-showcase__services-dots--desktop">
+            {serviceDesktopSlides.map((_, index) => (
               <button
                 key={`service-dot-${index}`}
                 type="button"
-                className={index === serviceSlide ? "is-active" : ""}
-                onClick={() => setServiceSlide(index)}
+                className={index === serviceDesktopSlide ? "is-active" : ""}
+                onClick={() => setServiceDesktopSlide(index)}
                 aria-label={`Xem slide dịch vụ ${index + 1}`}
               />
             ))}
@@ -464,7 +643,7 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
             </Link>
           </div>
 
-          <div className="landing-showcase__stories-grid">
+          <div className="landing-showcase__stories-grid landing-showcase__stories-grid--desktop">
             {stories.map((post) => (
               <Link key={post.id} href={`/stories/${post.id}`} className="landing-showcase__story-card landing-showcase-motion-card">
                 {post.coverImageUrl ? <img src={post.coverImageUrl} alt={post.title} loading="lazy" decoding="async" /> : null}
@@ -477,58 +656,47 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
               </Link>
             ))}
           </div>
+
+          <LandingMobileCarousel
+            items={stories}
+            slide={storyMobileSlide}
+            onSelectSlide={setStoryMobileSlide}
+            labelPrefix="Xem slide blog"
+            getItemKey={(post) => post.id}
+            renderItem={(post) => (
+              <Link href={`/stories/${post.id}`} className="landing-showcase__story-card landing-showcase-motion-card">
+                {post.coverImageUrl ? <img src={post.coverImageUrl} alt={post.title} loading="lazy" decoding="async" /> : null}
+                <div className="landing-showcase__story-card-body">
+                  <span>{post.publishedAt ? formatViDate(post.publishedAt) : "Mới cập nhật"}</span>
+                  <h3>{post.title}</h3>
+                  <p>{post.summary}</p>
+                  <strong>Đọc chi tiết</strong>
+                </div>
+              </Link>
+            )}
+          />
         </section>
 
-        <section id="products" className="landing-showcase__section landing-showcase__section--products">
-          <div className="landing-showcase__products-copy landing-showcase-reveal landing-showcase-reveal--left">
+        <section id="products" className="landing-showcase__section">
+          <div className="landing-showcase__section-heading landing-showcase-reveal landing-showcase-reveal--up">
             <span className="landing-showcase__eyebrow">Store & Products</span>
-            <h2>
-              Sản phẩm
-              <br />
-              đồng bộ với dịch vụ
-            </h2>
-            <p className="landing-showcase__products-intro">
-              Chăm sóc chuẩn salon, tinh tế, an toàn và đồng nhất trải nghiệm tại Chạm Beauty.
-            </p>
-
-            <div className="landing-showcase__product-list">
-              {productList.map((product, index) => (
-                <article key={product.id}>
-                  <span className="landing-showcase__product-index">{String(index + 1).padStart(2, "0")}</span>
-                  <h3>{product.name}</h3>
-                  <strong>{product.priceLabel ?? "Liên hệ"}</strong>
-                </article>
-              ))}
+            <h2>Sản phẩm được chọn lọc</h2>
             </div>
 
-            <button
-              type="button"
-              className="landing-showcase__secondary-btn landing-showcase__secondary-btn--products"
-              onClick={() => document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" })}
-            >
-              Xem tất cả sản phẩm
-            </button>
+          <div className="landing-showcase__products-grid landing-showcase__products-grid--desktop">
+            {products.map((product) => (
+              <ProductGridCard key={product.id} product={product} />
+            ))}
           </div>
 
-          <div className="landing-showcase__products-panel landing-showcase-reveal landing-showcase-reveal--right">
-            <div className="landing-showcase__products-grid">
-              {products.map((product) => (
-                <ProductGridCard key={product.id} product={product} />
-              ))}
-            </div>
-
-            <div className="landing-showcase__products-pills">
-              {productFeaturePills.map((pill) => (
-                <article key={pill.title} className="landing-showcase__products-pill">
-                  <span className="landing-showcase__products-pill-icon" aria-hidden="true" />
-                  <div>
-                    <strong>{pill.title}</strong>
-                    <p>{pill.subtitle}</p>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
+          <LandingMobileCarousel
+            items={products}
+            slide={productMobileSlide}
+            onSelectSlide={setProductMobileSlide}
+            labelPrefix="Xem slide sản phẩm"
+            getItemKey={(product) => product.id}
+            renderItem={(product) => <ProductGridCard product={product} />}
+          />
         </section>
 
         <section className="landing-showcase__section">
@@ -536,7 +704,7 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
             <span className="landing-showcase__eyebrow">Khách hàng nói gì</span>
           </div>
 
-          <div className="landing-showcase__testimonials-grid">
+          <div className="landing-showcase__testimonials-grid landing-showcase__testimonials-grid--desktop">
             {testimonials.map((testimonial) => (
               <article key={testimonial.id} className="landing-showcase__testimonial landing-showcase-motion-card">
                 <span>“</span>
@@ -546,7 +714,22 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
             ))}
           </div>
 
-          <div className="landing-showcase__dots">
+          <LandingMobileCarousel
+            items={testimonials}
+            slide={testimonialMobileSlide}
+            onSelectSlide={setTestimonialMobileSlide}
+            labelPrefix="Xem slide cảm nhận"
+            getItemKey={(testimonial) => testimonial.id}
+            renderItem={(testimonial) => (
+              <article className="landing-showcase__testimonial landing-showcase-motion-card">
+                <span>“</span>
+                <p>{testimonial.quote}</p>
+                <strong>— {testimonial.name}</strong>
+              </article>
+            )}
+          />
+
+          <div className="landing-showcase__dots landing-showcase__dots--desktop">
             <span className="is-active" />
             <span />
             <span />
@@ -558,8 +741,8 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
             <span className="landing-showcase__eyebrow">Bản đồ & thông tin</span>
             <ul>
               <li>{resolvedAddressLine}</li>
-              <li>{storefront?.phone ?? "090 123 4567"}</li>
-              <li>{storefront?.openingHours ?? "09:00 - 20:30 (tất cả các ngày)"}</li>
+              <li>{storefront?.phone ?? "091 608 3098"}</li>
+              <li>{storefront?.openingHours ?? "09:00 - 21:00 (tất cả các ngày)"}</li>
             </ul>
 
             <div className="landing-showcase__map-card">
@@ -650,7 +833,6 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
             <div className="landing-showcase__footer-links">
               <h4>Liên kết</h4>
               <a href="#services">Dịch vụ</a>
-              <a href="#pricing">Bảng giá</a>
               <a href="#products">Sản phẩm</a>
               <a href="#stories">Blog</a>
               <a href="#contact">Liên hệ</a>
@@ -659,8 +841,8 @@ export function LandingPageClient({ initialExplore, initialHomeFeed }: LandingPa
             <div className="landing-showcase__footer-info">
               <h4>Thông tin</h4>
               <p>{resolvedAddressLine}</p>
-              <p>{storefront?.phone ?? "090 123 4567"}</p>
-              <p>{storefront?.openingHours ?? "09:00 - 20:30 (tất cả các ngày)"}</p>
+              <p>{storefront?.phone ?? "091 608 3098"}</p>
+              <p>{storefront?.openingHours ?? "09:00 - 21:00 (tất cả các ngày)"}</p>
             </div>
 
             <div className="landing-showcase__footer-social">

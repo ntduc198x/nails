@@ -2870,6 +2870,66 @@ img {
   animation: landingShowcaseDotSlide 4.2s linear forwards;
 }
 
+.landing-showcase__mobile-carousel {
+  display: none;
+}
+
+.landing-showcase__mobile-carousel-track {
+  display: flex;
+  gap: 0;
+  transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.landing-showcase__mobile-carousel-slide {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.landing-showcase__mobile-carousel-slide > * {
+  min-width: 0;
+}
+
+.landing-showcase__mobile-carousel-dots {
+  display: none;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.landing-showcase__mobile-carousel-dots button {
+  position: relative;
+  width: 10px;
+  height: 8px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(183, 135, 66, 0.24);
+  cursor: pointer;
+  overflow: hidden;
+  transition: width 280ms ease, background 280ms ease, transform 280ms ease;
+}
+
+.landing-showcase__mobile-carousel-dots button::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #c39552 0%, #a97533 100%);
+}
+
+.landing-showcase__mobile-carousel-dots .is-active {
+  width: 34px;
+  background: rgba(183, 135, 66, 0.18);
+  transform: translateY(-1px);
+}
+
+.landing-showcase__mobile-carousel-dots .is-active::after {
+  width: 100%;
+}
+
 @keyframes landingShowcaseDotSlide {
   from {
     width: 0;
@@ -2911,6 +2971,9 @@ img {
 
 .landing-showcase__service-body {
   padding: 16px 16px 18px;
+  display: flex;
+  flex-direction: column;
+  min-height: 168px;
 }
 
 .landing-showcase__service-body h3,
@@ -2978,6 +3041,9 @@ img {
 
 .landing-showcase__story-card-body {
   padding: 18px 18px 20px;
+  display: flex;
+  flex-direction: column;
+  min-height: 188px;
 }
 
 .landing-showcase__story-card-body span {
@@ -3074,6 +3140,7 @@ img {
 .landing-showcase-product__body {
   padding: 14px 16px 16px;
   text-align: center;
+  min-height: 116px;
 }
 
 .landing-showcase-product__body h4 {
@@ -3557,10 +3624,11 @@ img {
 
   .landing-showcase__topbar-inner {
     width: min(100%, calc(100% - 28px));
-    grid-template-columns: 1fr;
-    justify-items: center;
+    grid-template-columns: auto 1fr auto;
+    justify-items: stretch;
     padding-left: 0;
     padding-right: 0;
+    gap: 18px;
   }
 
   .landing-showcase__hero,
@@ -3598,31 +3666,261 @@ img {
   }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 900px) {
+  .landing-showcase {
+    padding-top: 58px;
+  }
+
+  .landing-showcase__topbar {
+    background: rgba(255, 252, 248, 0.96);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 6px 14px rgba(83, 56, 27, 0.04);
+  }
+
+  .landing-showcase__topbar-inner {
+    width: min(100%, calc(100% - 20px));
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 10px;
+    padding: 6px 0 5px;
+    align-items: start;
+  }
+
+  .landing-showcase__brand {
+    min-width: 0;
+    gap: 0;
+  }
+
+  .landing-showcase__brand-name {
+    font-size: 20px;
+    line-height: 0.92;
+  }
+
+  .landing-showcase__brand-sub {
+    display: none;
+  }
+
   .landing-showcase__nav {
+    display: flex;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    gap: 5px;
+    overflow-x: auto;
+    padding: 0 0 1px;
+    scrollbar-width: none;
+  }
+
+  .landing-showcase__nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .landing-showcase__nav a {
+    flex: 0 0 auto;
+    min-height: 24px;
+    padding: 0 9px;
+    border-radius: 999px;
+    border: 1px solid rgba(184, 143, 79, 0.16);
+    background: rgba(255, 255, 255, 0.84);
+    box-shadow: 0 8px 16px rgba(91, 63, 30, 0.05);
+    color: #6f665e;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    display: inline-flex;
+    align-items: center;
+    text-transform: uppercase;
+  }
+
+  .landing-showcase__topbar-actions {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+  }
+
+  .landing-showcase__login,
+  .landing-showcase__account-chip {
+    min-height: 28px;
+    border-radius: 9px;
+  }
+
+  .landing-showcase__login {
+    padding: 0 8px;
+    font-size: 8px;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  .landing-showcase__account-chip {
+    gap: 6px;
+    padding: 2px 7px 2px 4px;
+    box-shadow: 0 8px 18px rgba(91, 63, 30, 0.06);
+  }
+
+  .landing-showcase__account-avatar {
+    width: 20px;
+    height: 20px;
+    border-radius: 8px;
+    font-size: 8px;
+  }
+
+  .landing-showcase__account-label {
+    font-size: 9px;
+    letter-spacing: 0.01em;
+  }
+
+  .landing-showcase__signals {
+    display: none;
+  }
+
+  .landing-showcase__services-carousel--desktop,
+  .landing-showcase__stories-grid--desktop,
+  .landing-showcase__products-grid--desktop,
+  .landing-showcase__testimonials-grid--desktop,
+  .landing-showcase__services-dots--desktop,
+  .landing-showcase__dots--desktop {
+    display: none;
+  }
+
+  .landing-showcase__mobile-carousel {
+    display: block;
+    overflow: hidden;
+  }
+
+  .landing-showcase__mobile-carousel-dots {
+    display: flex;
+  }
+
+  .landing-showcase__mobile-carousel-slide {
     gap: 14px;
+  }
+
+  .landing-showcase__service-card,
+  .landing-showcase__story-card,
+  .landing-showcase-product,
+  .landing-showcase__testimonial {
+    border-radius: 18px;
+  }
+
+  .landing-showcase__service-image {
+    height: 136px;
+  }
+
+  .landing-showcase__service-image span {
+    left: 9px;
+    top: 9px;
+    padding: 4px 7px;
+    font-size: 8px;
+  }
+
+  .landing-showcase__service-body {
+    padding: 12px 12px 14px;
+    min-height: 150px;
+  }
+
+  .landing-showcase__service-body h3,
+  .landing-showcase__story-card-body h3,
+  .landing-showcase-product h4 {
+    font-size: 18px;
+    margin-bottom: 6px;
+  }
+
+  .landing-showcase__service-body p,
+  .landing-showcase__story-card-body p {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-height: 1.65;
+    font-size: 12px;
+  }
+
+  .landing-showcase__service-footer {
+    margin-top: auto;
+    gap: 8px;
+    align-items: flex-end;
+  }
+
+  .landing-showcase__service-footer strong,
+  .landing-showcase-product__body strong {
+    font-size: 14px;
+  }
+
+  .landing-showcase__service-footer button {
+    min-height: 32px;
+    padding: 0 10px;
+    font-size: 9px;
+  }
+
+  .landing-showcase__story-card img {
+    height: 152px;
+  }
+
+  .landing-showcase__story-card-body {
+    padding: 12px 12px 14px;
+    min-height: 154px;
+  }
+
+  .landing-showcase__story-card-body span,
+  .landing-showcase__story-card-body strong {
+    font-size: 10px;
+  }
+
+  .landing-showcase-product img {
+    height: 168px;
+  }
+
+  .landing-showcase-product__body {
+    padding: 12px 12px 14px;
+    min-height: 100px;
+  }
+
+  .landing-showcase-product__body h4 {
+    font-size: 16px;
+    margin-bottom: 8px;
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .landing-showcase__testimonial {
+    padding: 16px 14px;
+    min-height: 168px;
+  }
+
+  .landing-showcase__testimonial p {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+}
+
+@media (max-width: 720px) {
+  .landing-showcase {
+    padding-top: 54px;
+  }
+
+  .landing-showcase__topbar-inner {
+    padding: 5px 0 4px;
   }
 
   .landing-showcase__hero,
   .landing-showcase__section,
-  .landing-showcase__signals,
   .landing-showcase__footer {
     width: min(100%, calc(100% - 20px));
   }
 
   .landing-showcase__hero {
     gap: 20px;
-    padding-top: 18px;
-  }
-
-  .landing-showcase__services-grid--slider {
-    width: 100%;
-    transform: none !important;
-    grid-template-columns: 1fr;
-  }
-
-  .landing-showcase__services-dots {
-    display: none;
+    padding-top: 6px;
   }
 
   .landing-showcase__hero-copy {
@@ -3643,11 +3941,6 @@ img {
     padding-left: 20px;
   }
 
-  .landing-showcase__signals,
-  .landing-showcase__services-grid,
-  .landing-showcase__products-grid,
-  .landing-showcase__stories-grid,
-  .landing-showcase__testimonials-grid,
   .landing-showcase__booking-grid {
     grid-template-columns: 1fr;
   }
@@ -3667,16 +3960,83 @@ img {
   }
 
   .landing-showcase__section-heading--split,
-  .landing-showcase__topbar-actions,
   .landing-showcase__hero-actions,
   .landing-showcase__about-actions {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .landing-showcase__signal {
-    grid-template-columns: 34px 1fr;
-    padding: 8px 0;
+  .landing-showcase__topbar-actions {
+    gap: 5px;
+  }
+
+  .landing-showcase__nav a {
+    min-height: 22px;
+    padding: 0 8px;
+    font-size: 8px;
+  }
+
+  .landing-showcase__login,
+  .landing-showcase__account-chip {
+    min-height: 26px;
+  }
+
+  .landing-showcase__login {
+    padding: 0 7px;
+    font-size: 7px;
+    letter-spacing: 0.01em;
+  }
+
+  .landing-showcase__account-chip {
+    gap: 4px;
+    padding: 2px 6px 2px 4px;
+  }
+
+  .landing-showcase__account-avatar {
+    width: 18px;
+    height: 18px;
+    font-size: 7px;
+  }
+
+  .landing-showcase__account-label {
+    font-size: 8px;
+    letter-spacing: 0;
+  }
+
+  .landing-showcase__service-image {
+    height: 124px;
+  }
+
+  .landing-showcase__service-body {
+    min-height: 144px;
+    padding: 11px 10px 12px;
+  }
+
+  .landing-showcase__story-card img {
+    height: 140px;
+  }
+
+  .landing-showcase__story-card-body {
+    min-height: 148px;
+    padding: 11px 10px 12px;
+  }
+
+  .landing-showcase-product img {
+    height: 154px;
+  }
+
+  .landing-showcase-product__body {
+    min-height: 94px;
+    padding: 10px;
+  }
+
+  .landing-showcase__testimonial {
+    min-height: 154px;
+    padding: 14px 12px;
+  }
+
+  .landing-showcase__mobile-carousel-slide {
+    gap: 12px;
   }
 
   .landing-showcase__story-visual {
@@ -3698,6 +4058,23 @@ img {
     align-items: flex-start;
   }
 
+  .landing-showcase__footer-links {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+  }
+
+  .landing-showcase__footer-links h4 {
+    width: 100%;
+    margin-bottom: 6px;
+  }
+
+  .landing-showcase__footer-links a {
+    margin-bottom: 0;
+    white-space: nowrap;
+  }
+
   .landing-showcase__booking .manage-picker-block .pk-dropdown {
     left: 0;
     right: 0;
@@ -3705,6 +4082,57 @@ img {
 
   .landing-showcase__booking .manage-picker-block .grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 420px) {
+  .landing-showcase {
+    padding-top: 50px;
+  }
+
+  .landing-showcase__topbar-inner {
+    padding: 4px 0 3px;
+  }
+
+  .landing-showcase__brand-name {
+    font-size: 18px;
+  }
+
+  .landing-showcase__login {
+    min-height: 24px;
+    padding: 0 6px;
+    font-size: 7px;
+  }
+
+  .landing-showcase__account-chip {
+    min-height: 24px;
+    padding: 2px 5px 2px 3px;
+  }
+
+  .landing-showcase__account-label {
+    display: none;
+  }
+
+  .landing-showcase__nav a {
+    min-height: 20px;
+    padding: 0 7px;
+    font-size: 7px;
+  }
+
+  .landing-showcase__mobile-carousel-slide {
+    gap: 10px;
+  }
+
+  .landing-showcase__service-body h3,
+  .landing-showcase__story-card-body h3,
+  .landing-showcase-product h4 {
+    font-size: 16px;
+  }
+
+  .landing-showcase__service-body p,
+  .landing-showcase__story-card-body p,
+  .landing-showcase__testimonial p {
+    font-size: 11px;
   }
 }
 

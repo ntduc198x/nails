@@ -27,6 +27,10 @@ function formatDate(date: Date) {
   return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
 }
 
+function sameDayValue(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
 function getRelativeDay(date: Date, today: Date) {
   const compareDate = new Date(date);
   compareDate.setHours(0, 0, 0, 0);
@@ -68,6 +72,7 @@ export function ManageDateTimePicker({
     now.setHours(0, 0, 0, 0);
     return now;
   }, []);
+  const currentDateTime = useMemo(() => new Date(), []);
 
   const initial = parseDateTimeLocal(value) ?? new Date();
   const [selectedDate, setSelectedDate] = useState<Date | null>(parseDateTimeLocal(value));
@@ -113,15 +118,27 @@ export function ManageDateTimePicker({
     const [hours, minutes] = time.split(":").map(Number);
     const next = new Date(date);
     next.setHours(hours, minutes, 0, 0);
+    if (next.getTime() <= currentDateTime.getTime()) return;
     onChange(toDateTimeLocalValue(next));
   };
 
   const pickDate = (date: Date) => {
+    const nextSelectedTime =
+      selectedTime && sameDayValue(date, currentDateTime)
+        ? (() => {
+            const [hours, minutes] = selectedTime.split(":").map(Number);
+            const next = new Date(date);
+            next.setHours(hours, minutes, 0, 0);
+            return next.getTime() > currentDateTime.getTime() ? selectedTime : null;
+          })()
+        : selectedTime;
+
     setSelectedDate(date);
+    setSelectedTime(nextSelectedTime);
     setViewMonth(date.getMonth());
     setViewYear(date.getFullYear());
     setDateOpen(false);
-    emit(date, selectedTime);
+    emit(date, nextSelectedTime);
   };
 
   const pickTime = (time: string) => {
@@ -294,7 +311,18 @@ export function ManageDateTimePicker({
             <div className={`pk-dropdown ${timeOpen ? "open" : ""}`} onClick={(e) => e.stopPropagation()}>
               <div className="pk-time-grid">
                 {TIME_SLOTS.map((slot) => (
-                  <button key={slot} type="button" className={`pk-time-slot cursor-pointer ${selectedTime === slot ? "selected" : ""}`} onClick={() => pickTime(slot)}>
+                  <button
+                    key={slot}
+                    type="button"
+                    className={`pk-time-slot cursor-pointer ${selectedTime === slot ? "selected" : ""}`}
+                    disabled={!!selectedDate && sameDayValue(selectedDate, currentDateTime) && (() => {
+                      const [hours, minutes] = slot.split(":").map(Number);
+                      const next = new Date(selectedDate);
+                      next.setHours(hours, minutes, 0, 0);
+                      return next.getTime() <= currentDateTime.getTime();
+                    })()}
+                    onClick={() => pickTime(slot)}
+                  >
                     {slot}
                   </button>
                 ))}
